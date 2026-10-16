@@ -93,7 +93,12 @@ class RankingScorer:
 
     @staticmethod
     def should_retry_in_chunks(exc: Exception) -> bool:
-        if failure_details(exc).get("attempts"):
+        details = failure_details(exc)
+        if str(details.get("error_type") or "").endswith("Timeout") or getattr(exc, "code", "") == "provider_timeout":
+            # A slow local model is exactly what a smaller batch fixes, so completed
+            # request retries must not disable the chunk split.
+            return True
+        if details.get("attempts"):
             return False  # Request retries are complete; splitting would multiply them.
         text = str(exc or "").casefold()
         if "429" in text or "rate_limit" in text or "too many requests" in text:

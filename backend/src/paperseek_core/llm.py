@@ -6,10 +6,18 @@ from typing import Any
 import httpx
 
 from paperseek_core.key_pool import ApiKeyPool
-from paperseek_core.http_retry import MODEL_ATTEMPTS
-from paperseek_core.model_http import bearer_headers, post_model_json
+from paperseek_core.http_retry import LOCAL_MODEL_ATTEMPTS, MODEL_ATTEMPTS, failure_details
+from paperseek_core.model_http import (
+    bearer_headers,
+    is_local_model_endpoint,
+    is_local_model_provider,
+    post_model_json,
+)
 from paperseek_core.errors import LLMRequestError
 from paperseek_core.ports import CancellationToken
+
+# A warm-up only loads a local model; it must never inherit the long generation budget.
+WARMUP_TIMEOUT = httpx.Timeout(300.0, connect=10.0)
 
 
 class HttpLLMAdapter:
@@ -22,6 +30,7 @@ class HttpLLMAdapter:
         base_url: str,
         model: str,
         api_key: str,
+        provider: str = "",
     ) -> None:
         self.client = client
         self.cancellation = cancellation
@@ -29,6 +38,26 @@ class HttpLLMAdapter:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_keys = ApiKeyPool(api_key)
+        self.provider = str(provider or "").strip().lower()
+        # A local runtime loads a model on first use and ignores hosted-provider flags.
+        self.is_local = is_local_model_endpoint(self.provider, self.base_url)
+        # Only an explicitly local provider shortens the retry budget: an unknown
+        # provider reached over loopback may still be a shared compatible server.
+        self.attempts = LOCAL_MODEL_ATTEMPTS if is_local_model_provider(self.provider) else MODEL_ATTEMPTS
+
+    async def warmup(self) -> None:
+        """Load a locally served model before the first scored call has to wait for it."""
+        if not self.is_local or self.api_type != "openai_chat":
+            return
+        body = {"model": self.model, "messages": [{"role": "user", "content": "OK"}], "max_tokens": 1}
+        await self._post(
+            f"{self.base_url}/chat/completions",
+            body,
+            bearer_headers,
+            attempt_keys=self.api_keys.attempts(1),
+            attempts=1,
+            timeout=WARMUP_TIMEOUT,
+        )
 
     async def chat_json(
         self,
@@ -159,22 +188,39 @@ class HttpLLMAdapter:
         *,
         allow_status: set[int] | None = None,
         attempt_keys: tuple[str, ...] | None = None,
+        attempts: int | None = None,
+        timeout: httpx.Timeout | None = None,
     ) -> tuple[httpx.Response, str]:
+        budget = attempts or self.attempts
         if not self.api_keys.available and not url.startswith(("http://127.0.0.1", "http://localhost")):
             raise LLMRequestError("The configured LLM credential is unavailable.", code="provider_authentication_failed")
         try:
             response, used_key = await post_model_json(
                 self.client, self.cancellation, url, body,
-                attempt_keys or self.api_keys.attempts(MODEL_ATTEMPTS), headers,
+                attempt_keys or self.api_keys.attempts(budget), headers,
+                attempts=budget, timeout=timeout,
             )
+        except httpx.TimeoutException as exc:
+            raise self._transport_failure(
+                "The LLM endpoint did not answer in time.", "provider_timeout", exc
+            ) from exc
         except httpx.RequestError as exc:
-            raise LLMRequestError("The LLM endpoint could not be reached.", code="provider_connection_failed") from exc
+            raise self._transport_failure(
+                "The LLM endpoint could not be reached.", "provider_connection_failed", exc
+            ) from exc
         if response.status_code in (allow_status or set()) or 200 <= response.status_code < 300:
             return response, used_key
         error = LLMRequestError(f"The LLM endpoint returned HTTP {response.status_code}.",
                                 code=self._response_error_code(response))
         error.retry_details = response.extensions["paperseek_retry"]
         raise error
+
+    @staticmethod
+    def _transport_failure(message: str, code: str, exc: httpx.RequestError) -> LLMRequestError:
+        """Keep the bounded-retry facts so a reported failure stays diagnosable."""
+        error = LLMRequestError(message, code=code)
+        error.retry_details = failure_details(exc)
+        return error
 
     @staticmethod
     def _anthropic_headers(api_key: str) -> dict[str, str]:
@@ -217,6 +263,11 @@ class HttpLLMAdapter:
         model = self.model.rsplit("/", 1)[-1].lower()
         if self.api_type != "openai_chat":
             return {}
+        if self.is_local:
+            # Ollama and other local runtimes honour reasoning_effort and ignore the
+            # provider-specific flags below, so a thinking-by-default local model would
+            # otherwise spend its whole budget on a trace no JSON call can use.
+            return {"reasoning_effort": "none"}
         if model == "nemotron-3-super-120b-a12b":
             return {"chat_template_kwargs": {"enable_thinking": False}}
         if "api.deepseek.com" in self.base_url and model.startswith("deepseek-"):

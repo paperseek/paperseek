@@ -16,15 +16,18 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import patch
 
 import httpx
 
 from paperseek_core.errors import LLMRequestError
 from paperseek_core.execution import NEVER_CANCELLED
 from paperseek_core.final_result import FinalResultAssembler
+from paperseek_core.http_retry import failure_details
 from paperseek_core.llm import HttpLLMAdapter
 from paperseek_core.models import FinalPaperResult, PaperRecord
 from paperseek_core.ranking import RankingPipeline, RankingRequest
+from paperseek_core.ranking_scoring import RankingScorer
 
 
 def _adapter(handler) -> HttpLLMAdapter:
@@ -97,7 +100,7 @@ class TestJsonFinalContentExtraction(unittest.IsolatedAsyncioTestCase):
 
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
-        async def call(base_url: str, model: str) -> None:
+        async def call(base_url: str, model: str, provider: str = "") -> None:
             adapter = HttpLLMAdapter(
                 client=client,
                 cancellation=NEVER_CANCELLED,
@@ -105,6 +108,7 @@ class TestJsonFinalContentExtraction(unittest.IsolatedAsyncioTestCase):
                 base_url=base_url,
                 model=model,
                 api_key="fixture-key",
+                provider=provider,
             )
             await adapter.chat_json([{"role": "user", "content": "score"}])
 
@@ -127,6 +131,27 @@ class TestJsonFinalContentExtraction(unittest.IsolatedAsyncioTestCase):
 
         await call("https://integrate.api.nvidia.com/v1", "nvidia/nemotron-3-super-120b-a12b")
         self.assertEqual(bodies[5].get("chat_template_kwargs"), {"enable_thinking": False})
+
+        # A thinking-by-default local model spends its whole budget on a trace no JSON
+        # call can use, so a loopback or Ollama route always disables that trace.
+        await call("http://127.0.0.1:11434/v1", "gemma4:12b-it-qat")
+        self.assertEqual(bodies[6].get("reasoning_effort"), "none")
+
+        await call("http://ollama.internal:11434/v1", "gemma4:12b-it-qat", provider="ollama")
+        self.assertEqual(bodies[7].get("reasoning_effort"), "none")
+        self.assertIn("response_format", bodies[7])
+
+    async def test_transport_timeout_is_classified_with_safe_retry_details(self) -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("fixture timeout", request=request)
+
+        with patch("paperseek_core.http_retry.retry_delay", return_value=0):
+            with self.assertRaises(LLMRequestError) as raised:
+                await _adapter(handler).chat_json([{"role": "user", "content": "score"}])
+        self.assertEqual(raised.exception.code, "provider_timeout")
+        details = failure_details(raised.exception)
+        self.assertEqual(details["error_type"], "ReadTimeout")
+        self.assertEqual(details["attempts"], 5)
 
     async def test_rejected_thinking_control_is_dropped_on_retry(self) -> None:
         bodies: list[dict] = []
@@ -196,6 +221,21 @@ _PROVIDER_FAILURE = LLMRequestError(
 
 
 class TestRankingScoreValidity(unittest.IsolatedAsyncioTestCase):
+    async def test_timed_out_reasons_are_retried_in_smaller_chunks(self) -> None:
+        documents = _documents(4)
+        timeout = LLMRequestError("The LLM endpoint did not answer in time.", code="provider_timeout")
+        timeout.retry_details = {"error_type": "ReadTimeout", "attempts": 2, "retryable": True}
+        reasons = json.dumps({"reasons": [[1, "r1"], [2, "r2"], [3, "r3"], [4, "r4"]]})
+        scorer = RankingScorer(_ScriptedLLM(timeout, reasons))
+        scores = [{"uid": document.uid, "score": 8.0} for document in documents]
+
+        output = await scorer.attach_reasons("fixture question", documents, scores, "{}")
+
+        # A smaller batch is exactly what a slow local model fixes, so the run keeps the
+        # reasons of the retried batch instead of losing every reason to one timeout.
+        self.assertEqual([item["reasoning"] for item in output], ["r1", "r2", "r3", "r4"])
+        self.assertEqual(scorer.missing_reason_count, 0)
+
     async def test_all_batches_failed_keeps_every_paper_unscored(self) -> None:
         documents = _documents(4)
         observer = _RecordingObserver()

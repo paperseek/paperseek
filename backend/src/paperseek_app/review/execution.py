@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from paperseek_app.errors import RunOwnershipLost, RunPersistenceError, RunStateError
-from paperseek_app.execution import CancellationScope, run_blocking
+from paperseek_app.execution import CancellationScope, run_blocking, warm_up_model
 from paperseek_app.leased_task import run_leased_task
 from paperseek_app.models import LeaseToken, PendingEvent, RunDetail, RunStatus
 from paperseek_app.review.models import ReviewError
@@ -25,6 +25,7 @@ class ReviewExecution:
     route: dict
     deadline_at: float | None = None
     close: Callable[[], Awaitable[None]] | None = None
+    warmup: Callable[[], Awaitable[None]] | None = None
 
 
 class ReviewExecutor:
@@ -48,6 +49,7 @@ class ReviewExecutor:
 
             async def perform() -> None:
                 async with asyncio.timeout_at(execution.deadline_at):
+                    await warm_up_model(execution.warmup)
                     await workflow.run()
 
             await run_leased_task(perform(), uow=self.runs.uow, lease=lease, scope=scope,

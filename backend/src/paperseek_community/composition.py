@@ -90,6 +90,7 @@ class CommunityExecutionResolver:
             base_url=route["base_url"],
             model=route["model"],
             api_key=model_keys["llm"],
+            provider=route["provider"],
         )
         embedding_route = dict(retrieval.get("embedding") or {})
         reranker_route = dict(retrieval.get("reranker") or {})
@@ -143,6 +144,7 @@ class CommunityExecutionResolver:
                 citation_depth=preset.citation_depth,
             ),
             close=client.aclose,
+            warmup=llm.warmup,
             deadline_at=deadline_at,
         )
 

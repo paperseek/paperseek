@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from paperseek_app.execution import CancellationScope
+from paperseek_app.execution import CancellationScope, warm_up_model
 from paperseek_community.composition import CommunityExecutionResolver
 from paperseek_community.diagnostics import run_configuration_diagnostics
 from paperseek_community.settings import CommunityDeploymentSettings
@@ -252,6 +252,38 @@ class ArchitectureCleanupContract(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn("authorization", server.requests[0]["headers"])
                 finally:
                     await execution.close()
+
+    async def test_local_execution_warms_the_model_up_and_never_fails_on_it(self):
+        async with ControlledAsyncHttpServer([200, 200]) as server:
+            resolver = CommunityExecutionResolver(
+                self.settings(), SimpleNamespace(resolve=lambda _: {})
+            )
+            execution = resolver(
+                SimpleNamespace(
+                    id="warmup",
+                    source="arxiv",
+                    question="test",
+                    config_snapshot={
+                        "llm": {"provider": "ollama", "base_url": server.base_url}
+                    },
+                    deadline_at=datetime.now(timezone.utc) + timedelta(minutes=1),
+                ),
+                CancellationScope(),
+            )
+            try:
+                self.assertIsNotNone(execution.warmup)
+                await warm_up_model(execution.warmup)
+                self.assertEqual(len(server.requests), 1)
+                self.assertEqual(server.requests[0]["body"]["max_tokens"], 1)
+            finally:
+                await execution.close()
+
+        async def failing() -> None:
+            raise RuntimeError("model load failed")
+
+        # A warm-up is an optimisation: the first real call reports the real failure.
+        await warm_up_model(failing)
+        await warm_up_model(None)
 
     async def test_source_key_rotation_survives_mixed_transient_and_auth_failures(self):
         calls = []

@@ -1,5 +1,6 @@
 """Shared connectivity checks with deployment-supplied clients and source adapters."""
 
+import os
 import time
 from collections.abc import Callable
 
@@ -7,12 +8,45 @@ import httpx
 
 from paperseek_core.decision_prompt import decision_question, decision_state
 from paperseek_core.execution import RequestContext
+from paperseek_core.model_http import is_local_model_endpoint
 from paperseek_core.models import PaperRecord
 from paperseek_core.ports import SourcePort
 from paperseek_core.sources import AsyncHttpTransport
 from paperseek_core.sources.contracts import SourceError, SourceSearchRequest
 
-PROBE_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
+# A local runtime loads its model on the first request, so a probe has to outlast the load.
+PROBE_TIMEOUT_SECONDS = 20.0
+LOCAL_PROBE_TIMEOUT_SECONDS = 120.0
+# Source probes keep one fixed budget: they are not model calls and never load a model.
+PROBE_TIMEOUT = httpx.Timeout(PROBE_TIMEOUT_SECONDS, connect=10.0)
+
+
+def _env_seconds(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def is_local_route(route: dict[str, str]) -> bool:
+    return is_local_model_endpoint(
+        str(route.get("provider") or ""), str(route.get("base_url") or "")
+    )
+
+
+def probe_timeout(route: dict[str, str]) -> httpx.Timeout:
+    """One probe timeout per route: a hosted API answers fast, a local model must load."""
+    return httpx.Timeout(
+        _env_seconds(
+            "PAPERSEEK_PROBE_TIMEOUT_SECONDS",
+            LOCAL_PROBE_TIMEOUT_SECONDS if is_local_route(route) else PROBE_TIMEOUT_SECONDS,
+        ),
+        connect=10.0,
+    )
 
 
 def _probe_code(exc: BaseException) -> str:
@@ -70,12 +104,22 @@ async def probe_connection(
             "questions": {"probe": decision_question(PaperRecord(uid="probe", title="Connectivity check"))},
         })]
     started = time.perf_counter()
+    timeout = probe_timeout(route)
+    attempts = 2 if is_local_route(route) else 1
     try:
         async with client_factory([route]) as client:
-            for index, (url, body) in enumerate(requests):
-                response = await client.post(url, json=body, headers=headers, timeout=PROBE_TIMEOUT)
-                if response.status_code not in {400, 422} or index == len(requests) - 1:
+            for attempt in range(attempts):
+                try:
+                    for index, (url, body) in enumerate(requests):
+                        response = await client.post(url, json=body, headers=headers, timeout=timeout)
+                        if response.status_code not in {400, 422} or index == len(requests) - 1:
+                            break
                     break
+                except httpx.TimeoutException:
+                    # The first request to a local runtime loads the model, so a timed-out
+                    # warm-up is retried once instead of reporting an unreachable endpoint.
+                    if attempt + 1 >= attempts:
+                        raise
     except Exception as exc:  # noqa: BLE001 - every failure is reported, never raised
         return {"ok": False, "latency_ms": int((time.perf_counter() - started) * 1000), "code": _probe_code(exc)}
     latency = int((time.perf_counter() - started) * 1000)

@@ -21,6 +21,22 @@ async def run_blocking[T](function: Callable[..., T], *args, **kwargs) -> T:
         raise
 
 
+async def warm_up_model(warmup: Callable[[], Awaitable[None]] | None) -> None:
+    """A cold local runtime pays for the model load on its very first request.
+
+    A failed warm-up is not a run failure: the first real request reports the real
+    error, and the deadline still has to end the run rather than be swallowed here.
+    """
+    if warmup is None:
+        return
+    try:
+        await warmup()
+    except TimeoutError:
+        raise
+    except Exception:  # noqa: BLE001 - the first real model call reports the real failure
+        return
+
+
 class CancellationScope:
     def __init__(self) -> None:
         self._event = asyncio.Event()
@@ -49,10 +65,12 @@ class WorkflowExecution:
     reranker: RerankPort | None = None
     decision: DecisionPort | None = None
     close: Callable[[], Awaitable[None]] | None = None
+    warmup: Callable[[], Awaitable[None]] | None = None
     deadline_at: float | None = None
 
     async def run(self, observer: WorkflowObserver, cancellation: CancellationToken):
         async with asyncio.timeout_at(self.deadline_at):
+            await warm_up_model(self.warmup)
             return await ResearchWorkflow(
                 llm=self.llm, source=self.source, observer=observer,
                 embedding=self.embedding,
@@ -63,4 +81,4 @@ class WorkflowExecution:
 assert isinstance(CancellationScope(), CancellationToken)
 
 
-__all__ = ["CancellationScope", "WorkflowExecution"]
+__all__ = ["CancellationScope", "WorkflowExecution", "warm_up_model"]

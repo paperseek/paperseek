@@ -11,6 +11,7 @@ Find your symptom in the index, check the likely cause, then follow the link to 
 | HTTP 404 | Wrong base URL, protocol, route, or model | [HTTP errors](#http-401-403-404-or-429) |
 | HTTP 429 | Provider rate limit or insufficient credit | [HTTP errors](#http-401-403-404-or-429) |
 | Connection error / timeout | Network reachability or provider availability | [HTTP errors](#http-401-403-404-or-429) |
+| Timed out on a local model, or a run fails right after loading it | Local runtime loading the model, or a thinking model out of output | [A local model times out](#a-local-model-times-out) |
 | Your endpoint is rejected online | Non-public address (localhost, private network) | [My endpoint is rejected online](#my-endpoint-is-rejected-online) |
 | No results, missing abstracts, or counts differ | Over-restrictive query or gaps in the source record | [No results](#no-results-missing-abstracts-or-different-counts) |
 | The citation map is empty | Source without expansion, or no links within budget | [The citation map is empty](#the-citation-map-is-empty) |
@@ -50,6 +51,14 @@ Check that the run used a supported citation-expansion source and that expansion
 A 404 displayed during an OpenAlex run does not by itself prove that OpenAlex returned it: model requests and application routes also occur during the task. Record the stage, safe error code, task ID, and time.
 
 PaperSeek Service credits and an upstream provider's balance are different. Increasing one does not change the other.
+
+### A local model times out
+
+A local runtime such as Ollama loads the model into memory on its first request. That load is not a failure: it only means the first call takes longer than a hosted API call. PaperSeek already waits longer for a local route, and the run warms the model up before the first real prompt, but a model that is too large for the available memory still stalls.
+
+If the **connection test** reports a timeout, re-run it: the load triggered by the first attempt is still in progress. If it keeps timing out, load the model once outside PaperSeek (`ollama run <model>`), then test again.
+
+If a **run fails** with a truncation or an empty answer from a thinking model, the model spent its whole output budget on a reasoning trace instead of the JSON answer. Choose a non-thinking model, or a smaller one. See [Models](../guide/models.md).
 
 ### My endpoint is rejected online
 

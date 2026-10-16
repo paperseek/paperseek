@@ -8,12 +8,13 @@ from unittest.mock import patch
 import httpx
 
 from paperseek_app.execution import CancellationScope
+from paperseek_core.errors import LLMRequestError
+from paperseek_core.http_retry import failure_details
 from paperseek_core.llm import HttpLLMAdapter
 from paperseek_core.retrieval_clients import (
     ExternalEmbeddingAdapter,
     ExternalRerankerAdapter,
 )
-from paperseek_core.errors import LLMRequestError
 from paperseek_core.models import PaperRecord
 from paperseek_core.sources.contracts import SourceSearchRequest
 from paperseek_core.sources.google_scholar import GoogleScholarSource
@@ -184,6 +185,7 @@ class M4KeyPoolRetryContract(IsolatedAsyncioTestCase):
         api_type: str = "openai_responses",
         keys: str = "key-a,key-b,key-c,key-d",
         cancellation: CancellationScope | None = None,
+        provider: str = "",
     ) -> tuple[HttpLLMAdapter, httpx.AsyncClient]:
         client = httpx.AsyncClient(trust_env=False)
         return HttpLLMAdapter(
@@ -193,7 +195,20 @@ class M4KeyPoolRetryContract(IsolatedAsyncioTestCase):
             base_url=server.base_url,
             model="controlled-model",
             api_key=keys,
+            provider=provider,
         ), client
+
+    async def test_explicitly_local_provider_shortens_the_retry_budget(self) -> None:
+        async with ControlledAsyncHttpServer(["disconnect", "disconnect"]) as server:
+            adapter, client = await self._llm(server, api_type="openai_chat", provider="ollama")
+            try:
+                with self.assertRaises(LLMRequestError) as caught:
+                    await adapter.chat_json([{"role": "user", "content": "Return JSON."}])
+            finally:
+                await client.aclose()
+        self.assertEqual(caught.exception.code, "provider_connection_failed")
+        self.assertEqual(failure_details(caught.exception).get("attempts"), 2)
+        self.assertEqual(len(server.requests), 2)
 
     async def test_llm_pool_splits_deduplicates_and_rotates_each_request(self) -> None:
         async with ControlledAsyncHttpServer([200, 200, 200]) as server:

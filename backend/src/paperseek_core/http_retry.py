@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 TRANSIENT_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504, 529})
 MODEL_ATTEMPTS = 5
+# A local runtime re-sends the same slow request, so retrying it only spends the run deadline.
+LOCAL_MODEL_ATTEMPTS = 2
 MAX_RETRY_WAIT = 60.0
 _QUOTA_CODES = {
     "insufficient_quota",
