@@ -10,6 +10,7 @@ from paperseek_community.api_routes.run_artifacts import register_run_artifact_r
 from paperseek_community.api_routes.run_events import register_run_event_routes
 from paperseek_community.api_routes.run_lifecycle import (
     register_run_cancellation_route,
+    register_run_retry_route,
     register_run_submission_and_status_routes,
 )
 from paperseek_community.api_routes.run_results import register_run_result_routes
@@ -44,3 +45,12 @@ def register_run_routes(
     register_run_result_routes(app, database=database)
     register_run_artifact_routes(app, database=database)
     register_run_cancellation_route(app, database=database)
+    register_run_retry_route(
+        app,
+        database=database,
+        settings=settings,
+        credentials=credentials,
+        workspace=workspace,
+        execution_resolver=execution_resolver,
+        accept_submissions_without_worker=accept_submissions_without_worker,
+    )

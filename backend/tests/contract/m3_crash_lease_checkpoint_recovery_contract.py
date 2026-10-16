@@ -12,10 +12,22 @@ import time
 import unittest
 from unittest.mock import patch
 
-from paperseek_app.errors import RunOwnershipLost, RunPersistenceError, RunStateError
+from paperseek_app.errors import (
+    RunNotFound,
+    RunOwnershipLost,
+    RunPersistenceError,
+    RunStateError,
+    UnknownRunStep,
+)
 from paperseek_app.execution import WorkflowExecution, run_blocking
 from paperseek_app.models import PendingEvent, RunStatus
-from paperseek_app.services import RunExecutionService, RunQueryService, RunSubmissionService
+from paperseek_app.run_steps import RETRY_STEPS, invalidated_checkpoints
+from paperseek_app.services import (
+    RunExecutionService,
+    RunQueryService,
+    RunRetryService,
+    RunSubmissionService,
+)
 from paperseek_community.artifacts import FileArtifactStore
 from paperseek_community.credentials import EncryptedRunCredentialStore
 from paperseek_community.fixed_source import FixedLLMAdapter, FixedSourceAdapter
@@ -94,6 +106,7 @@ class M3CrashLeaseCheckpointRecoveryContractTest(unittest.IsolatedAsyncioTestCas
         self.submission_service = RunSubmissionService(self.uow)
         self.execution_service = RunExecutionService(self.uow, store)
         self.query_service = RunQueryService(self.uow, store)
+        self.retry_service = RunRetryService(self.uow, store)
 
     async def asyncTearDown(self) -> None:
         self.uow.close()
@@ -722,6 +735,272 @@ class M3CrashLeaseCheckpointRecoveryContractTest(unittest.IsolatedAsyncioTestCas
         deadline = self.query_service.get_run(deadline_run.id)
         self.assertEqual(deadline.status, RunStatus.FAILED)
         self.assertEqual(deadline.error_code, "run_deadline_exceeded")
+
+
+class M3StepRetryContractTest(unittest.IsolatedAsyncioTestCase):
+    """Retry a single pipeline step of a finished run."""
+
+    async def asyncSetUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.data_dir = Path(self.temp.name)
+        self.database = self.data_dir / "paperseek.db"
+        self.fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        self.clock = MutableClock()
+        migrate_database(self.database)
+        self.uow = SQLiteRunUnitOfWork(self.database, clock=self.clock)
+        store = FileArtifactStore(self.data_dir)
+        self.submission_service = RunSubmissionService(self.uow)
+        self.execution_service = RunExecutionService(self.uow, store)
+        self.query_service = RunQueryService(self.uow, store)
+        self.retry_service = RunRetryService(self.uow, store)
+
+    async def asyncTearDown(self) -> None:
+        self.uow.close()
+        self.temp.cleanup()
+
+    def _request(self) -> ResearchWorkflowRequest:
+        return ResearchWorkflowRequest(
+            question=self.fixture["question"],
+            query_budget=QueryLoopBudget(
+                target_min=1,
+                target_max=50,
+                retrieval_pool_min=1,
+                query_portfolio_enabled=False,
+            ),
+            citation_enabled=False,
+        )
+
+    def _create(self, *, deadline_seconds: int = 3600):
+        return self.submission_service.create_run(
+            self.fixture["question"],
+            self.fixture["source"],
+            {"fixture_id": self.fixture["fixture_id"]},
+            deadline_seconds=deadline_seconds,
+        )
+
+    async def _run_to_terminal(
+        self,
+        owner_id: str,
+        responses: list[str] | None = None,
+    ):
+        source = TrackingSource()
+        detail = await RunExecutor(
+            self.execution_service,
+            lambda *_: WorkflowExecution(
+                llm=FixedLLMAdapter(
+                    self.fixture["llm_responses"] if responses is None else responses
+                ),
+                source=source,
+                request=self._request(),
+            ),
+            owner_id=owner_id,
+        ).run_once()
+        return detail, source
+
+    def test_retry_boundaries_follow_the_pipeline_order(self) -> None:
+        self.assertEqual(
+            RETRY_STEPS,
+            ("query", "retrieval", "citation", "selection", "ranking", "results"),
+        )
+        self.assertEqual(invalidated_checkpoints("results"), ("assemble_final_result",))
+        self.assertEqual(
+            invalidated_checkpoints("citation"),
+            (
+                "expand_citations",
+                "select_candidates",
+                "selection.",
+                "rank_results.",
+                "assemble_final_result",
+            ),
+        )
+        self.assertEqual(invalidated_checkpoints("query")[0], "query.")
+        with self.assertRaises(UnknownRunStep):
+            invalidated_checkpoints("teleport")
+
+    async def test_step_retry_keeps_upstream_work_and_reexecutes_downstream(self) -> None:
+        run = self._create()
+        completed, _ = await self._run_to_terminal("first-worker")
+        self.assertEqual(completed.id, run.id)
+        self.assertEqual(completed.status, RunStatus.COMPLETED)
+        self.assertEqual(completed.result_count, 1)
+
+        invalidated = [
+            checkpoint
+            for checkpoint in self.uow.list_checkpoints(run.id)
+            if checkpoint.step_key.startswith("rank_results.")
+            or checkpoint.step_key == "assemble_final_result"
+        ]
+        self.assertTrue(invalidated)
+        invalidated_paths = [
+            self.data_dir / self.uow.get_artifact(checkpoint.state_artifact_id).storage_key
+            for checkpoint in invalidated
+        ]
+        final_artifact = next(
+            artifact
+            for artifact in self.uow.list_artifacts(run.id)
+            if artifact.kind == "final_result"
+        )
+
+        queued = self.retry_service.retry_from_step(run.id, "ranking")
+
+        self.assertEqual(queued.status, RunStatus.QUEUED)
+        self.assertEqual(queued.error_code, "")
+        self.assertEqual(queued.deadline_at, self.clock() + timedelta(seconds=3600))
+        self.assertEqual(self.uow.get_results(run.id), [])
+        surviving = {checkpoint.step_key for checkpoint in self.uow.list_checkpoints(run.id)}
+        self.assertIn("select_candidates", surviving)
+        self.assertFalse(any(key.startswith("rank_results.") for key in surviving))
+        self.assertNotIn("assemble_final_result", surviving)
+        self.assertFalse((self.data_dir / final_artifact.storage_key).exists())
+        for path in invalidated_paths:
+            self.assertFalse(path.exists())
+        events = self.query_service.list_events(run.id)
+        self.assertEqual(events[-1].event_type, "run.retry_requested")
+        self.assertEqual(events[-1].payload["code"], "ranking")
+        self.assertEqual(events[-1].payload["from_status"], "completed")
+
+        resumed, resumed_source = await self._run_to_terminal(
+            "retry-worker", self.fixture["llm_responses"][2:]
+        )
+
+        self.assertEqual(resumed.id, run.id)
+        self.assertEqual(resumed.status, RunStatus.COMPLETED)
+        self.assertEqual(resumed.result_count, 1)
+        self.assertEqual(resumed.attempt, 2)
+        self.assertEqual(resumed_source.search_calls, 0)
+        recovery = next(
+            event
+            for event in self.query_service.list_events(run.id)
+            if event.event_type == "workflow.recovery"
+        )
+        self.assertEqual(recovery.payload["ranking"], 0)
+        self.assertEqual(recovery.payload["selection"], 1)
+        rewritten = [
+            artifact
+            for artifact in self.uow.list_artifacts(run.id)
+            if artifact.kind == "final_result"
+        ]
+        self.assertEqual(len(rewritten), 1)
+        self.assertTrue((self.data_dir / rewritten[0].storage_key).exists())
+
+    async def test_step_retry_of_results_rebuilds_only_the_final_assembly(self) -> None:
+        run = self._create()
+        completed, _ = await self._run_to_terminal("first-worker")
+        self.assertEqual(completed.status, RunStatus.COMPLETED)
+
+        queued = self.retry_service.retry_from_step(run.id, "results")
+
+        self.assertEqual(queued.status, RunStatus.QUEUED)
+        surviving = {checkpoint.step_key for checkpoint in self.uow.list_checkpoints(run.id)}
+        self.assertNotIn("assemble_final_result", surviving)
+        self.assertTrue(any(key.startswith("rank_results.") for key in surviving))
+
+        resumed, resumed_source = await self._run_to_terminal(
+            "retry-worker", self.fixture["llm_responses"][3:]
+        )
+
+        self.assertEqual(resumed.status, RunStatus.COMPLETED)
+        self.assertEqual(resumed.result_count, 1)
+        self.assertEqual(resumed_source.search_calls, 0)
+        recovery = next(
+            event
+            for event in self.query_service.list_events(run.id)
+            if event.event_type == "workflow.recovery"
+        )
+        self.assertEqual(recovery.payload["ranking"], 1)
+        self.assertEqual(recovery.payload["selection"], 1)
+
+    async def test_step_retry_rejects_unknown_steps_missing_runs_and_live_runs(self) -> None:
+        run = self._create()
+        with self.assertRaises(UnknownRunStep):
+            self.retry_service.retry_from_step(run.id, "teleport")
+        with self.assertRaises(RunNotFound):
+            self.retry_service.retry_from_step("missing-run", "query")
+        # A queued or running run is still owned by the executor: nothing to retry.
+        with self.assertRaises(RunStateError):
+            self.retry_service.retry_from_step(run.id, "query")
+        self.execution_service.claim_next_run("worker", lease_seconds=30)
+        with self.assertRaises(RunStateError):
+            self.uow.retry_from_step(
+                run.id,
+                checkpoint_patterns=invalidated_checkpoints("query"),
+                step="query",
+                deadline_for=timedelta(seconds=60),
+            )
+        self.assertEqual(self.query_service.get_run(run.id).status, RunStatus.RUNNING)
+        self.assertEqual(
+            [event.event_type for event in self.query_service.list_events(run.id)].count(
+                "run.retry_requested"
+            ),
+            0,
+        )
+
+    async def test_step_retry_restores_the_keys_a_finished_run_dropped(self) -> None:
+        run = self._create()
+        completed, _ = await self._run_to_terminal("first-worker")
+        self.assertEqual(completed.status, RunStatus.COMPLETED)
+        saved: list[tuple[str, dict]] = []
+        service = RunRetryService(
+            self.uow,
+            FileArtifactStore(self.data_dir),
+            save_credentials=lambda run_id, values: saved.append((run_id, values)),
+            resolve_credentials=lambda detail: {
+                "llm": {"api_key": "restored-key"},
+                "source": {"api_key": "restored-source-key"},
+            },
+        )
+
+        service.retry_from_step(run.id, "ranking")
+
+        self.assertEqual(
+            saved,
+            [(run.id, {
+                "llm": {"api_key": "restored-key"},
+                "source": {"api_key": "restored-source-key"},
+            })],
+        )
+        # A live run is refused before any credential is written back.
+        saved.clear()
+        queued = self._create()
+        with self.assertRaises(RunStateError):
+            service.retry_from_step(queued.id, "query")
+        self.assertEqual(saved, [])
+
+    async def test_step_retry_of_an_expired_failed_run_extends_its_deadline(self) -> None:
+        run = self._create(deadline_seconds=10)
+        llm = GatedLLM(self.fixture["llm_responses"])
+        failed = await asyncio.wait_for(
+            RunExecutor(
+                self.execution_service,
+                lambda *_: WorkflowExecution(
+                    llm=llm,
+                    source=TrackingSource(),
+                    request=self._request(),
+                    deadline_at=time.monotonic() + 0.2,
+                ),
+                owner_id="deadline-worker",
+                heartbeat_seconds=20,
+            ).run_once(),
+            timeout=3,
+        )
+        self.assertEqual(failed.status, RunStatus.FAILED)
+        self.assertEqual(failed.error_code, "run_deadline_exceeded")
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute(
+                "UPDATE runs SET warning_codes_json = ? WHERE id = ?",
+                (json.dumps(["model_degraded"]), run.id),
+            )
+            connection.commit()
+        self.clock.advance(11)
+
+        queued = self.retry_service.retry_from_step(run.id, "query")
+
+        self.assertEqual(queued.status, RunStatus.QUEUED)
+        self.assertEqual(queued.error_code, "")
+        self.assertEqual(queued.warnings, [])
+        self.assertGreater(queued.deadline_at, self.clock())
+        lease = self.execution_service.claim_next_run("retry-worker", lease_seconds=30)
+        self.assertEqual(lease.run_id, run.id)
 
 
 if __name__ == "__main__":

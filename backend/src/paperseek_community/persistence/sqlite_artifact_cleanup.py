@@ -302,22 +302,4 @@ class SQLiteArtifactCleanupRepository(SQLiteRepositoryBase):
                 raise RunOwnershipLost("The cleanup lease was lost before failure was recorded.")
 
 
-    @staticmethod
-    def _artifact(row) -> StoredArtifact:
-        return StoredArtifact(
-            id=row["id"],
-            run_id=row["run_id"],
-            kind=row["kind"],
-            role=row["role"],
-            visibility=row["visibility"],
-            filename=row["filename"],
-            media_type=row["media_type"],
-            storage_key=row["storage_key"],
-            sha256=row["sha256"],
-            size=int(row["size"]),
-            schema_version=int(row["schema_version"]),
-            created_at=_datetime(row["created_at"]),
-        )
-
-
 __all__ = ["SQLiteArtifactCleanupRepository"]

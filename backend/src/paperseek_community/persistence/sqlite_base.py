@@ -111,6 +111,23 @@ class SQLiteRepositoryBase:
             state_artifact_id=row["state_artifact_id"] or "",
         )
 
+    @staticmethod
+    def _artifact(row) -> StoredArtifact:
+        return StoredArtifact(
+            id=row["id"],
+            run_id=row["run_id"],
+            kind=row["kind"],
+            role=row["role"],
+            visibility=row["visibility"],
+            filename=row["filename"],
+            media_type=row["media_type"],
+            storage_key=row["storage_key"],
+            sha256=row["sha256"],
+            size=int(row["size"]),
+            schema_version=int(row["schema_version"]),
+            created_at=_datetime(row["created_at"]),
+        )
+
     def _reserve_sequences(
         self,
         connection: Connection,

@@ -1,8 +1,9 @@
 import { reactive } from "vue";
 
 import { api, ApiError } from "../api/client";
-import type { RunAudit, RunDetail, RunEvent, SearchSubmission } from "../api/types";
+import type { RunAudit, RunDetail, RunEvent, RunStep, SearchSubmission } from "../api/types";
 
+export type { RunStep };
 export type StageKey = "query" | "search" | "ranking" | "results";
 export type StageState = "idle" | "active" | "complete" | "failed";
 export type ConnectionState = "connected" | "reconnecting" | "offline";
@@ -14,6 +15,10 @@ const state = reactive({
   lastEventSequence: 0,
   connection: "offline" as ConnectionState,
   cancelPending: false,
+  // The pipeline step whose retry request is in flight, if any.
+  retryPending: "" as RunStep | "",
+  // The step a retry was accepted for, until the worker picks the run up again.
+  retryNotice: "" as RunStep | "",
   stages: {
     query: "idle",
     search: "idle",
@@ -47,17 +52,30 @@ export function eventStage(event: { event_type: string }): StageKey | null {
 
 const stageOrder: StageKey[] = ["query", "search", "ranking", "results"];
 
-function resetRunState(): void {
-  state.run = null;
+/** Drop everything derived from the event stream, keeping the run identity. */
+function resetDerivedState(): void {
   state.events = [];
   state.audit = null;
   state.lastEventSequence = 0;
   state.error = "";
   state.cancelPending = false;
-  for (const key of Object.keys(state.stages) as StageKey[]) {
+  state.retryNotice = "";
+  for (const key of stageOrder) {
     state.stages[key] = "idle";
     state.stageStartedAt[key] = null;
   }
+}
+
+/** The requeued run is running again, so the retry banner has done its job. */
+function clearRetryNotice(): void {
+  state.retryNotice = "";
+  state.retryPending = "";
+}
+
+function resetRunState(): void {
+  state.run = null;
+  state.retryPending = "";
+  resetDerivedState();
 }
 
 function observe(runId: string, event: RunEvent): void {
@@ -67,8 +85,22 @@ function observe(runId: string, event: RunEvent): void {
   state.events.push(event);
   state.lastEventSequence = event.sequence;
   applyLiveAudit(event);
+  // A retry requeues the same run: replaying the stream clears the previous
+  // attempt's outcome before the new attempt's events rebuild the stages.
+  if (event.event_type === "run.retry_requested") {
+    state.run = { ...state.run!, status: "queued", current_step: "queued", error_code: "", warnings: [] };
+    for (const key of stageOrder) {
+      state.stages[key] = "idle";
+      state.stageStartedAt[key] = null;
+    }
+    // The audit is rebuilt from the new attempt; the query checkpoints it came
+    // from are kept, so a completed run refills it from the server instead.
+    if (state.audit) state.audit = { ...state.audit, loop_decisions: [], query_portfolio: [] };
+    return;
+  }
   if (['run.claimed', 'run.started'].includes(event.event_type) && state.run?.status === 'queued') {
     state.run = { ...state.run, status: 'running', queue: null };
+    clearRetryNotice();
   }
   if (event.event_type === "run.cancelling" && state.run?.status !== "cancelled") {
     state.run = { ...state.run!, status: "cancelling", current_step: "cancelling" };
@@ -131,6 +163,7 @@ function applySnapshot(runId: string, generation: number, snapshot: RunDetail): 
   if (currentStatus === "cancelled" && snapshot.status !== "cancelled") return true;
   if (currentStatus === "cancelling" && !["cancelling", "cancelled"].includes(snapshot.status)) return true;
   state.run = snapshot;
+  if (snapshot.status !== "queued") clearRetryNotice();
   if (["completed", "completed_with_warnings"].includes(snapshot.status)) {
     for (const key of stageOrder) state.stages[key] = "complete";
   }
@@ -249,6 +282,37 @@ export async function cancelRun(runId: string): Promise<void> {
     applySnapshot(runId, generation, cancelled);
   } finally {
     if (isCurrent(runId, generation)) state.cancelPending = false;
+  }
+}
+
+/**
+ * Requeue a finished run at one pipeline step. The run replays its whole event
+ * history, so the derived state is rebuilt from a clean slate.
+ */
+export async function retryStep(runId: string, step: RunStep): Promise<void> {
+  if (state.run?.id !== runId || state.retryPending) return;
+  state.retryPending = step;
+  state.error = "";
+  let accepted = false;
+  try {
+    const retried = await api.retryStep(runId, step);
+    stopRunRecovery();
+    resetDerivedState();
+    state.run = retried;
+    // The run is queued until the worker claims it; the banner survives that.
+    state.retryPending = step;
+    state.retryNotice = step;
+    accepted = true;
+  } catch (error) {
+    state.error = error instanceof Error ? error.message : "run_unavailable";
+  } finally {
+    if (!accepted && state.retryPending === step) state.retryPending = "";
+  }
+  if (!accepted) return;
+  try {
+    await recoverRun(runId);
+  } catch (error) {
+    if (!state.error) state.error = error instanceof Error ? error.message : "run_unavailable";
   }
 }
 

@@ -10,6 +10,7 @@ from paperseek_app.errors import (
     IdempotencyConflict,
     RunNotFound,
     RunStateError,
+    UnknownRunStep,
 )
 from paperseek_app.execution import WorkflowExecution
 from paperseek_app.models import RunDetail
@@ -24,6 +25,7 @@ from paperseek_app.submission import (
 from paperseek_community.api_dependencies import (
     ApiError,
     open_query_service,
+    open_retry_service,
     open_submission_service,
 )
 from paperseek_community.credentials import (
@@ -118,5 +120,91 @@ def register_run_cancellation_route(app: FastAPI, *, database: Path) -> None:
             raise ApiError(404, "run_not_found", "Run not found.") from exc
         except RunStateError as exc:
             raise ApiError(409, "run_not_cancellable", "Run cannot be cancelled.") from exc
+        finally:
+            uow.close()
+
+
+def _saved_connection_credentials(
+    workspace: WorkspaceSettingsStore,
+    settings: CommunityDeploymentSettings,
+    run: RunDetail,
+) -> dict[str, dict[str, str]]:
+    """Rebuild the per-run keys from the saved connections the run started with.
+
+    A finished run drops its per-run credentials, so a retry re-resolves them
+    from the workspace exactly like a submission does. Kinds that no longer
+    match a saved connection stay unresolved and fall back to the deployment
+    configuration.
+    """
+    snapshot = run.config_snapshot or {}
+    llm = snapshot.get("llm") or {}
+    retrieval = snapshot.get("retrieval") or {}
+    wanted: list[tuple[str, dict]] = [("llm", dict(llm))]
+    for kind in ("embedding", "reranker", "decision"):
+        route = retrieval.get(kind)
+        if isinstance(route, dict) and route:
+            wanted.append((kind, dict(route)))
+    connections = workspace.snapshot(settings).get("connections") or []
+    resolved: dict[str, dict[str, str]] = {}
+    for kind, route in wanted:
+        match = next(
+            (
+                item
+                for item in connections
+                if item.get("kind") == kind
+                and item.get("provider") == route.get("provider")
+                and item.get("base_url") == route.get("base_url")
+                and item.get("model") == route.get("model")
+            ),
+            None,
+        )
+        if match is None:
+            continue
+        _, key = workspace.connection_secret(str(match["id"]), kind)
+        if key:
+            resolved[kind] = {"api_key": key}
+    source = str(snapshot.get("source") or "")
+    if source:
+        key, _ = workspace.source_secret(source)
+        if key:
+            resolved["source"] = {"api_key": key}
+    return resolved
+
+
+def register_run_retry_route(
+    app: FastAPI,
+    *,
+    database: Path,
+    settings: CommunityDeploymentSettings,
+    credentials: EncryptedRunCredentialStore,
+    workspace: WorkspaceSettingsStore,
+    execution_resolver: Callable[[object, CancellationToken], WorkflowExecution] | None,
+    accept_submissions_without_worker: bool,
+) -> None:
+    @app.post(
+        "/api/v1/runs/{run_id}/steps/{step}/retry",
+        status_code=202,
+        response_model=RunDetail,
+    )
+    def retry_run_step(run_id: str, step: str) -> RunDetail:
+        if execution_resolver is None and not accept_submissions_without_worker:
+            raise ApiError(503, "executor_unavailable", "The embedded executor is not configured.")
+        run_service, uow = open_retry_service(
+            database,
+            credential_store=credentials,
+            resolve_credentials=lambda run: _saved_connection_credentials(workspace, settings, run),
+        )
+        try:
+            return run_service.retry_from_step(run_id, step).model_dump(mode="json")
+        except UnknownRunStep as exc:
+            raise ApiError(422, "unknown_run_step", "Unknown run step.") from exc
+        except RunNotFound as exc:
+            raise ApiError(404, "run_not_found", "Run not found.") from exc
+        except RunStateError as exc:
+            raise ApiError(409, "run_not_retryable", "Run cannot be retried.") from exc
+        except CredentialPersistenceError as exc:
+            raise ApiError(
+                500, "credential_persistence_failed", "Temporary credentials could not be stored safely.",
+            ) from exc
         finally:
             uow.close()

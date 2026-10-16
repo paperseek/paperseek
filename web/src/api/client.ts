@@ -10,6 +10,7 @@ import type {
   RunDetail,
   RunAudit,
   RunEvent,
+  RunStep,
   SearchSubmission,
   SourceDescriptor,
 } from "./types";
@@ -96,6 +97,11 @@ export const api = {
 
   cancel(runId: string, signal?: AbortSignal): Promise<RunDetail> {
     return json<RunDetail>(`/api/v1/runs/${runId}/cancel`, { method: "POST", signal });
+  },
+
+  /** Requeue a finished run so one pipeline step (and its dependents) runs again. */
+  retryStep(runId: string, step: RunStep): Promise<RunDetail> {
+    return json<RunDetail>(`/api/v1/runs/${runId}/steps/${step}/retry`, { method: "POST" });
   },
 
   resultPage(runId: string, options: ResultPageQuery = {}, signal?: AbortSignal): Promise<ResultPage> {

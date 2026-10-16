@@ -12,6 +12,7 @@ import { loadSettings, workspaceSettings } from "../settings/store";
 import { invalidateHistory, listPaths, setHeader } from "../workspace/state";
 import RunSettingsDialog from "./RunSettingsDialog.vue";
 import RunToolbar from "./RunToolbar.vue";
+import { boundaryLabel } from "./retry-steps";
 import { useSearchConfiguration } from "./use-search-configuration";
 import WorkflowStages from "./WorkflowStages.vue";
 
@@ -28,6 +29,10 @@ const status = computed(() => run.value?.status || "");
 const terminal = computed(() => ["completed", "completed_with_warnings", "failed", "cancelled"].includes(status.value));
 const active = computed(() => ["queued", "running", "cancelling"].includes(status.value));
 const { restoreRun } = useSearchConfiguration(computed(() => workspaceSettings.descriptors));
+
+// A retry requeues the run: keep the stages on screen and say which step is
+// being re-run instead of swapping them for the fresh-submission queue card.
+const retryNotice = computed(() => runState.retryNotice ? u("retryQueued", { step: boundaryLabel(u, runState.retryNotice) }) : "");
 
 watchEffect(() => setHeader(run.value?.display_title || run.value?.question || u("search"), { label: u("search"), to: listPaths.search }));
 
@@ -120,8 +125,12 @@ async function rerun() {
         <ul class="alert-desc stack" style="gap: 2px"><li v-for="warning in run.warnings" :key="warning">{{ runMessage(warning) }}</li></ul>
       </div>
       <p v-if="active && runState.connection !== 'connected'" class="xs muted row" style="gap: 6px" role="status" data-testid="connection-notice"><Icon name="loader" size="sm" />{{ runState.connection === "offline" ? u("offline") : u("reconnecting") }}</p>
+      <div v-if="retryNotice" class="alert" role="status" data-testid="retry-notice" style="grid-template-columns: 16px 1fr">
+        <Icon name="loader" />
+        <p class="alert-title">{{ retryNotice }}</p>
+      </div>
       <QueueStatusCard
-        v-if="status === 'queued'"
+        v-if="status === 'queued' && !retryNotice"
         :run="run"
         :busy="runState.cancelPending"
         @cancel="confirmStop = true"

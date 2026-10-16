@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -7,11 +8,12 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
-from paperseek_app.models import RunStatus
+from paperseek_app.models import RunDetail, RunStatus
 from paperseek_app.api_schemas import ErrorResponse, ErrorOutput, ErrorDetails
 from paperseek_app.services import (
     RunCleanupService,
     RunQueryService,
+    RunRetryService,
     RunSubmissionService,
 )
 from paperseek_community.artifacts import FileArtifactStore
@@ -83,6 +85,25 @@ def open_submission_service(
 def open_query_service(database: Path) -> tuple[RunQueryService, SQLiteRunUnitOfWork]:
     uow = SQLiteRunUnitOfWork(database)
     return RunQueryService(uow, FileArtifactStore(database.parent)), uow
+
+
+def open_retry_service(
+    database: Path,
+    *,
+    credential_store: EncryptedRunCredentialStore | None = None,
+    resolve_credentials: Callable[[RunDetail], dict[str, dict[str, str]]] | None = None,
+) -> tuple[RunRetryService, SQLiteRunUnitOfWork]:
+    store = credential_store or EncryptedRunCredentialStore(database)
+    uow = SQLiteRunUnitOfWork(database, credential_store=store)
+    return (
+        RunRetryService(
+            uow,
+            FileArtifactStore(database.parent),
+            save_credentials=store.save,
+            resolve_credentials=resolve_credentials,
+        ),
+        uow,
+    )
 
 
 def open_cleanup_service(database: Path) -> tuple[RunCleanupService, SQLiteRunUnitOfWork]:

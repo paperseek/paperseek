@@ -13,11 +13,24 @@ ALLOWED_TRANSITIONS: dict[RunStatus, frozenset[RunStatus]] = {
         }
     ),
     RunStatus.CANCELLING: frozenset({RunStatus.CANCELLED, RunStatus.FAILED}),
-    RunStatus.COMPLETED: frozenset(),
-    RunStatus.COMPLETED_WITH_WARNINGS: frozenset(),
-    RunStatus.FAILED: frozenset(),
-    RunStatus.CANCELLED: frozenset(),
+    # A finished run stays terminal for the worker; only an explicit per-step
+    # retry may requeue it, and only from the states listed in RETRYABLE_STATUSES.
+    RunStatus.COMPLETED: frozenset({RunStatus.QUEUED}),
+    RunStatus.COMPLETED_WITH_WARNINGS: frozenset({RunStatus.QUEUED}),
+    RunStatus.FAILED: frozenset({RunStatus.QUEUED}),
+    RunStatus.CANCELLED: frozenset({RunStatus.QUEUED}),
 }
+
+
+# Runs whose steps can be retried: they are finished, so no worker is using them.
+RETRYABLE_STATUSES: frozenset[RunStatus] = frozenset(
+    {
+        RunStatus.COMPLETED,
+        RunStatus.COMPLETED_WITH_WARNINGS,
+        RunStatus.FAILED,
+        RunStatus.CANCELLED,
+    }
+)
 
 
 def validate_transition(current: RunStatus, target: RunStatus) -> None:

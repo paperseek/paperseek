@@ -30,6 +30,8 @@ export type CitationNode = CitationNodeOutput;
 export type CitationEdge = CitationEdgeOutput;
 export type CitationMap = CitationMapOutput;
 export type SearchSubmission = RunSubmission;
+/** Retry boundaries of the research pipeline, in execution order. */
+export type RunStep = "query" | "retrieval" | "citation" | "selection" | "ranking" | "results";
 export type DiagnosticSubmission = GeneratedDiagnosticSubmission;
 export type DiagnosticCheck = DiagnosticCheckOutput;
 export type ErrorResponse = GeneratedErrorResponse;

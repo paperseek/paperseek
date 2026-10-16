@@ -75,6 +75,61 @@ class M4SubmissionProductEntryContractTest(unittest.TestCase):
         self.submission_service = RunSubmissionService(self.uow)
         self.query_service = RunQueryService(self.uow, store)
 
+    def _await_terminal(self, client: TestClient, run_id: str) -> dict:
+        for _ in range(400):
+            detail = client.get(f"/api/v1/runs/{run_id}").json()
+            if detail["status"] in {"completed", "completed_with_warnings", "failed", "cancelled"}:
+                return detail
+            time.sleep(0.01)
+        self.fail(f"Run {run_id} never reached a terminal state.")
+
+    def test_step_retry_endpoint_requeues_and_revalidates_a_finished_run(self) -> None:
+        question = json.loads(FIXTURE.read_text(encoding="utf-8"))["question"]
+        payload = {"question": question, "source": "openalex", "search_budget": "fast"}
+        with TestClient(create_app(self.database, execution_resolver=_execution)) as client:
+            accepted = client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "step-retry"},
+                json=payload,
+            )
+            self.assertEqual(accepted.status_code, 202)
+            run_id = accepted.json()["id"]
+            self.assertEqual(self._await_terminal(client, run_id)["status"], "completed")
+
+            retried = client.post(f"/api/v1/runs/{run_id}/steps/ranking/retry", json={})
+            self.assertEqual(retried.status_code, 202)
+            self.assertEqual(retried.json()["status"], "queued")
+            self.assertEqual(retried.json()["error_code"], "")
+            # The fixture resolver replays the same scripted answers, so the rerun
+            # ranking may degrade; the retry must still reach a non-failed terminal state.
+            self.assertIn(
+                self._await_terminal(client, run_id)["status"],
+                {"completed", "completed_with_warnings"},
+            )
+
+            unknown = client.post(f"/api/v1/runs/{run_id}/steps/teleport/retry", json={})
+            self.assertEqual(unknown.status_code, 422)
+            self.assertEqual(unknown.json()["error"]["code"], "unknown_run_step")
+            missing = client.post("/api/v1/runs/missing/steps/query/retry", json={})
+            self.assertEqual(missing.status_code, 404)
+            self.assertEqual(missing.json()["error"]["code"], "run_not_found")
+
+        with TestClient(
+            create_app(self.database, accept_submissions_without_worker=True)
+        ) as client:
+            pending = client.post(
+                "/api/v1/runs",
+                headers={"Idempotency-Key": "step-retry-live"},
+                json=payload,
+            )
+            self.assertEqual(pending.status_code, 202)
+            self.assertEqual(pending.json()["status"], "queued")
+            live = client.post(
+                f"/api/v1/runs/{pending.json()['id']}/steps/query/retry", json={}
+            )
+            self.assertEqual(live.status_code, 409)
+            self.assertEqual(live.json()["error"]["code"], "run_not_retryable")
+
     def test_current_schema_preserves_v5_runs_and_adds_atomic_submission_records(self) -> None:
         database = self.data_dir / "upgrade-from-v5.db"
         _upgrade_to(database, "0005_m3_read_cleanup")

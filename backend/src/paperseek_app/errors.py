@@ -40,6 +40,10 @@ class IncompatibleCheckpoint(RunError):
     pass
 
 
+class UnknownRunStep(RunError):
+    pass
+
+
 class ArtifactError(RunError):
     pass
 

@@ -3,6 +3,7 @@ from paperseek_community.persistence.sqlite_artifact_cleanup import SQLiteArtifa
 from paperseek_community.persistence.sqlite_event_checkpoint import SQLiteEventCheckpointRepository
 from paperseek_community.persistence.sqlite_result_history import SQLiteResultHistoryRepository
 from paperseek_community.persistence.sqlite_run_lease import SQLiteRunLeaseRepository
+from paperseek_community.persistence.sqlite_run_retry import SQLiteRunRetryRepository
 
 
 class SQLiteRunUnitOfWork(
@@ -10,5 +11,6 @@ class SQLiteRunUnitOfWork(
     SQLiteEventCheckpointRepository,
     SQLiteResultHistoryRepository,
     SQLiteArtifactCleanupRepository,
+    SQLiteRunRetryRepository,
 ):
     pass

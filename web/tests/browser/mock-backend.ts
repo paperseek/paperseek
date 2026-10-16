@@ -97,13 +97,22 @@ export function createState() {
     runs: {
       [ids.done]: runDetail(ids.done, "LLM screening for systematic reviews", "completed", { result_count: 6, last_event_sequence: 7 }),
       [ids.small]: runDetail(ids.small, "Tiny search", "completed", { result_count: 1 }),
-      [ids.failed]: runDetail(ids.failed, "Failed search", "failed", { error_code: "provider_authentication_failed" }),
+      [ids.failed]: runDetail(ids.failed, "Failed search", "failed", { error_code: "provider_authentication_failed", last_event_sequence: 2 }),
     } as Record<string, Json>,
-    events: { [ids.done]: completedEvents(ids.done) } as Record<string, Json[]>,
+    events: {
+      [ids.done]: completedEvents(ids.done),
+      [ids.failed]: [
+        event(ids.failed, 1, "query.started", {}),
+        event(ids.failed, 2, "run.failed", { code: "provider_authentication_failed" }, "lifecycle"),
+      ],
+    } as Record<string, Json[]>,
     results,
     analyses: [] as Json[],
     reviews: [] as Json[],
     submissions: [] as Json[],
+    retries: [] as Array<{ run_id: string; step: string }>,
+    // When true the retry route leaves the run queued so a spec can observe it.
+    retryManual: false,
     requests: [] as Array<{ method: string; path: string; body: unknown; query: URLSearchParams }>,
     probe: { ok: true, latency_ms: 386, code: "" } as Json,
     deleted: [] as string[],
@@ -289,6 +298,26 @@ export async function mockBackend(page: Page, state: MockState = createState()):
       const run = state.runs[parts[1]];
       if (!run) return respond(route, error("run_not_found", 404), 404);
       if (parts.length === 2) return respond(route, run);
+      if (parts[2] === "steps" && parts[4] === "retry") {
+        if (!finished.has(String(run.status))) return respond(route, error("run_not_retryable", 409), 409);
+        const step = parts[3];
+        state.retries.push({ run_id: run.id, step });
+        const logs = state.events[run.id] || [];
+        let sequence = logs[logs.length - 1]?.sequence || 0;
+        logs.push(event(run.id, (sequence += 1), "run.retry_requested", { code: step, from_status: run.status }, "lifecycle"));
+        // The run is requeued; the worker claims it unless the spec holds the run
+        // in the queue to observe that state.
+        if (!state.retryManual) {
+          logs.push(event(run.id, (sequence += 1), "run.claimed", { attempt: 2, lease_generation: 2 }, "lifecycle"));
+          logs.push(event(run.id, (sequence += 1), "query.started", {}, "lifecycle"));
+        }
+        state.events[run.id] = logs;
+        Object.assign(run, {
+          status: state.retryManual ? "queued" : "running",
+          error_code: "", warnings: [], result_count: 0, finished_at: null, last_event_sequence: sequence,
+        });
+        return respond(route, run, 202);
+      }
       if (parts[2] === "events") {
         const after = Number(request.headers()["last-event-id"] || 0);
         const frames = (state.events[run.id] || []).filter((item) => item.sequence > after).map((item) => `id: ${item.sequence}\ndata: ${JSON.stringify(item)}\n\n`).join("");

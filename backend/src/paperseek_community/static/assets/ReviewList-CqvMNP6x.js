@@ -1,0 +1,1 @@
+import{J as e,V as t,it as n}from"./state-DudfnKRy.js";import{t as r}from"./SavedRecordList-Bt_71q7b.js";var i=e({__name:`ReviewList`,setup(e){return(e,i)=>(n(),t(r,{module:`reviews`}))}});export{i as default};

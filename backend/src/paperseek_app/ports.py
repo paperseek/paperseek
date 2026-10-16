@@ -76,6 +76,15 @@ class RunUnitOfWork(Protocol):
         error_code: str,
     ) -> RunDetail: ...
 
+    def retry_from_step(
+        self,
+        run_id: str,
+        *,
+        checkpoint_patterns: tuple[str, ...],
+        step: str,
+        deadline_for: timedelta,
+    ) -> tuple[RunDetail, list[StoredArtifact]]: ...
+
     def get_run(self, run_id: str) -> RunDetail: ...
 
     def list_events(
