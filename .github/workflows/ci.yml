@@ -174,8 +174,8 @@ jobs:
         run: |
           uv venv .mcp-installed --python 3.12
           uv pip install --python .mcp-installed/bin/python \
-            .mcp-dist/paperseek-1.0.0b2-py3-none-any.whl \
-            .mcp-dist/paperseek_mcp-1.0.0b2-py3-none-any.whl
+            .mcp-dist/paperseek-1.0.0b3-py3-none-any.whl \
+            .mcp-dist/paperseek_mcp-1.0.0b3-py3-none-any.whl
           gate=$(env -u PYTHONPATH \
             PAPERSEEK_CLI_EXECUTABLE="$PWD/.mcp-installed/bin/paperseek" \
             PAPERSEEK_ISOLATED_PREFIX="$PWD/.mcp-installed" \

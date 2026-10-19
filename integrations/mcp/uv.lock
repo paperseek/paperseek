@@ -645,7 +645,7 @@ wheels = [
 
 [[package]]
 name = "paperseek"
-version = "1.0.0b2"
+version = "1.0.0b3"
 source = { directory = "../../backend" }
 dependencies = [
     { name = "alembic" },
@@ -678,7 +678,7 @@ dev = [
 
 [[package]]
 name = "paperseek-mcp"
-version = "1.0.0b2"
+version = "1.0.0b3"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },

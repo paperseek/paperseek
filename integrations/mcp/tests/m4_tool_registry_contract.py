@@ -81,7 +81,7 @@ class M4MCPToolRegistryContract(unittest.TestCase):
 
         self.assertEqual([tool.name for tool in tools], EXPECTED_TOOLS)
         self.assertEqual(server.name, "paperseek")
-        self.assertEqual(server.version, "1.0.0b2")
+        self.assertEqual(server.version, "1.0.0b3")
         self.assertNotIn("fetch_abstracts", tools[0].input_schema["properties"])
 
     def test_start_returns_run_id_without_waiting_for_completion(self):

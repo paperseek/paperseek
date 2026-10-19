@@ -9,9 +9,10 @@
   <p>开源文献检索、初步文献计量与基于摘要的文献综述。</p>
   <p>
     <a href="LICENSE"><img alt="Apache 2.0 许可" src="https://img.shields.io/badge/license-Apache%202.0-171717?style=flat-square"></a>
-    <img alt="版本 1.0.0-beta2" src="https://img.shields.io/badge/version-1.0.0--beta2-171717?style=flat-square">
+    <img alt="版本 1.0.0-beta3" src="https://img.shields.io/badge/version-1.0.0--beta3-171717?style=flat-square">
     <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-171717?style=flat-square">
     <img alt="Vue 3" src="https://img.shields.io/badge/frontend-Vue%203-171717?style=flat-square">
+    <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek"><img alt="在魔搭体验" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.paperseek.app%2Fbadges%2Fmodelscope.json&style=flat-square"></a>
   </p>
   <p><a href="https://paperseek.app/">在线体验</a> · <a href="https://docs.paperseek.app/zh/">使用文档</a> · <a href="#快速开始">快速开始</a> · <a href="README.md">English</a></p>
 </div>
@@ -24,16 +25,10 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 
 可以在自己的电脑或服务器运行社区版，也可以直接打开 [PaperSeek 在线版](https://paperseek.app/)。自由选择模型 API，通过 Web、命令行、HTTP API 或 MCP 接入。
 
-<p align="center">
-  <a href="https://www.producthunt.com/products/paperseek?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-paperseek-2" target="_blank" rel="noopener noreferrer"><img alt="PaperSeek - launch v1.0.0-beta1 with complete architectural rewrite | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1277911&amp;theme=light&amp;t=1791815965864"></a>
-  <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek" target="_blank" rel="noopener noreferrer"><img alt="Deploy to ModelScope" width="250" height="54" src="https://api.paperseek.app/badges/modelscope.svg"></a>
-</p>
-
 ## 目录
 
 - [为什么使用 PaperSeek](#为什么使用-paperseek)
-- [1.0.0-beta2 的变化](#100-beta2-的变化)
-- [1.0.0-beta1 的变化](#100-beta1-的变化)
+- [1.0 的变化](#10-的变化)
 - [工作流程](#工作流程)
 - [数据源](#数据源)
 - [快速开始](#快速开始)
@@ -58,21 +53,31 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 
 **自然衔接下一步。** 筛选、选择和导出文献，重新打开历史，或将一组摘要证据整理为实验性综述项目。
 
-## 1.0.0-beta2 的变化
+## 1.0 的变化
 
-维护版本：模型回答出现部分错误时，研究流程照常进行。
+1.0 系列围绕持久化任务和共享核心重建了 PaperSeek。1.0 之前的版本见[完整更新日志](https://docs.paperseek.app/zh/changelog)。
 
-- **文献综述**：少数论文缺少可用证据时不再整体失败，这些论文会被排除并标出，其余部分继续；与摘要相符的引文即使有别的引文出错也会保留。
+### 1.0.0-beta3
+
+- **零结果检索**：最多再尝试两次，每次都先与你的问题核对；仍然没有结果时会说明原因，不会删掉必需条件。
+- **数据源**：节流在所有运行中的任务之间共享；PubMed 限流会被正确识别为限流；Web of Science 可以重新选择。
+- **网络代理**：在“设置 › 数据源”中可让大模型请求、按网络地址限速的数据源或其他数据源通过你自己的代理发送。
+- **多任务同时运行**：最多同时运行 4 个检索和综述任务（`PAPERSEEK_MAX_CONCURRENT_RUNS`）。
+
+可从更早的 1.0 测试版原地升级。详见[更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta3)和[升级步骤](https://docs.paperseek.app/zh/self-hosting/upgrade#from-an-earlier-1-0-beta)。
+
+### 1.0.0-beta2
+
+- **文献综述**：少数论文缺少可用证据时不再整体失败，这些论文会被排除并标出，其余部分继续。
 - **检索排序**：保留模型已给出的评分，只为缺少评分的文献重新请求；较长的“排序理由”不再被截断。
 - **历史记录**：排队中和运行中的检索会显示在历史里，刷新页面后依然可见。
 - **Docker Compose**：默认只对本机开放；如需从其他设备访问，设置 `PAPERSEEK_HOST=0.0.0.0`。
-- **文档站**：首页不会再因为手指搭在触控板上或滑动结束时的余量而跳到其他板块。
 
-可从 1.0.0-beta1 原地升级，无需迁移。详见[完整更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta2)和[升级步骤](https://docs.paperseek.app/zh/self-hosting/upgrade#from-an-earlier-1-0-beta)。
+详见[更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta2)。
 
-## 1.0.0-beta1 的变化
+### 1.0.0-beta1
 
-**1.0.0-beta1 是一次包含不兼容变更的完整架构重构。** 运行时、前端、持久化和集成统一为按职责划分、支持持久任务执行的模块化应用。
+**一次包含不兼容变更的完整架构重构。** 运行时、前端、持久化和集成统一为按职责划分、支持持久任务执行的模块化应用。
 
 - 文献检索、文献计量、文献综述位于可折叠侧栏，各自保留历史；模型、数据源和通用偏好集中在设置页。
 - 对实际获取的完整去重候选集做初步计量：年份与来源分布、关键词共现、文献耦合、数据覆盖率与独立导出；LLM 仍只评分原子集。
@@ -89,9 +94,9 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 
 ## 工作流程
 
-![PaperSeek 1.0.0-beta2 研究工作区](docs/public/images/workspace-results-zh.png)
+![PaperSeek 1.0.0-beta3 研究工作区](docs/public/images/workspace-results-zh.png)
 
-*社区版 1.0.0-beta2，含演示记录。在线版共用同一工作区，并增加账户和服务模式。*
+*社区版 1.0.0-beta3，含演示记录。在线版共用同一工作区，并增加账户和服务模式。*
 
 | 阶段 | 做什么 | 可以查看什么 |
 | --- | --- | --- |
@@ -126,7 +131,7 @@ OpenAlex 与 Serper 支持多 Key 轮询。元数据覆盖与领域筛选能力�
 需要 **Python 3.12+**，发行包自带已构建的网页。
 
 ```sh
-python -m pip install "paperseek==1.0.0b2"
+python -m pip install "paperseek==1.0.0b3"
 paperseek serve
 ```
 
@@ -138,10 +143,10 @@ paperseek serve
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta2 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta3 docker compose up -d
 ```
 
-启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta2"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta2`。
+启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta3"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta3`。
 
 ### ModelScope 创空间
 
@@ -227,7 +232,7 @@ paperseek search "How does open-source funding affect maintenance?" --source ope
 ### Model Context Protocol
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b2"
+python -m pip install "paperseek-mcp==1.0.0b3"
 paperseek-mcp --transport stdio
 ```
 

@@ -4,7 +4,40 @@ outline: 2
 
 # Changelog
 
-Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta2.
+Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta3.
+
+## 1.0.0-beta3 {#v1-0-0-beta3}
+
+Searches that find nothing get a careful second try, data sources are paced across every running task, and you can route traffic through your own proxy. It upgrades earlier 1.0 betas in place, without a migration.
+
+### Search
+
+- When a search finds no papers, PaperSeek tries up to two more queries. Each one builds on the earlier queries and their counts and is checked against your question first, so required concepts, relationships and constraints stay in place. If nothing turns up, the search ends with a notice that says why.
+- If the data source cannot be reached for one of these extra queries, the search ends with no papers and a notice instead of failing.
+- When the model proposes a query that already ran, it is shown the earlier result and asked once more before refinement stops.
+- The intent check accepts model replies that wrap their answer in extra text.
+
+### Data sources
+
+- PubMed rate-limit messages are recognized as rate limits instead of network errors, and PaperSeek waits before trying again.
+- All running tasks share each source's pacing and cooldowns, including retries. arXiv receives one request every three seconds however many searches are running.
+- Ordinary failures are retried after about a second; only rate limits wait longer.
+- Web of Science is selectable again.
+
+### Network proxy
+
+- **Settings › Data sources › Network proxy** routes requests through your own HTTP(S) proxy. Choose any of: model requests, sources that limit by network address (arXiv, Crossref, PaperHub, and PubMed or OpenAlex without a key), and other sources. Everything else follows your system proxy settings, and local model endpoints always connect directly.
+- Several proxies are used in turn. Addresses are stored encrypted on your machine, shown only by host and port, and removed by **Clear saved keys**.
+- Server deployments can set `PAPERSEEK_PROXY_URLS` and `PAPERSEEK_PROXY_SCOPE` instead. See [Network proxy](reference/configuration.md#network-proxy).
+
+### Running tasks
+
+- Up to four searches and reviews run at the same time; the rest wait in the queue. `PAPERSEEK_MAX_CONCURRENT_RUNS` changes the limit, and `0` removes it. See [Concurrent tasks](reference/configuration.md#concurrent-tasks).
+
+### Upgrade notes
+
+- From an earlier 1.0 beta, install 1.0.0b3 with pip or set `PAPERSEEK_VERSION=1.0.0-beta3` for Docker; your data needs no migration. See [upgrading from an earlier 1.0 beta](self-hosting/upgrade.md#from-an-earlier-1-0-beta).
+- The new settings are optional. Without them, PaperSeek behaves as before, except that up to four tasks now run at once.
 
 ## 1.0.0-beta2 {#v1-0-0-beta2}
 

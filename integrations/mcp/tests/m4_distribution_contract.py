@@ -8,8 +8,8 @@ import unittest
 
 MCP_ROOT = Path(__file__).resolve().parents[1]
 COMMUNITY_ROOT = MCP_ROOT.parents[1]
-VERSION = "1.0.0b2"
-RELEASE = "1.0.0-beta2"
+VERSION = "1.0.0b3"
+RELEASE = "1.0.0-beta3"
 SERVER_NAME = "io.github.paperseek/paperseek"
 
 
@@ -75,7 +75,7 @@ class M4MCPDistributionContract(unittest.TestCase):
         self.assertIn('"--host", "0.0.0.0"', dockerfile)
         self.assertNotIn("PAPERSEEK_MCP_SERVICE_TOKEN=", dockerfile)
         self.assertIn("sha256sum --check SHA256SUMS", dockerfile)
-        self.assertIn("--no-index --find-links /wheels paperseek-mcp==1.0.0b2", dockerfile)
+        self.assertIn("--no-index --find-links /wheels paperseek-mcp==1.0.0b3", dockerfile)
         self.assertNotIn("paperseek-mcp", compose)
         self.assertIn("backend/.pytest_cache", dockerignore)
 
@@ -83,7 +83,7 @@ class M4MCPDistributionContract(unittest.TestCase):
         readme = (MCP_ROOT / "README.md").read_text(encoding="utf-8")
 
         self.assertIn(f"<!-- mcp-name: {SERVER_NAME} -->", readme)
-        self.assertIn("pip install paperseek-mcp==1.0.0b2", readme)
+        self.assertIn("pip install paperseek-mcp==1.0.0b3", readme)
         self.assertNotIn("paperseek[mcp]", readme)
         self.assertNotIn("paperseek.mcp_server", readme)
 

@@ -29,7 +29,7 @@ class ImportBoundaryTest(unittest.TestCase):
         for package in LAYERS:
             with self.subTest(package=package):
                 module = importlib.import_module(package)
-                self.assertEqual(module.__version__, "1.0.0b2")
+                self.assertEqual(module.__version__, "1.0.0b3")
                 self.assertTrue(Path(module.__file__).resolve().is_relative_to(SOURCE.resolve()))
 
     def test_dependency_direction_is_core_then_app_then_community(self):
@@ -58,7 +58,7 @@ class ImportBoundaryTest(unittest.TestCase):
         with (BACKEND / "pyproject.toml").open("rb") as handle:
             pyproject = tomllib.load(handle)
         self.assertEqual(pyproject["project"]["name"], "paperseek")
-        self.assertEqual(pyproject["project"]["version"], "1.0.0b2")
+        self.assertEqual(pyproject["project"]["version"], "1.0.0b3")
         self.assertEqual(pyproject["project"]["requires-python"], ">=3.12")
         self.assertEqual(
             pyproject["tool"]["setuptools"]["packages"]["find"]["include"],

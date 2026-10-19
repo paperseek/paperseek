@@ -5,7 +5,7 @@
 ## 安装匹配版本
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b2"
+python -m pip install "paperseek-mcp==1.0.0b3"
 ```
 
 独立适配器依赖相同版本的 `paperseek`，复用社区版应用服务，不维护另一套检索引擎。
