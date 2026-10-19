@@ -204,9 +204,15 @@ class M3CrashLeaseCheckpointRecoveryContractTest(unittest.IsolatedAsyncioTestCas
                     raise TimeoutError("Test did not release final artifact storage.")
             return original_put(artifact)
 
+        advanced_to = [self.clock()]
+
         def renew(*args):
+            # Count only renewals that began after the clock moved; one already in flight
+            # still extends the lease from the old time.
+            began = self.clock()
             result = original_renew(*args)
-            renewed.set()
+            if began >= advanced_to[0]:
+                renewed.set()
             return result
 
         executor = RunExecutor(
@@ -219,8 +225,9 @@ class M3CrashLeaseCheckpointRecoveryContractTest(unittest.IsolatedAsyncioTestCas
             task = asyncio.create_task(executor.run_once())
             try:
                 self.assertTrue(await asyncio.to_thread(started.wait, 3))
-                self.clock.advance(20)
                 renewed.clear()
+                self.clock.advance(20)
+                advanced_to[0] = self.clock()
                 self.assertTrue(await asyncio.to_thread(renewed.wait, 2))
                 self.clock.advance(20)
                 self.assertIsNone(await run_blocking(self.execution_service.claim_next_run, "competing-worker", 30))
