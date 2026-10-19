@@ -9,7 +9,7 @@ Just want to try it out? The [local quick start](../get-started/local.md) walks 
 Requires **Python 3.12 or newer**. The package includes the built Web UI; Node.js is only needed when developing the frontend.
 
 ```sh
-python -m pip install "paperseek==1.0.0b2"
+python -m pip install "paperseek==1.0.0b3"
 paperseek serve
 ```
 
@@ -34,12 +34,12 @@ Use the repository's `compose.yaml`:
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta2 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta3 docker compose up -d
 ```
 
-On PowerShell, replace `cp` with `Copy-Item`, then run `$env:PAPERSEEK_VERSION="1.0.0-beta2"; docker compose up -d`. Edit `.env` with your deployment defaults before starting.
+On PowerShell, replace `cp` with `Copy-Item`, then run `$env:PAPERSEEK_VERSION="1.0.0-beta3"; docker compose up -d`. Edit `.env` with your deployment defaults before starting.
 
-Compose publishes **127.0.0.1:8765** by default; `PAPERSEEK_PORT` changes the host port while the container always uses 8765. The service listens on port **8765** and stores data in the `paperseek-data` volume. The command explicitly pins `1.0.0-beta2`, also the default in the supplied Compose file and `.env.example`. Prereleases do not update `latest`; change `PAPERSEEK_VERSION` deliberately when upgrading.
+Compose publishes **127.0.0.1:8765** by default; `PAPERSEEK_PORT` changes the host port while the container always uses 8765. The service listens on port **8765** and stores data in the `paperseek-data` volume. The command explicitly pins `1.0.0-beta3`, also the default in the supplied Compose file and `.env.example`. Prereleases do not update `latest`; change `PAPERSEEK_VERSION` deliberately when upgrading.
 
 ```sh
 docker compose logs -f paperseek
@@ -76,4 +76,4 @@ The default server binds to loopback. Community is designed for a trusted local 
 
 Stop the API and worker before copying the whole data directory or Docker volume. Restore into a separate location first and verify history, results, and artifacts before replacing a live installation.
 
-Continue with [configuration](../reference/configuration.md) or the [1.0.0-beta2 migration guide](upgrade.md).
+Continue with [configuration](../reference/configuration.md) or the [1.0.0-beta3 migration guide](upgrade.md).

@@ -56,7 +56,7 @@
     "result_count": 1,
     "versions": {
       "workflow_version": "m2.research-workflow.v2",
-      "engine_version": "1.0.0b2",
+      "engine_version": "1.0.0b3",
       "prompt_version": "m2.search-history.v2",
       "config_schema_version": 1,
       "artifact_schema_version": 1

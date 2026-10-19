@@ -36,7 +36,7 @@ const sections: SidebarSection[] = [
   ]],
   ['Self-hosting', '自部署', [
     ['Deployment', '部署与运维', 'self-hosting/'],
-    ['Upgrade to 1.0.0-beta2', '升级至 1.0.0-beta2', 'self-hosting/upgrade']
+    ['Upgrade to 1.0.0-beta3', '升级至 1.0.0-beta3', 'self-hosting/upgrade']
   ]],
   ['Developers', '开发者', [
     ['Integrations', '集成接口', [

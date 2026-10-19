@@ -1,8 +1,8 @@
-# 升级至 1.0.0-beta2
+# 升级至 1.0.0-beta3
 
 已在使用更早的 1.0 测试版？请[直接原地升级](#from-an-earlier-1-0-beta)，无需迁移。
 
-与 0.2 相比，1.0 系列是一次完整的架构重构，Python 运行时、前端、本地存储和集成都包含不兼容变更。用户数据有明确迁移路径；旧 Python 导入路径、内部 API 与旧前端接口不属于兼容承诺。本页其余部分说明如何把 0.2 安装升级至 1.0.0-beta2。
+与 0.2 相比，1.0 系列是一次完整的架构重构，Python 运行时、前端、本地存储和集成都包含不兼容变更。用户数据有明确迁移路径；旧 Python 导入路径、内部 API 与旧前端接口不属于兼容承诺。本页其余部分说明如何把 0.2 安装升级至 1.0.0-beta3。
 
 ## 0.2 安装需要调整什么
 
@@ -23,7 +23,7 @@
 
 1. 完成或取消活动任务，再停止旧应用与 worker。
 2. 将数据库、产物及配置备份到源码目录之外。
-3. 在独立环境中安装 1.0.0-beta2。
+3. 在独立环境中安装 1.0.0-beta3。
 4. 先验证迁移副本，再替换旧安装。
 
 确认保存的问题、结果数量和导出文件之前，请保留原备份。
@@ -64,19 +64,21 @@ paperseek serve --database /data/paperseek/paperseek.db
 
 ## 从更早的 1.0 测试版升级 {#from-an-earlier-1-0-beta}
 
-1.0.0-beta2 沿用更早 1.0 测试版的数据库结构、配置和命令行，可以原地升级，无需迁移。
+1.0.0-beta3 沿用更早 1.0 测试版的数据库结构、配置和命令行，可以原地升级，无需迁移。
 
 1. 完成或取消活动任务，停止服务及 worker，并备份数据库。
 2. 安装新版本：
 
    ```sh
-   python -m pip install --upgrade "paperseek==1.0.0b2"
+   python -m pip install --upgrade "paperseek==1.0.0b3"
    ```
 
-   如使用 MCP 适配器，在同一条命令中加上 `"paperseek-mcp==1.0.0b2"`。使用 Docker 时，在 `.env` 中把 `PAPERSEEK_VERSION` 设为 `1.0.0-beta2`，再依次执行 `docker compose pull` 和 `docker compose up -d`。
+   如使用 MCP 适配器，在同一条命令中加上 `"paperseek-mcp==1.0.0b3"`。使用 Docker 时，在 `.env` 中把 `PAPERSEEK_VERSION` 设为 `1.0.0-beta3`，再依次执行 `docker compose pull` 和 `docker compose up -d`。
 3. 启动服务，并用 `paperseek version` 确认版本。
 
-随附的 `compose.yaml` 现在只向本机 127.0.0.1 发布端口。如需从其他设备访问，请使用新的 `compose.yaml`，在 `.env` 中设置 `PAPERSEEK_HOST=0.0.0.0`，并按[网络访问](index.md#network-access)中的说明保护访问。
+升级后最多同时运行 4 个检索和综述任务，可用 `PAPERSEEK_MAX_CONCURRENT_RUNS` 修改。如果你的网络需要代理才能访问模型或数据源，请在 **设置 › 数据源 › 网络代理** 中设置，或使用[网络代理](../reference/configuration.md#网络代理)中的环境变量。
+
+随附的 `compose.yaml` 只向本机 127.0.0.1 发布端口。如需从其他设备访问，请使用新的 `compose.yaml`，在 `.env` 中设置 `PAPERSEEK_HOST=0.0.0.0`，并按[网络访问](index.md#network-access)中的说明保护访问。
 
 ## 回退
 

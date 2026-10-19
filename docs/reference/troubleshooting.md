@@ -22,7 +22,7 @@ Find your symptom in the index, check the likely cause, then follow the link to 
 
 ### A search is taking a long time
 
-Check whether the task is **queued** or **running**. During execution, query refinement, source requests, citation expansion, and model scoring can each take time. Larger budgets make more work possible but do not guarantee more useful results.
+Check whether the task is **queued** or **running**. Up to four tasks run at once by default; the rest wait in the queue (see [concurrent tasks](configuration.md#concurrent-tasks)). During execution, query refinement, source requests, citation expansion, and model scoring can each take time. Larger budgets make more work possible but do not guarantee more useful results.
 
 If the page loses its connection, reopen the saved run and inspect its status before submitting again. Anonymous online results are temporary; see [Data & privacy](../online/privacy.md#search-without-signing-in).
 
@@ -45,7 +45,7 @@ Check that the run used a supported citation-expansion source and that expansion
 | 401 / 403 | Correct key, provider account permissions, and selected model |
 | 404 | API base URL, protocol, route, model availability, or a missing task/resource |
 | 429 | Provider rate limit or structured insufficient-credit error |
-| Connection / timeout | Network reachability and provider availability |
+| Connection / timeout | Network reachability and provider availability; if the service is blocked on your network, set up a [network proxy](configuration.md#network-proxy) |
 
 A 404 displayed during an OpenAlex run does not by itself prove that OpenAlex returned it: model requests and application routes also occur during the task. Record the stage, safe error code, task ID, and time.
 

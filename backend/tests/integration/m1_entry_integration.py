@@ -142,7 +142,7 @@ class M1EntryIntegrationTest(unittest.TestCase):
         ).encode("utf-8")
 
         self.assertEqual(build_info.DISTRIBUTION, "paperseek")
-        self.assertEqual(build_info.VERSION, "1.0.0b2")
+        self.assertEqual(build_info.VERSION, "1.0.0b3")
         self.assertEqual(build_info.COMMUNITY_COMMIT, "source-tree")
         self.assertTrue(build_info.SOURCE_TREE_DIRTY)
         self.assertEqual(

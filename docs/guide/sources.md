@@ -35,9 +35,15 @@ Provider subscriptions and rate limits are separate from PaperSeek accounts and 
 
 ## Empty results and temporary failures
 
-When the primary search returns no papers, PaperSeek makes at most one additional recovery query. It uses source feedback, including PubMed's unrecognized phrases, to adjust terminology or optional restrictions. A separate model check must approve preservation of core concepts, required relationships, and explicit constraints before that query runs. This check is not a guarantee of relevance; inspect the search process and returned papers. If no suitable query passes or the source still has no matches, PaperSeek reports that outcome instead of silently dropping required conditions. Field filters remain applied.
+When a search returns no papers, PaperSeek tries up to two more queries. Each one uses the earlier queries and their counts, and source feedback such as PubMed's unrecognized phrases, to adjust terminology or optional restrictions. Before a query runs, a separate model check must confirm that it keeps the core concepts, required relationships, and explicit constraints. This check is not a guarantee of relevance; inspect the search process and returned papers. If no suitable query passes, the source still has no matches, or the source cannot be reached for a follow-up query, the search ends with no papers and a notice explaining why, instead of silently dropping required conditions. Field filters remain applied.
 
-Rate limits and malformed API responses are reported as source problems, not zero matches. Requests use bounded retries and respect `Retry-After`. Within one worker process, requests sharing a source and credential also share pacing and cooldowns; retries participate in the same controls. Semantic Scholar's bulk-search cooldown does not block ordinary relevance search. Existing candidates survive later query or pagination failures, and unavailable supplementary lanes produce warnings. Separate worker processes or other applications using the same provider account still share the upstream quota, so a retry cannot guarantee availability.
+While refining any search, a proposed query that was already run is sent back to the model once, with its earlier result, before refinement stops.
+
+Rate limits and malformed API responses are reported as source problems, not zero matches. Requests use bounded retries and respect `Retry-After`; ordinary failures are retried after about a second, rate limits after a longer pause. All tasks running in one PaperSeek process share pacing and cooldowns for the same source and credential, including retries. arXiv, for example, receives one request every three seconds however many searches are running. Semantic Scholar's bulk-search cooldown does not block ordinary relevance search. Existing candidates survive later query or pagination failures, and unavailable supplementary lanes produce warnings. Separate worker processes or other applications using the same provider account still share the upstream quota, so a retry cannot guarantee availability.
+
+## Network proxy
+
+If your network cannot reach a source or model provider directly, or a source has throttled your network address, set up a proxy in **Settings › Data sources › Network proxy**. You choose which requests go through it: model requests, sources that limit by network address (arXiv, Crossref, PaperHub, and PubMed or OpenAlex without a key), and other sources. A proxy does not raise a key's quota. See [Network proxy](../reference/configuration.md#network-proxy) for the details and the matching environment variables.
 
 ## Fields and categories
 
@@ -49,7 +55,7 @@ Restricting a field can exclude interdisciplinary work. Start without it unless 
 
 Records can lack abstracts, years, citation counts, or open PDF links. Missing metadata is not a quality judgment.
 
-Version 1.0.0-beta2 has no separate cross-source abstract-filling or citation-count enrichment switch. Choose informative abstracts for review writing.
+Version 1.0.0-beta3 has no separate cross-source abstract-filling or citation-count enrichment switch. Choose informative abstracts for review writing.
 
 ## Multiple keys
 

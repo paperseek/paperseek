@@ -5,7 +5,7 @@ Use PaperSeek from an assistant that supports Model Context Protocol. The local 
 ## Install the matched MCP package
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b2"
+python -m pip install "paperseek-mcp==1.0.0b3"
 ```
 
 The independent adapter requires the matching `paperseek` version. It reuses the Community application instead of implementing a separate search engine.
