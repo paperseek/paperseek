@@ -25,7 +25,8 @@ const keyCounts = computed(() => props.keys ?? {
   connections: workspaceSettings.connections.length,
   sources: workspaceSettings.sources.filter((item) => item.key_origin === "settings").length,
 });
-const keysDescription = computed(() => u("clearKeysConfirm", keyCounts.value) + (props.keysAfter ?? u("keysAfter")) + u("irreversible"));
+const keysDescription = computed(() => u("clearKeysConfirm", keyCounts.value) + (props.keysAfter ?? u("keysAfter"))
+  + (workspaceSettings.proxy?.origin === "settings" ? u("clearKeysProxy") : "") + u("irreversible"));
 const historyDescription = computed(() => {
   const value = summary.value;
   if (!value) return "";

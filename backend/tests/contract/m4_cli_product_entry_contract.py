@@ -216,23 +216,25 @@ class M4CliProductEntryContract(unittest.TestCase):
             try:
                 service = RunSubmissionService(uow)
                 runs = [service.create_run(f"search {index}", "openalex") for index in range(2)]
-                original_run_once = RunExecutor.run_once
+                original_claim = RunExecutor.claim
                 calls = 0
 
-                async def stop_after_idle(executor):
+                async def stop_when_idle(executor):
                     nonlocal calls
                     calls += 1
-                    if calls == 4:
+                    lease = await original_claim(executor)
+                    # Keep polling until both runs have finished, then stop like Ctrl+C.
+                    if lease is None and all(uow.get_run(run.id).status == RunStatus.COMPLETED for run in runs):
                         raise KeyboardInterrupt
-                    return await original_run_once(executor)
+                    return lease
 
-                with patch.object(RunExecutor, "run_once", stop_after_idle):
+                with patch.object(RunExecutor, "claim", stop_when_idle):
                     exit_code = cli_main(
                         ["worker", "--database", str(database), "--poll-seconds", "0.001"],
                         deployment_settings=_settings(), execution_resolver=_fixed_resolver,
                     )
                 self.assertEqual(exit_code, 130)
-                self.assertEqual(calls, 4)
+                self.assertGreaterEqual(calls, 3)
                 self.assertEqual([uow.get_run(run.id).status for run in runs], [RunStatus.COMPLETED] * 2)
             finally:
                 uow.close()

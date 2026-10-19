@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from paperseek_app.configuration import normalize_wos_db
-from paperseek_core.sources.proxy import parse_source_proxies
+from paperseek_core.sources.proxy import ProxyPolicy, parse_proxy_scope, parse_proxy_urls
 
 
 class CommunityDeploymentSettings(BaseModel):
@@ -24,12 +24,9 @@ class CommunityDeploymentSettings(BaseModel):
     google_scholar_api_key: str = Field(repr=False)
     contact_email: str
     wos_db: str = "WOS"
-    source_proxies: dict[str, tuple[str, ...]] = Field(default_factory=dict, repr=False, exclude=True)
-
-    @field_validator("source_proxies", mode="before")
-    @classmethod
-    def valid_source_proxies(cls, value: object) -> dict[str, tuple[str, ...]]:
-        return parse_source_proxies(value)
+    proxy: ProxyPolicy = Field(default_factory=ProxyPolicy, repr=False, exclude=True)
+    # Searches and reviews that run at the same time; 0 removes the limit.
+    max_concurrent_runs: int = Field(default=4, ge=0)
 
     @field_validator("llm_base_url")
     @classmethod
@@ -59,5 +56,7 @@ class CommunityDeploymentSettings(BaseModel):
             google_scholar_api_key=os.environ.get("PAPERSEEK_GOOGLE_SCHOLAR_API_KEY", "").strip(),
             contact_email=os.environ.get("PAPERSEEK_CONTACT_EMAIL", "").strip(),
             wos_db=normalize_wos_db(os.environ.get("PAPERSEEK_WOS_DB")),
-            source_proxies=parse_source_proxies(os.environ.get("PAPERSEEK_SOURCE_PROXIES", "")),
+            max_concurrent_runs=os.environ.get("PAPERSEEK_MAX_CONCURRENT_RUNS", "").strip() or 4,
+            proxy=ProxyPolicy(parse_proxy_urls(os.environ.get("PAPERSEEK_PROXY_URLS")),
+                              parse_proxy_scope(os.environ.get("PAPERSEEK_PROXY_SCOPE"))),
         )

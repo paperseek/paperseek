@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from paperseek_app.execution import CancellationScope, WorkflowExecution, run_blocking
@@ -41,9 +41,51 @@ class RunExecutor:
         self.review_executor = review_executor
 
     async def run_once(self) -> RunDetail | None:
-        lease = await run_blocking(self.service.claim_next_run, self.owner_id, self.lease_seconds)
-        if lease is None:
-            return None
+        lease = await self.claim()
+        return None if lease is None else await self.execute(lease)
+
+    async def claim(self):
+        return await run_blocking(self.service.claim_next_run, self.owner_id, self.lease_seconds)
+
+    async def serve(
+        self,
+        *,
+        max_concurrent: int = 0,
+        poll_seconds: float = 0.25,
+        stop: asyncio.Event | None = None,
+        on_finished: Callable[[RunDetail], Awaitable[None]] | None = None,
+    ) -> None:
+        """Claim queued runs and execute up to ``max_concurrent`` at once (0 means no limit)."""
+        stop = stop or asyncio.Event()
+        running: set[asyncio.Task] = set()
+
+        async def finish(lease) -> None:
+            detail = await self.execute(lease)
+            if detail is not None and on_finished is not None:
+                await on_finished(detail)
+
+        try:
+            while not stop.is_set():
+                if max_concurrent and len(running) >= max_concurrent:
+                    lease = None
+                else:
+                    lease = await self.claim()
+                if lease is not None:
+                    running.add(asyncio.create_task(finish(lease)))
+                    continue
+                waiters = {*running, asyncio.ensure_future(stop.wait())}
+                done, _ = await asyncio.wait(waiters, timeout=poll_seconds, return_when=asyncio.FIRST_COMPLETED)
+                for task in waiters - running:
+                    task.cancel()
+                for task in done & running:
+                    running.discard(task)
+                    task.result()
+        finally:
+            for task in running:
+                task.cancel()
+            await asyncio.gather(*running, return_exceptions=True)
+
+    async def execute(self, lease) -> RunDetail | None:
         run = await run_blocking(self.service.get_run, lease.run_id)
         cancellation = CancellationScope()
         try:

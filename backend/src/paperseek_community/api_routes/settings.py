@@ -10,6 +10,8 @@ from paperseek_app.settings import (
     DefaultsInput,
     DefaultsOutput,
     ProbeOutput,
+    ProxySettingsInput,
+    ProxySettingsOutput,
     SecretsClearOutput,
     SettingsError,
     SourceSettingsInput,
@@ -68,6 +70,11 @@ def register_settings_routes(
         """Remove every saved model connection and data-source key; submitted runs keep their own copies."""
         return await call(store.clear_secrets)
 
+    @app.put("/api/v1/settings/proxy", response_model=ProxySettingsOutput)
+    async def save_proxy(request: ProxySettingsInput) -> dict:
+        """Save the network proxy pool; omitted addresses keep the saved ones."""
+        return await call(store.save_proxy, request, settings)
+
     @app.post("/api/v1/settings/connections/test", response_model=ProbeOutput)
     async def test_draft_connection(request: ConnectionTestInput) -> dict:
         """Test unsaved sheet values; an omitted key reuses the saved one for the same endpoint."""
@@ -80,13 +87,16 @@ def register_settings_routes(
             saved, saved_key = await call(store.connection_secret, request.id, request.kind)
             if saved["provider"] == route["provider"] and saved["base_url"] == route["base_url"]:
                 key = saved_key
-        return await probe_connection(request.kind, route, key, client_factory=create_http_client)
+        proxy = await call(store.proxy_policy, settings)
+        return await probe_connection(request.kind, route, key, client_factory=lambda routes: create_http_client(routes, proxy))
 
     @app.post("/api/v1/settings/connections/{connection_id}/test", response_model=ProbeOutput)
     async def test_connection(connection_id: str) -> dict:
         route, key = await call(store.connection_secret, connection_id)
         connection = await call(store.connection, connection_id)
-        result = await probe_connection(str(connection["kind"]), route, key, client_factory=create_http_client)
+        proxy = await call(store.proxy_policy, settings)
+        result = await probe_connection(str(connection["kind"]), route, key,
+                                        client_factory=lambda routes: create_http_client(routes, proxy))
         await call(store.record_connection_test, connection_id, result)
         return result
 
@@ -107,6 +117,6 @@ def register_settings_routes(
         result = await probe_source(lambda transport: build_source(
             source_id, transport, key, wos_db=options.get("wos_db") or settings.wos_db,
             contacts={name: value for name, value in options.items() if name != "wos_db"}, settings=settings,
-        ), proxies=settings.source_proxies)
+        ), proxy=await call(store.proxy_policy, settings))
         await call(store.record_source_test, source_id, result)
         return result

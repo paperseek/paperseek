@@ -20,7 +20,9 @@ The repository's [.env.example](https://github.com/paperseek/paperseek/blob/main
 | `PAPERSEEK_WOS_DB` | WoS collection, for example `WOS` |
 | `PAPERSEEK_GOOGLE_SCHOLAR_API_KEY` | Serper key or key pool |
 | `PAPERSEEK_CONTACT_EMAIL` | Contact email used by source clients that support it |
-| `PAPERSEEK_SOURCE_PROXIES` | Deployment-only JSON mapping of source IDs to HTTP(S) proxy URLs or URL lists |
+| `PAPERSEEK_PROXY_URLS` | HTTP(S) proxy pool, one URL per line or comma-separated; replaces the proxy saved in Settings |
+| `PAPERSEEK_PROXY_SCOPE` | What goes through the pool: `models`, `ip_limited_sources`, `other_sources`; defaults to all three |
+| `PAPERSEEK_MAX_CONCURRENT_RUNS` | Searches and reviews that run at the same time; defaults to `4`, `0` removes the limit |
 
 Direct CLI/server execution reads the process environment. Docker Compose loads the optional `.env` file. A copied template alone does not configure a directly launched Python process.
 
@@ -42,19 +44,32 @@ Separate keys with whitespace, commas, or semicolons in the corresponding variab
 
 Do not repeat a key to simulate extra capacity. Each provider still enforces its own access policies.
 
-### Source proxies and IP pools
+### Network proxy
 
-Set `PAPERSEEK_SOURCE_PROXIES` in the API/server and worker environments, then restart those processes. For example in PowerShell:
+Use a proxy when a model or data source cannot be reached directly from your network, or when a source limits your network address. Set it in **Settings › Data sources › Network proxy**, or with `PAPERSEEK_PROXY_URLS` for a server deployment. The environment variable takes precedence, and Settings then shows the proxy as read-only. Restart the server and worker after changing it.
 
 ```powershell
-$env:PAPERSEEK_SOURCE_PROXIES = '{"pubmed":["http://user:password@proxy-a.example:8080","http://user:password@proxy-b.example:8080"],"arxiv":"http://proxy.example:8080"}'
+$env:PAPERSEEK_PROXY_URLS = "http://user:password@proxy-a.example:8080,http://user:password@proxy-b.example:8080"
+$env:PAPERSEEK_PROXY_SCOPE = "ip_limited_sources"
 ```
 
-Source IDs are `openalex`, `arxiv`, `crossref`, `semanticscholar`, `pubmed`, `googlescholar`, `paperhub`, and `wos`. Omitted sources use the direct route. A single gateway URL can also be used when the proxy provider manages IP rotation. HTTP and HTTPS proxy endpoints are supported; an `http://` proxy can tunnel an HTTPS source request. Percent-encode reserved characters in usernames/passwords. See [HTTPX proxy configuration](https://www.python-httpx.org/advanced/proxies/).
+Choose what goes through the proxy:
 
-Requests rotate through the selected source's pool, including bounded retries, with a randomized starting position for each client. Existing request intervals, shared source/credential cooldowns and `Retry-After` still apply; a proxy pool does not increase an API key's quota. An unusable configured proxy does not silently fall back to direct access. HTTP 407 means proxy authentication failed. Model requests are separate, and the source connection test uses the same proxy configuration.
+| Scope | Covers | When it helps |
+| --- | --- | --- |
+| `models` | Language, embedding, rerank and decision models | The model provider cannot be reached directly. Local and LAN addresses always connect directly. |
+| `ip_limited_sources` | arXiv, Crossref, PaperHub, and PubMed or OpenAlex without a key | These sources count requests per network address. A different exit helps when your address is shared with others or has been throttled. |
+| `other_sources` | Semantic Scholar, Web of Science, Google Scholar, and sources with a key | These sources count usage per key or in a shared pool, so a proxy does not raise the limit. It only helps when they cannot be reached directly. |
 
-Keep this setting in a private environment or secret store. It is not a browser setting or part of saved task configuration. Never commit real proxy credentials. Remove the variable or set it to an empty string or `{}` to disable explicit source proxies.
+Traffic outside the chosen scope follows the system proxy settings (`HTTPS_PROXY`, `NO_PROXY`). With several proxies, requests take them in turn, including retries. Request intervals, cooldowns and `Retry-After` still apply across the whole pool, so a pool never sends faster than a single address would.
+
+HTTP and HTTPS proxy addresses are supported, and an `http://` proxy can tunnel HTTPS requests. Percent-encode reserved characters in user names and passwords; see [HTTPX proxy configuration](https://www.python-httpx.org/advanced/proxies/). A configured proxy that does not work never falls back to a direct connection, and HTTP 407 means proxy authentication failed. Connection tests in Settings use the same proxy.
+
+Addresses saved in Settings are encrypted on this machine and are never shown again; Settings lists only each proxy's host and port. **Clear saved keys** in Settings › User also removes them. Never commit real proxy credentials.
+
+### Concurrent tasks
+
+`PAPERSEEK_MAX_CONCURRENT_RUNS` sets how many searches and reviews run at the same time; the rest wait in the queue. The default is `4`, and `0` removes the limit. Data sources and model providers enforce their own limits whatever this value is, and all running tasks share them, so a higher value mostly makes each task wait longer.
 
 ## Per-search settings
 

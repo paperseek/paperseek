@@ -10,6 +10,8 @@ export type ConnectionInput = Schema["ConnectionInput"];
 export type SourceSetting = Schema["SourceSettingOutput"];
 export type Defaults = Schema["DefaultsOutput"];
 export type Probe = Schema["ProbeOutput"];
+export type ProxySettings = Schema["ProxySettingsOutput"];
+export type ProxyScope = ProxySettings["scope"][number];
 
 const root = "/api/v1/settings";
 const send = (method: string, body: unknown): RequestInit => ({
@@ -27,6 +29,7 @@ export const workspaceSettings = reactive({
   sources: [] as SourceSetting[],
   descriptors: [] as SourceDescriptor[],
   defaults: null as Defaults | null,
+  proxy: null as ProxySettings | null,
 });
 
 let pending: Promise<void> | null = null;
@@ -44,6 +47,7 @@ export function loadSettings(force = false): Promise<void> {
       workspaceSettings.connections = value.connections;
       workspaceSettings.sources = value.sources;
       workspaceSettings.defaults = value.defaults;
+      workspaceSettings.proxy = value.proxy ?? null;
       workspaceSettings.descriptors = descriptors;
       workspaceSettings.loaded = true;
     } catch {
@@ -79,6 +83,7 @@ export const settingsApi = {
   saveDefaults: (body: Schema["DefaultsInput"]) => json<Defaults>(`${root}/defaults`, send("PUT", body)),
   saveSource: (id: string, body: Schema["SourceSettingsInput"]) => json<void>(`${root}/sources/${id}`, send("PUT", body)),
   testSource: (id: string) => json<Probe>(`${root}/sources/${id}/test`, { method: "POST" }),
+  saveProxy: (body: Schema["ProxySettingsInput"]) => json<ProxySettings>(`${root}/proxy`, send("PUT", body)),
 };
 
 /** Select options for saved connections of one kind, with test-status dots. */

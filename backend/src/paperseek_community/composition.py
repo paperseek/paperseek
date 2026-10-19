@@ -5,7 +5,6 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 import time
-import httpx
 
 from paperseek_community.model_transport import create_http_client
 
@@ -37,8 +36,8 @@ from paperseek_core.sources.openalex import OpenAlexSource
 from paperseek_core.sources.paperhub import PaperHubSource
 from paperseek_core.sources.pubmed import PubMedSource
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
+from paperseek_core.sources.proxy import ProxyPolicy
 from paperseek_core.sources.wos import WosSource
-from paperseek_core.sources.proxy import SourceProxyTransport
 
 
 def community_static_dir() -> Path:
@@ -50,9 +49,13 @@ class CommunityExecutionResolver:
         self,
         settings: CommunityDeploymentSettings,
         credentials: EncryptedRunCredentialStore,
+        *,
+        proxy: Callable[[], ProxyPolicy] | None = None,
     ) -> None:
         self.settings = settings
         self.credentials = credentials
+        # Read for each run, so a proxy saved in Settings applies without a restart.
+        self.proxy = proxy or (lambda: settings.proxy)
 
     def __call__(self, run: RunDetail, cancellation: CancellationToken) -> WorkflowExecution:
         deadline_at = time.monotonic() + max(0, (run.deadline_at - datetime.now(timezone.utc)).total_seconds())
@@ -62,11 +65,10 @@ class CommunityExecutionResolver:
         route = resolve_llm_route(self.settings, dict(run.config_snapshot.get("llm") or {}))
         retrieval = resolve_retrieval_route(run.config_snapshot.get("retrieval") or {})
         model_keys = resolve_model_credentials(self.settings, route, retrieval, stored)
-        client = create_http_client([route, *(retrieval.get(kind) or {} for kind in ("embedding", "reranker", "decision"))])
-        sources = (httpx.AsyncClient(transport=SourceProxyTransport(self.settings.source_proxies), trust_env=False)
-                   if self.settings.source_proxies else client)
+        client = create_http_client([route, *(retrieval.get(kind) or {} for kind in ("embedding", "reranker", "decision"))],
+                                    self.proxy())
         transport = AsyncHttpTransport(
-            client=sources,
+            client=client,
             context=RequestContext(step_key="source.request", cancellation=cancellation, deadline_at=deadline_at),
         )
         source = self._source(
@@ -126,12 +128,6 @@ class CommunityExecutionResolver:
                 )),
                 **decision_route, api_key=model_keys["decision"],
             )
-        async def close():
-            try:
-                await client.aclose()
-            finally:
-                if sources is not client:
-                    await sources.aclose()
 
         return WorkflowExecution(
             decision=decision,
@@ -153,7 +149,7 @@ class CommunityExecutionResolver:
                 citation_max_records=preset.citation_max_records,
                 citation_depth=preset.citation_depth,
             ),
-            close=close,
+            close=client.aclose,
             deadline_at=deadline_at,
         )
 

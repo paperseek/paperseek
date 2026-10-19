@@ -20,7 +20,9 @@
 | `PAPERSEEK_WOS_DB` | WoS 集合，例如 `WOS` |
 | `PAPERSEEK_GOOGLE_SCHOLAR_API_KEY` | Serper Key 或 Key 池 |
 | `PAPERSEEK_CONTACT_EMAIL` | 支持联系邮箱的数据源客户端使用的邮箱 |
-| `PAPERSEEK_SOURCE_PROXIES` | 仅部署端使用的 JSON：数据源 ID 映射到 HTTP(S) 代理地址或地址列表 |
+| `PAPERSEEK_PROXY_URLS` | HTTP(S) 代理池，每行一个或用逗号分隔；设置后取代设置页中保存的代理 |
+| `PAPERSEEK_PROXY_SCOPE` | 哪些请求走代理：`models`、`ip_limited_sources`、`other_sources`，默认三项都走 |
+| `PAPERSEEK_MAX_CONCURRENT_RUNS` | 同时运行的检索和综述任务数，默认 `4`，`0` 表示不限制 |
 
 直接运行 CLI 或服务时读取进程环境。Docker Compose 会加载可选 `.env`。仅复制模板不会配置直接启动的 Python 进程。
 
@@ -42,19 +44,32 @@ paperseek serve
 
 重复填写同一个 Key 不会增加可用容量；提供方自身的访问政策仍然适用。
 
-### 数据源代理与 IP 池
+### 网络代理
 
-在 API/服务端和 worker 的环境中设置 `PAPERSEEK_SOURCE_PROXIES`，然后重启相应进程。PowerShell 示例：
+当你的网络无法直接访问模型或数据源，或者数据源对你的网络地址限速时，可以使用代理。在 **设置 › 数据源 › 网络代理** 中填写；服务器部署也可以使用 `PAPERSEEK_PROXY_URLS`。环境变量优先，此时设置页中的代理只读。修改后需要重启服务端和 worker。
 
 ```powershell
-$env:PAPERSEEK_SOURCE_PROXIES = '{"pubmed":["http://user:password@proxy-a.example:8080","http://user:password@proxy-b.example:8080"],"arxiv":"http://proxy.example:8080"}'
+$env:PAPERSEEK_PROXY_URLS = "http://user:password@proxy-a.example:8080,http://user:password@proxy-b.example:8080"
+$env:PAPERSEEK_PROXY_SCOPE = "ip_limited_sources"
 ```
 
-可用的数据源 ID 为 `openalex`、`arxiv`、`crossref`、`semanticscholar`、`pubmed`、`googlescholar`、`paperhub`、`wos`。未指定的数据源使用直连；也可填写由代理商管理 IP 轮换的单个网关地址。支持 HTTP 和 HTTPS 代理地址，`http://` 代理也能通过隧道访问 HTTPS 数据源。用户名和密码中的保留字符需要 URL 编码，参见 [HTTPX 代理配置](https://www.python-httpx.org/advanced/proxies/)。
+选择哪些请求通过代理发送：
 
-每个客户端随机选择起始代理，随后按请求轮换，已有的有限重试也使用该池。请求间隔、数据源与凭据共享的冷却时间和 `Retry-After` 仍然生效；代理池不会增加 API Key 的配额。配置的代理不可用时不会静默退回直连，HTTP 407 表示代理鉴权失败。模型请求使用独立连接，数据源连接测试则使用同一份代理配置。
+| 范围 | 包括 | 什么时候有用 |
+| --- | --- | --- |
+| `models` | 大模型、嵌入、重排和决策模型 | 无法直接访问模型服务时。本机和局域网地址始终直连。 |
+| `ip_limited_sources` | arXiv、Crossref、PaperHub，以及未填写密钥的 PubMed 和 OpenAlex | 这些数据源按网络地址计算请求次数。网络地址与他人共用或已被限速时，换一个出口会有帮助。 |
+| `other_sources` | Semantic Scholar、Web of Science、Google Scholar，以及已填写密钥的数据源 | 这些数据源按密钥或共享额度计算，代理不会增加额度，只在无法直接访问时需要。 |
 
-将此配置保存在私有环境或密钥存储中，不通过浏览器设置，也不会写入任务配置。不要提交真实代理凭据。移除变量、设为空字符串或 `{}` 即可禁用显式数据源代理。
+未选中的请求按系统代理设置（`HTTPS_PROXY`、`NO_PROXY`）发送。填写多个代理时，请求（包括重试）会轮流使用它们。请求间隔、冷却时间和 `Retry-After` 对整个代理池统一生效，代理池发送请求的速度不会超过单个地址。
+
+支持 HTTP 和 HTTPS 代理地址，`http://` 代理也能通过隧道访问 HTTPS。用户名和密码中的保留字符需要 URL 编码，参见 [HTTPX 代理配置](https://www.python-httpx.org/advanced/proxies/)。配置的代理不可用时不会退回直连，HTTP 407 表示代理鉴权失败。设置页中的连接测试也使用同一个代理。
+
+在设置页保存的地址会在本机加密存储，之后不再显示，设置页只列出每个代理的主机和端口。**设置 › 用户** 中的 **清空已保存的密钥** 也会删除这些地址。不要提交真实代理凭据。
+
+### 并发任务
+
+`PAPERSEEK_MAX_CONCURRENT_RUNS` 决定同时运行多少个检索和综述任务，其余任务排队等待。默认 `4`，`0` 表示不限制。无论该值多大，数据源和模型服务都有各自的限速，且由所有运行中的任务共享，所以调得更高主要会让每个任务等待更久。
 
 ## 每次检索的设置
 
