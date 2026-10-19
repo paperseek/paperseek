@@ -143,7 +143,9 @@ class OpenAlexSource:
                 body=response.text[:1000],
                 query=query,
             ) from exc
-        meta = payload.get("meta") or {}
+        if not isinstance(payload, dict) or not isinstance(payload.get('meta'), dict) or not isinstance(payload.get('results'), list):
+            raise SourceError(self.name, "OpenAlex returned an invalid search payload.", query=query)
+        meta = payload['meta']
         hits = [self._to_record(work) for work in payload.get("results") or [] if isinstance(work, dict)]
         raw_count = len(hits) if request.lane == "semantic" else None
         if request.lane == "semantic" and field_ids:

@@ -58,20 +58,44 @@ class PubMedSource:
             },
             query,
         )
-        search_result = search_payload.get("esearchresult") or {}
+        search_result = search_payload.get("esearchresult")
+        if not isinstance(search_result, dict):
+            raise SourceError(self.name, "PubMed returned an invalid search payload.", query=query)
+        errors = search_result.get("errorlist") or {}
+        if isinstance(errors, dict) and errors.get("fieldsnotfound"):
+            raise SourceError(self.name, "PubMed rejected an unknown query field.", status=400, query=query)
+        if not str(search_result.get('count', '')).isdigit() or not isinstance(search_result.get('idlist'), list):
+            raise SourceError(self.name, "PubMed search count or identifiers are missing.", query=query)
+        feedback = []
+        for diagnostics in (errors, search_result.get('warninglist') or {}):
+            if not isinstance(diagnostics, dict):
+                continue
+            for key in ('phrasesnotfound', 'quotedphrasesnotfound', 'phrasesignored', 'outputmessages'):
+                values = diagnostics.get(key)
+                if isinstance(values, list) and values:
+                    feedback.append(f"PubMed {key}: " + "; ".join(str(v)[:160] for v in values[:6]))
+        warnings = ['pubmed_query_warning'] if feedback else []
         ids = [str(value) for value in search_result.get("idlist") or [] if value]
         total = int(search_result.get("count") or 0)
         metadata = SourceSearchMetadata(total=total, page=max(1, request.page), limit=page_size)
         if not ids:
-            return SourceSearchResult(metadata=metadata, hits=[])
+            return SourceSearchResult(metadata=metadata, hits=[], warnings=warnings, query_feedback=feedback)
         summaries = (await self._get_json(
             self.SUMMARY_URL,
             {"db": "pubmed", "id": ",".join(ids), "retmode": "json"},
             query,
         )).get("result") or {}
-        abstracts = await self._fetch_abstracts(ids, query)
+        if not isinstance(summaries, dict):
+            raise SourceError(self.name, "PubMed returned invalid summaries.", query=query)
+        abstracts, abstracts_failed = await self._fetch_abstracts(ids, query)
+        if abstracts_failed:
+            warnings.append('pubmed_abstracts_unavailable')
         hits = [self._to_record(pmid, summaries[pmid], abstracts.get(pmid, "")) for pmid in ids if isinstance(summaries.get(pmid), dict)]
-        return SourceSearchResult(metadata=metadata, hits=hits)
+        if not hits:
+            raise SourceError(self.name, "PubMed returned identifiers without usable summaries.", query=query)
+        if len(hits) != len(ids):
+            warnings.append('pubmed_metadata_partial')
+        return SourceSearchResult(metadata=metadata, hits=hits, warnings=warnings, query_feedback=feedback)
 
     async def _get_json(self, url: str, params: dict[str, Any], query: str) -> dict[str, Any]:
         response, self.last_response_info = await self.transport.request(
@@ -82,15 +106,36 @@ class PubMedSource:
             headers={"Accept": "application/json", "User-Agent": self._user_agent()},
             timeout=45,
             query=query,
+            response_status=self._api_error_status,
         )
         if response.status_code >= 400:
             raise SourceError(self.name, f"PubMed returned HTTP {response.status_code}.", status=response.status_code, retry_details=response.extensions.get("paperseek_retry"), body=response.text[:1000], query=query)
         try:
-            return response.json()
+            payload = response.json()
         except ValueError as exc:
             raise SourceError(self.name, "PubMed returned a non-JSON response.", body=response.text[:1000], query=query) from exc
+        if not isinstance(payload, dict):
+            raise SourceError(self.name, "PubMed returned an invalid JSON payload.", query=query)
+        return payload
 
-    async def _fetch_abstracts(self, ids: list[str], query: str) -> dict[str, str]:
+    @staticmethod
+    def _api_error_status(response) -> int | None:
+        if response.status_code >= 400:
+            return None
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        error = payload.get('error') or next((value.get('error') for value in payload.values()
+                                             if isinstance(value, dict) and value.get('error')), None)
+        if not error:
+            return None
+        text = str(error).lower()
+        return 429 if 'rate limit' in text else 401 if 'api key' in text else 502
+
+    async def _fetch_abstracts(self, ids: list[str], query: str) -> tuple[dict[str, str], bool]:
         try:
             response, self.last_response_info = await self.transport.request(
                 self.name,
@@ -102,13 +147,15 @@ class PubMedSource:
                 query=query,
             )
         except SourceError:
-            return {}
+            return {}, True
         if response.status_code >= 400:
-            return {}
+            return {}, True
         try:
             root = ET.fromstring(response.text)
         except ET.ParseError:
-            return {}
+            return {}, True
+        if root.find('.//ERROR') is not None or root.tag != 'PubmedArticleSet':
+            return {}, True
         abstracts: dict[str, str] = {}
         for article in root.findall(".//PubmedArticle"):
             pmid = article.findtext(".//PMID") or ""
@@ -119,7 +166,7 @@ class PubMedSource:
                     parts.append(f"{node.attrib.get('Label')}: {text}" if node.attrib.get("Label") else text)
             if pmid and parts:
                 abstracts[pmid] = re.sub(r"\s+", " ", " ".join(parts)).strip()
-        return abstracts
+        return abstracts, False
 
     def _common_params(self) -> dict[str, str]:
         params = {"tool": self.tool}

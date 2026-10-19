@@ -19,6 +19,8 @@ class SourceSearchRequest(CoreModel):
 class SourceSearchResult(CoreModel):
     metadata: SourceSearchMetadata
     hits: list[PaperRecord] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    query_feedback: list[str] = Field(default_factory=list)
 
 
 class SourceCapabilities(CoreModel):

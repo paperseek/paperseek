@@ -157,6 +157,7 @@ class QueryPortfolioExecutor:
                         )
                         self.cancellation.raise_if_cancelled()
                         view_hits = list(response.hits or [])
+                        current = current.model_copy(update={'warnings': self._merge_unique(current.warnings, response.warnings)})
                         added = 0
                         for record in view_hits:
                             key = document_key(record)

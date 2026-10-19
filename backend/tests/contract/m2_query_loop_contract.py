@@ -427,6 +427,8 @@ class M2QueryLoopContractTest(unittest.IsolatedAsyncioTestCase):
             read_text("llm/query_broadened.json"),
         )
         budget = QueryLoopBudget(query_portfolio_enabled=False)
+        llm.responses.append(json.dumps({"core_concepts_preserved": True, "required_relation_preserved": True,
+                                         "constraints_preserved": True}))
 
         result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(
             QueryLoopRequest(question=QUESTION, budget=budget)
@@ -436,7 +438,7 @@ class M2QueryLoopContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.query for item in result.query_iteration_memory], [result.final_query])
         self.assertEqual(result.retrieval_request.supplemental_lanes, {})
         self.assertEqual(result.retrieval_request.primary_hits, [recovered])
-        self.assertEqual([item.action for item in result.history[:2]], ["broaden", "accept"])
+        self.assertEqual([item.action for item in result.history[:2]], ["broaden", "empty_recovery"])
 
     async def test_checkpoint_resume_skips_completed_primary_query_and_resumes_portfolio(self) -> None:
         records = golden_records()

@@ -29,7 +29,7 @@ from paperseek_core.ports import (
     SourcePort,
     WorkflowObserver,
 )
-from paperseek_core.sources.contracts import SourceSearchRequest
+from paperseek_core.sources.contracts import SourceError, SourceSearchRequest
 from paperseek_core.retrieval_fusion import (
     FusedRetrievalResult, RetrievalLane, dedupe_documents, fuse_candidates_rrf,
 )
@@ -161,6 +161,8 @@ class RetrievalPipeline:
             except Exception as exc:
                 errors_by_lane[lane] = exc
                 warnings_by_lane[lane] = [f"retrieval_lane_failed:{lane}"]
+                if isinstance(exc, SourceError) and exc.status == 429:
+                    warnings_by_lane[lane].append('source_rate_limited')
                 self._event(
                     "retrieval.degraded",
                     {
@@ -294,6 +296,8 @@ class RetrievalPipeline:
                     if not collected:
                         raise
                     warnings.append(f"retrieval_page_failed_candidates_retained:{lane}")
+                    if isinstance(exc, SourceError) and exc.status == 429:
+                        warnings.append('source_rate_limited')
                     self._event("retrieval.degraded", {
                         "code": "retrieval_page_failed_candidates_retained", "lane": lane,
                         "page": page, "retained_candidates": len(collected),
@@ -302,6 +306,7 @@ class RetrievalPipeline:
                     stop_reason = "page_failed"
                     break
                 hits, metadata = list(response.hits), response.metadata
+                warnings.extend(code for code in response.warnings if code not in warnings)
             pages_read += 1
             returned = metadata.raw_count if metadata.raw_count is not None else len(hits)
             raw_count += returned

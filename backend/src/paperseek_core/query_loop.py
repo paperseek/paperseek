@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any, Iterable
 
-from paperseek_core.errors import QueryGenerationError, QuerySourceError
+from paperseek_core.errors import LLMRequestError, QueryGenerationError, QuerySourceError
 from paperseek_core.execution import NEVER_CANCELLED, record_checkpoint
 from paperseek_core.http_retry import failure_details
 from paperseek_core.models import (
@@ -126,8 +126,10 @@ class QueryLoopPipeline:
             )
             state = await self._checkpoint(state, "query_ready", "query.plan")
 
-        if state.phase not in {"query_primary_complete", "query_portfolio", "query_complete"}:
+        if state.phase not in {"query_primary_complete", "query_portfolio", "query_complete", "query_empty_recovery", "query_empty_recovery_ready"}:
             state = await self._run_primary_loop(state, budget)
+        if state.phase not in {"query_complete", "query_portfolio"} and state.total == 0 and not state.primary_hits and not state.fallback_hits:
+            state = await self._recover_empty(state, budget)
         if state.phase != "query_complete":
             state = await self.portfolio.run(state, budget)
             state = await self._checkpoint(state, "query_complete", "query.complete")
@@ -196,12 +198,18 @@ class QueryLoopPipeline:
                     "limit": self._primary_limit(budget),
                 },
             )
-            response = await self._primary_search_with_repair(
-                state,
-                query,
-                iteration,
-                budget,
-            )
+            try:
+                response = await self._primary_search_with_repair(state, query, iteration, budget)
+            except QuerySourceError:
+                if not state.fallback_hits:
+                    raise
+                state = self._restore_visible_fallback(state, budget)
+                state = state.model_copy(update={
+                    'terminal_status': repetition_decision(state.total, budget).action,
+                    'warnings': self._merge_unique(state.warnings, ['query_source_unavailable_candidates_retained']),
+                })
+                self._event('query.degraded', {'code': 'query_source_unavailable_candidates_retained', 'hit_count': len(state.primary_hits)})
+                return await self._checkpoint(state, 'query_primary_complete', 'query.primary')
             query = response[0]
             source_result = response[1]
             if source_result is None:
@@ -263,6 +271,7 @@ class QueryLoopPipeline:
                     "fallback_total": fallback_total,
                     "fallback_hits": fallback_hits,
                     "fallback_page": fallback_page,
+                    "warnings": self._merge_unique(state.warnings, source_result.warnings),
                 }
             )
             self._event(
@@ -281,7 +290,15 @@ class QueryLoopPipeline:
                 iteration=iteration, query=query, total=total,
                 action=decision.action, message=decision.message,
                 controller_reason=decision.reason,
+                source_feedback=source_result.query_feedback,
             )
+            if total == 0 and not hits and not fallback_hits:
+                # Empty responses take the checked, bounded recovery path instead
+                # of repeatedly relaxing the question until something matches.
+                updated = updated.model_copy(update={
+                    "history": [*updated.history, history], "terminal_status": "empty",
+                })
+                return await self._checkpoint(updated, "query_primary_complete", "query.primary")
             if decision.action in {"broaden", "narrow"}:
                 proposal = await self.planner.propose(
                     self.source.name,
@@ -297,7 +314,8 @@ class QueryLoopPipeline:
                 self.cancellation.raise_if_cancelled()
                 warnings = self._merge_unique(updated.warnings, proposal.warnings)
                 if repeated_attempt(proposal.query, [*updated.history, history]) is not None:
-                    return await self._stop_repeated(updated.model_copy(update={"warnings": warnings}), budget, proposal.query)
+                    return await self._stop_repeated(updated.model_copy(update={"warnings": warnings}), budget,
+                                                     proposal.query, source_feedback=history.source_feedback)
                 history = history.model_copy(update={"next_query": proposal.query, "rationale": proposal.rationale})
                 updated = updated.model_copy(
                     update={
@@ -332,17 +350,62 @@ class QueryLoopPipeline:
 
     async def _stop_repeated(
         self, state: QueryLoopResumeState, budget: QueryLoopBudget, proposed_query: str,
+        *, source_feedback: list[str] | None = None,
     ) -> QueryLoopResumeState:
         decision = repetition_decision(state.total, budget)
         terminal = QueryHistoryEntry(
             iteration=state.iteration, query=state.current_query, total=state.total,
             action=decision.action, message=decision.message, controller_reason=decision.reason,
             next_query=proposed_query,
+            source_feedback=source_feedback or [],
         )
         state = self._restore_visible_fallback(state.model_copy(update={"history": [*state.history, terminal]}), budget)
         decision = repetition_decision(state.total, budget)
         state = self._record_refinement_stop(state, decision).model_copy(update={"terminal_status": decision.action})
         return await self._checkpoint(state, "query_primary_complete", "query.primary")
+
+    async def _recover_empty(self, state: QueryLoopResumeState, budget: QueryLoopBudget) -> QueryLoopResumeState:
+        if state.phase != 'query_empty_recovery_ready':
+            if state.empty_recovery_attempted:
+                return state.model_copy(update={'warnings': self._merge_unique(state.warnings, ['query_empty_unresolved'])})
+            state = await self._checkpoint(state.model_copy(update={'empty_recovery_attempted': True}),
+                                           'query_empty_recovery', 'query.empty_recovery')
+            try:
+                proposal = await self.planner.recover_empty(self.source.name, state.question, state.search_plan,
+                    current_query=state.current_query, history=state.history, source_context=self.source_context)
+            except (QueryGenerationError, LLMRequestError):
+                proposal = None
+            self.cancellation.raise_if_cancelled()
+            if proposal is None:
+                state = state.model_copy(update={'warnings': self._merge_unique(state.warnings, ['query_empty_recovery_rejected'])})
+                return await self._checkpoint(state, 'query_primary_complete', 'query.empty_recovery')
+            state = await self._checkpoint(state.model_copy(update={
+                'current_query': proposal.query,
+                'warnings': self._merge_unique(state.warnings, proposal.warnings),
+            }), 'query_empty_recovery_ready', 'query.empty_recovery')
+        iteration = state.iteration + 1
+        self._event('query.request_started', {'source': self.source.name, 'iteration': iteration, 'lane': 'relevance',
+                    'query': state.current_query, 'limit': self._primary_limit(budget), 'recovery': True})
+        try:
+            response = await self.source.search(SourceSearchRequest(query=state.current_query,
+                limit=self._primary_limit(budget), lane='relevance', field_ids=budget.field_ids))
+        except SourceError as error:
+            self._primary_failed(iteration, error)
+        self.cancellation.raise_if_cancelled()
+        hits, total = list(response.hits), response.metadata.total
+        code = 'query_empty_recovered' if hits else 'query_empty_unresolved'
+        decision = repetition_decision(total, budget).action
+        state = state.model_copy(update={
+            'iteration': iteration, 'total': total, 'primary_hits': hits, 'primary_page': response.metadata,
+            'terminal_status': decision,
+            'history': [*state.history, QueryHistoryEntry(iteration=iteration, query=state.current_query,
+                total=total, action='empty_recovery', source_feedback=response.query_feedback)],
+            'query_iteration_memory': self._record_iteration(list(state.query_iteration_memory), iteration, state.current_query, total, hits),
+            'warnings': self._merge_unique(state.warnings, [*response.warnings, code]),
+        })
+        self._event('query.progress', {'iteration': iteration, 'query': state.current_query, 'total': total,
+                    'hit_count': len(hits), 'decision': decision, 'code': code})
+        return await self._checkpoint(state, 'query_primary_complete', 'query.empty_recovery')
 
     def _record_refinement_stop(
         self, state: QueryLoopResumeState, decision: QueryLoopDecision,

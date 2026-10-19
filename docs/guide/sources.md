@@ -33,6 +33,12 @@ Open **Settings → Data sources** and choose **Configure** or **Configure key**
 
 Provider subscriptions and rate limits are separate from PaperSeek accounts and credits.
 
+## Empty results and temporary failures
+
+When the primary search returns no papers, PaperSeek makes at most one additional recovery query. It uses source feedback, including PubMed's unrecognized phrases, to adjust terminology or optional restrictions. A separate model check must approve preservation of core concepts, required relationships, and explicit constraints before that query runs. This check is not a guarantee of relevance; inspect the search process and returned papers. If no suitable query passes or the source still has no matches, PaperSeek reports that outcome instead of silently dropping required conditions. Field filters remain applied.
+
+Rate limits and malformed API responses are reported as source problems, not zero matches. Requests use bounded retries and respect `Retry-After`. Within one worker process, requests sharing a source and credential also share pacing and cooldowns; retries participate in the same controls. Semantic Scholar's bulk-search cooldown does not block ordinary relevance search. Existing candidates survive later query or pagination failures, and unavailable supplementary lanes produce warnings. Separate worker processes or other applications using the same provider account still share the upstream quota, so a retry cannot guarantee availability.
+
 ## Fields and categories
 
 OpenAlex uses supported discipline options; its semantic lane applies supported filtering behavior. arXiv uses categories. WoS categories and the WoS database selector are separate. Other sources use textual field guidance.

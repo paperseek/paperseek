@@ -133,7 +133,7 @@ class WosSource:
             payload = response.json()
         except ValueError as exc:
             raise SourceError(self.name, "WoS returned a non-JSON response.", status=response.status_code, retry_details=response.extensions.get("paperseek_retry"), body=response.text[:1000], query=query) from exc
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or not isinstance(payload.get('metadata'), dict) or not isinstance(payload.get('hits'), list):
             raise SourceError(self.name, "WoS returned an unexpected JSON structure.", status=response.status_code, retry_details=response.extensions.get("paperseek_retry"), body=response.text[:1000], query=query)
         return result_from_json(payload, limit)
 

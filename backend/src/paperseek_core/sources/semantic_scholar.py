@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import time
 from typing import Any
 
 from paperseek_core.models import PaperAuthor, PaperCitation, PaperIdentifiers, PaperKeywords, PaperLinks, PaperNames, PaperRecord, PaperSource
@@ -43,8 +41,6 @@ class SemanticScholarSource:
         "externalIds",
         "citationCount",
     )
-    _lock = asyncio.Lock()
-    _last_request_at = 0.0
 
     def __init__(
         self,
@@ -90,7 +86,6 @@ class SemanticScholarSource:
         headers = {"Accept": "application/json", "User-Agent": "paperseek/1.0"}
         if self.api_key:
             headers["x-api-key"] = self.api_key
-        await self._throttle()
         response, self.last_response_info = await self.transport.request(
             self.name,
             "GET",
@@ -98,12 +93,12 @@ class SemanticScholarSource:
             params=params,
             headers=headers,
             timeout=45,
+            min_interval=self.throttle_seconds,
             query=query,
         )
         if response.status_code >= 500:
             fallback = dict(params)
             fallback["fields"] = ",".join(self.FALLBACK_FIELDS)
-            await self._throttle()
             response, self.last_response_info = await self.transport.request(
                 self.name,
                 "GET",
@@ -111,6 +106,7 @@ class SemanticScholarSource:
                 params=fallback,
                 headers=headers,
                 timeout=45,
+                min_interval=self.throttle_seconds,
                 query=query,
             )
             self.last_response_info["fallback"] = "basic_fields"
@@ -126,6 +122,8 @@ class SemanticScholarSource:
             payload = response.json()
         except ValueError as exc:
             raise SourceError(self.name, "Semantic Scholar returned a non-JSON response.", body=response.text[:1000], query=query) from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get('data'), list):
+            raise SourceError(self.name, "Semantic Scholar returned an invalid search payload.", query=query)
         hits = [self._to_record(item) for item in payload.get("data") or [] if isinstance(item, dict)]
         return SourceSearchResult(
             metadata=SourceSearchMetadata(
@@ -136,14 +134,6 @@ class SemanticScholarSource:
             hits=hits,
         )
 
-    async def _throttle(self) -> None:
-        if not self.throttle_seconds:
-            return
-        async with self._lock:
-            elapsed = time.monotonic() - self.__class__._last_request_at
-            if elapsed < self.throttle_seconds:
-                await asyncio.sleep(self.throttle_seconds - elapsed)
-            self.__class__._last_request_at = time.monotonic()
 
     @staticmethod
     def _to_record(item: dict[str, Any]) -> PaperRecord:

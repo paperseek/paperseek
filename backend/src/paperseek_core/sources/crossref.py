@@ -65,7 +65,9 @@ class CrossrefSource:
             payload = response.json()
         except ValueError as exc:
             raise SourceError(self.name, "Crossref returned a non-JSON response.", body=response.text[:1000], query=query) from exc
-        message = payload.get("message") or {}
+        if not isinstance(payload, dict) or not isinstance(payload.get('message'), dict) or not isinstance(payload['message'].get('items'), list):
+            raise SourceError(self.name, "Crossref returned an invalid search payload.", query=query)
+        message = payload['message']
         hits = [self._to_record(item) for item in message.get("items") or [] if isinstance(item, dict)]
         return SourceSearchResult(
             metadata=SourceSearchMetadata(total=int(message.get("total-results") or 0), page=max(1, request.page), limit=page_size),

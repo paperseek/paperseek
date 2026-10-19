@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from html import unescape
-import asyncio
 import re
-import time
 from typing import Any
 import xml.etree.ElementTree as ET
 
@@ -18,8 +16,6 @@ class ArxivSource:
     name = "arxiv"
     BASE_URL = "https://export.arxiv.org/api/query"
     ATOM_NS = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
-    _lock = asyncio.Lock()
-    _last_request_at = 0.0
 
     def __init__(self, *, transport: AsyncHttpTransport, throttle_seconds: float = 3.1) -> None:
         self.transport = transport
@@ -53,7 +49,6 @@ class ArxivSource:
             "sortBy": "submittedDate" if request.lane == "recent" else "relevance",
             "sortOrder": "descending",
         }
-        await self._throttle()
         response, self.last_response_info = await self.transport.request(
             self.name,
             "GET",
@@ -61,6 +56,7 @@ class ArxivSource:
             params=params,
             headers={"Accept": "application/atom+xml", "User-Agent": "paperseek/1.0"},
             timeout=45,
+            min_interval=self.throttle_seconds,
             query=query,
         )
         if response.status_code >= 400:
@@ -69,6 +65,11 @@ class ArxivSource:
             root = ET.fromstring(response.text)
         except ET.ParseError as exc:
             raise SourceError(self.name, "arXiv returned invalid Atom XML.", body=response.text[:1000], query=query) from exc
+        if root.tag != '{http://www.w3.org/2005/Atom}feed' or any(
+            '/api/errors' in (entry.findtext('atom:id', default='', namespaces=self.ATOM_NS))
+            for entry in root.findall('atom:entry', self.ATOM_NS)
+        ):
+            raise SourceError(self.name, "arXiv returned an error feed.", status=400, query=query)
         total_text = root.findtext("opensearch:totalResults", default="", namespaces={"opensearch": "http://a9.com/-/spec/opensearch/1.1/"})
         try:
             total = int((total_text or "0").strip())
@@ -79,14 +80,6 @@ class ArxivSource:
             hits=[self._to_record(entry) for entry in root.findall("atom:entry", self.ATOM_NS)],
         )
 
-    async def _throttle(self) -> None:
-        if not self.throttle_seconds:
-            return
-        async with self._lock:
-            elapsed = time.monotonic() - self.__class__._last_request_at
-            if elapsed < self.throttle_seconds:
-                await asyncio.sleep(self.throttle_seconds - elapsed)
-            self.__class__._last_request_at = time.monotonic()
 
     @staticmethod
     def _search_query(query: str) -> str:

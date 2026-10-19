@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 
@@ -17,6 +19,7 @@ from paperseek_core.sources.http import AsyncHttpTransport
 from paperseek_core.sources.openalex import OpenAlexSource
 from paperseek_core.sources.paperhub import PaperHubSource
 from paperseek_core.sources.pubmed import PubMedSource
+from paperseek_core.sources import rate_limit
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
 from paperseek_core.sources.wos import WosSource
 
@@ -97,6 +100,8 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         cls.contracts = load_json("request_contracts.json")
 
     def transport(self, routes: dict[str, Any]) -> tuple[AsyncHttpTransport, FakeAsyncClient]:
+        # Independent provider fixtures must not inherit another fixture's 429.
+        rate_limit._windows.clear()
         client = FakeAsyncClient(routes)
         return AsyncHttpTransport(client=client, sleep=no_sleep), client
 
@@ -442,14 +447,17 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_retry_after_does_not_retry_before_the_source_allows_it(self) -> None:
         delays = []
+        clock = [100.0]
         statuses = iter((429, 200))
         def handle(request):
             return httpx.Response(next(statuses), headers={"Retry-After": "32"}, json={"meta": {"count": 0}, "results": []})
         async def wait(seconds):
             delays.append(seconds)
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-            source = OpenAlexSource(transport=AsyncHttpTransport(client=client, sleep=wait))
-            await source.search(SourceSearchRequest(query="governance"))
+            clock[0] += seconds
+        with patch.object(rate_limit, "time", SimpleNamespace(monotonic=lambda: clock[0])):
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+                source = OpenAlexSource(transport=AsyncHttpTransport(client=client, sleep=wait))
+                await source.search(SourceSearchRequest(query="governance"))
         self.assertEqual(delays, [32.0])
 
     async def test_status_transport_invalid_payload_and_empty_result_semantics(self) -> None:
