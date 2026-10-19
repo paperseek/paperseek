@@ -72,7 +72,7 @@ class WorkspaceDataTest(unittest.TestCase):
         saved = self.client.put("/api/v1/settings/sources/openalex", json={"api_key": "openalex-key", "options": {"openalex_email": "me@example.edu"}})
         self.assertEqual(saved.status_code, 204, saved.text)
         result = self.client.delete("/api/v1/settings/secrets")
-        self.assertEqual(result.json(), {"connections": 1, "source_keys": 1})
+        self.assertEqual(result.json(), {"connections": 1, "source_keys": 1, "proxies": 0})
         settings = self.client.get("/api/v1/settings").json()
         self.assertEqual(settings["connections"], [])
         openalex = next(item for item in settings["sources"] if item["id"] == "openalex")

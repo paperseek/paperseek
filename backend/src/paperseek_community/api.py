@@ -110,21 +110,16 @@ def create_app(
                 execution_resolver,
                 owner_id=f"community-embedded-{uuid4()}",
                 review_executor=ReviewExecutor(worker_uow, run_service,
-                    review_execution_resolver or CommunityReviewResolver(settings, credentials)),
+                    review_execution_resolver or CommunityReviewResolver(
+                    settings, credentials, proxy=lambda: workspace.proxy_policy(settings))),
             )
 
-            async def work() -> None:
-                while not stop.is_set():
-                    detail = await executor.run_once()
-                    if detail is not None and detail.status in api_dependencies.TERMINAL_STATUSES:
-                        await run_blocking(credentials.delete, detail.id)
-                    if detail is None:
-                        try:
-                            await asyncio.wait_for(stop.wait(), timeout=0.05)
-                        except TimeoutError:
-                            pass
+            async def finished(detail: RunDetail) -> None:
+                if detail.status in api_dependencies.TERMINAL_STATUSES:
+                    await run_blocking(credentials.delete, detail.id)
 
-            worker_task = asyncio.create_task(work())
+            worker_task = asyncio.create_task(executor.serve(
+                max_concurrent=settings.max_concurrent_runs, poll_seconds=0.05, stop=stop, on_finished=finished))
             _app.state.worker_task = worker_task
         try:
             yield

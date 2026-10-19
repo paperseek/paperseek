@@ -57,7 +57,7 @@ class GoogleScholarSource:
                 payload = response.json()
             except ValueError as exc:
                 raise SourceError(self.name, "Google Scholar via Serper returned a non-JSON response.", body=response.text[:1000], query=query) from exc
-            if not isinstance(payload, dict):
+            if not isinstance(payload, dict) or payload.get('error') or payload.get('message'):
                 raise SourceError(self.name, "Google Scholar via Serper returned an unexpected JSON structure.", body=response.text[:1000], query=query)
             items = [item for item in payload.get("organic") or [] if isinstance(item, dict)]
             if items:

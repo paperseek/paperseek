@@ -145,6 +145,7 @@ async def request_with_retries(
     retry_auth: Callable[[], bool] | None = None,
     sleep: Callable[[float], Awaitable[None]] | None = None,
     base_delay: float = 1.0,
+    rate_limit_delay: float | None = None,
 ) -> tuple[httpx.Response, int]:
     waited = 0.0
     for attempt in range(1, max(1, attempts) + 1):
@@ -180,7 +181,9 @@ async def request_with_retries(
         delay = (
             0.0
             if response is not None and response.status_code == 401
-            else retry_delay(response, attempt, base=base_delay)
+            else retry_delay(response, attempt, base=rate_limit_delay
+                             if rate_limit_delay is not None and response is not None and response.status_code == 429
+                             else base_delay)
         )
         if waited + delay > MAX_RETRY_WAIT:
             details["retry_wait_budget_exhausted"] = True

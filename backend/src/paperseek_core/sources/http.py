@@ -12,6 +12,7 @@ import httpx
 from paperseek_core.execution import RequestContext
 from paperseek_core.http_retry import TRANSIENT_STATUSES, cancellable_request, failure_details, request_with_retries, wait_for_retry
 from paperseek_core.sources.contracts import SourceError, SourceFailureKind
+from paperseek_core.sources.rate_limit import rate_limit_backoff, source_rate_limit
 
 
 def split_api_keys(value: str) -> tuple[str, ...]:
@@ -68,6 +69,8 @@ class AsyncHttpTransport:
         retry_statuses: frozenset[int] = TRANSIENT_STATUSES,
         retry_transport: bool = True,
         retry_auth: Callable[[], bool] | None = None,
+        min_interval: float | None = None,
+        response_status: Callable[[httpx.Response], int | None] | None = None,
         context: RequestContext | None = None,
     ) -> tuple[httpx.Response, dict[str, Any]]:
         request_context = context or self._context
@@ -95,7 +98,7 @@ class AsyncHttpTransport:
                 "timeout": timeout,
             }
             if isinstance(client, httpx.AsyncClient):
-                kwargs["extensions"] = {"trace": trace}
+                kwargs["extensions"] = {"trace": trace, "paperseek_source": source}
             try:
                 remaining = self._remaining(request_context)
                 deadline_scope = (
@@ -104,8 +107,27 @@ class AsyncHttpTransport:
                     else nullcontext()
                 )
                 async with deadline_scope:
+                    limiter = source_rate_limit(source, url, params, kwargs['headers'], min_interval)
+
+                    async def paced_request():
+                        if limiter is None:
+                            return await client.request(method, url, **kwargs)
+                        async with limiter.sending(attempt, lambda delay: self._wait_with_context(
+                            delay, request_context, source, query, attempted,
+                        )):
+                            result = await client.request(method, url, **kwargs)
+                            status = response_status(result) if response_status is not None else None
+                            if status is not None and status != result.status_code:
+                                # The body is already decoded, so drop the encoding headers that describe the wire form.
+                                headers = [(name, value) for name, value in result.headers.multi_items()
+                                           if name.lower() not in {'content-encoding', 'content-length', 'transfer-encoding'}]
+                                result = httpx.Response(status, headers=headers, content=result.content,
+                                    request=result.request, extensions={**result.extensions, 'paperseek_upstream_status': result.status_code})
+                            limiter.observe(result, attempt)
+                            return result
+
                     response = await cancellable_request(
-                        lambda: client.request(method, url, **kwargs), request_context.cancellation,
+                        paced_request, request_context.cancellation,
                     )
             except TimeoutError as exc:
                 raise self._deadline_error(source, query, attempted) from exc
@@ -117,7 +139,7 @@ class AsyncHttpTransport:
                 retry_statuses=retry_statuses, retry_transport=retry_transport,
                 retry_auth=retry_auth,
                 sleep=lambda delay: self._wait_with_context(delay, request_context, source, query, attempted),
-                base_delay=2.0 if source == "wos" else 1.0,
+                rate_limit_delay=rate_limit_backoff(source),
             )
         except httpx.RequestError as exc:
             raise SourceError(

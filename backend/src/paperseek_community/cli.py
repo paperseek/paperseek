@@ -33,6 +33,7 @@ from paperseek_community.persistence import (
     migrate_v0_2_database,
 )
 from paperseek_community.settings import CommunityDeploymentSettings
+from paperseek_community.workspace_settings import WorkspaceSettingsStore
 from paperseek_app.source_catalog import SOURCE_BY_ID
 from paperseek_app.submission import (
     LLMRouteInput,
@@ -169,7 +170,9 @@ def main(
 
     migrate_database(database)
     credentials = EncryptedRunCredentialStore(database)
-    resolver = execution_resolver or CommunityExecutionResolver(settings, credentials)
+    workspace = WorkspaceSettingsStore(database, credentials)
+    resolver = execution_resolver or CommunityExecutionResolver(
+        settings, credentials, proxy=lambda: workspace.proxy_policy(settings))
     if args.command == "serve":
         import uvicorn
 
@@ -353,6 +356,7 @@ def _worker(
     settings: CommunityDeploymentSettings | None = None,
 ) -> int:
     uow = SQLiteReviewUnitOfWork(database, claim_kind=None)
+    deployment = settings or CommunityDeploymentSettings.from_environment()
     try:
         service = RunExecutionService(uow, FileArtifactStore(database.parent))
         executor = RunExecutor(
@@ -360,18 +364,21 @@ def _worker(
             resolver,
             owner_id=f"community-worker-{uuid4()}",
             review_executor=ReviewExecutor(uow, service, CommunityReviewResolver(
-                settings or CommunityDeploymentSettings.from_environment(), credentials)),
+                deployment, credentials, proxy=lambda: WorkspaceSettingsStore(database, credentials).proxy_policy(deployment))),
         )
 
+        async def finished(detail: RunDetail) -> None:
+            if detail.status in TERMINAL_STATUSES:
+                credentials.delete(detail.id)
+
         async def work() -> RunDetail | None:
-            while True:
+            if once:
                 detail = await executor.run_once()
-                if detail is not None and detail.status in TERMINAL_STATUSES:
-                    credentials.delete(detail.id)
-                if once:
-                    return detail
-                if detail is None:
-                    await asyncio.sleep(poll_seconds)
+                if detail is not None:
+                    await finished(detail)
+                return detail
+            await executor.serve(max_concurrent=deployment.max_concurrent_runs,
+                                 poll_seconds=poll_seconds, on_finished=finished)
 
         try:
             detail = asyncio.run(work())

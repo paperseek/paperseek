@@ -352,6 +352,15 @@ export interface components {
         "warning_count"?: number;
         [key: string]: unknown;
       };
+    "ProxySettingsInput": {
+        "scope"?: Array<"models" | "ip_limited_sources" | "other_sources">;
+        "urls"?: string | null;
+      };
+    "ProxySettingsOutput": {
+        "hosts" : Array<string>;
+        "origin" : "" | "settings" | "environment";
+        "scope" : Array<"models" | "ip_limited_sources" | "other_sources">;
+      };
     "QueueStatus": {
         "ahead" : number;
         "capacity" : number;
@@ -679,6 +688,7 @@ export interface components {
       };
     "SecretsClearOutput": {
         "connections" : number;
+        "proxies"?: number;
         "source_keys" : number;
       };
     "SectionBody": {
@@ -772,6 +782,7 @@ export interface components {
     "WorkspaceSettingsOutput": {
         "connections" : Array<components["schemas"]["ConnectionOutput"]>;
         "defaults" : components["schemas"]["DefaultsOutput"];
+        "proxy"?: components["schemas"]["ProxySettingsOutput"] | null;
         "sources" : Array<components["schemas"]["SourceSettingOutput"]>;
       };
     "WorkspaceSummary": {
@@ -843,6 +854,8 @@ export type ParagraphPlan = components["schemas"]["ParagraphPlan"];
 export type PersistedEvent = components["schemas"]["PersistedEvent"];
 export type ProbeOutput = components["schemas"]["ProbeOutput"];
 export type ProgressPayload = components["schemas"]["ProgressPayload"];
+export type ProxySettingsInput = components["schemas"]["ProxySettingsInput"];
+export type ProxySettingsOutput = components["schemas"]["ProxySettingsOutput"];
 export type QueueStatus = components["schemas"]["QueueStatus"];
 export type RecordRename = components["schemas"]["RecordRename"];
 export type RenderedReview = components["schemas"]["RenderedReview"];

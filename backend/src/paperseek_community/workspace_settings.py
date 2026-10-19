@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -16,6 +18,7 @@ from paperseek_app.settings import (
     SOURCE_OPTIONS,
     ConnectionInput,
     DefaultsInput,
+    ProxySettingsInput,
     SettingsError,
     SourceSettingsInput,
     key_hint,
@@ -26,6 +29,7 @@ from paperseek_app.source_catalog import SOURCE_BY_ID, SOURCES
 from paperseek_app.submission import RunSubmission
 from paperseek_community.credentials import EncryptedRunCredentialStore
 from paperseek_community.settings import CommunityDeploymentSettings
+from paperseek_core.sources.proxy import PROXY_SCOPES, ProxyPolicy, parse_proxy_scope, parse_proxy_urls
 
 KEY_VERSION = 1
 
@@ -178,6 +182,7 @@ class WorkspaceSettingsStore:
             defaults.pop(name, None)
         # Without connections, only the built-in pre-ranking remains usable.
         defaults["pre_ranking"] = "local_fusion"
+        proxies = len(self._saved_proxy()[0])
         with closing(self._connect()) as connection:
             connections = connection.execute("SELECT COUNT(*) FROM model_connections").fetchone()[0]
             sources = connection.execute("SELECT COUNT(*) FROM source_settings WHERE ciphertext IS NOT NULL").fetchone()[0]
@@ -185,8 +190,10 @@ class WorkspaceSettingsStore:
             connection.execute("""UPDATE source_settings SET ciphertext = NULL, nonce = NULL, test_status = 'untested',
                 test_latency_ms = NULL, test_code = '', tested_at = NULL WHERE ciphertext IS NOT NULL""")
             self._write_defaults(connection, defaults)
+            # Proxy addresses can carry passwords, so they are cleared with the keys.
+            connection.execute("DELETE FROM workspace_settings WHERE key = 'proxy'")
             connection.commit()
-        return {"connections": connections, "source_keys": sources}
+        return {"connections": connections, "source_keys": sources, "proxies": proxies}
 
     def record_connection_test(self, connection_id: str, result: dict[str, object]) -> None:
         self._record_test("model_connections", "id", connection_id, result)
@@ -328,12 +335,66 @@ class WorkspaceSettingsStore:
             connection.commit()
         self._record_test("source_settings", "source_id", source_id, result)
 
+    # -- network proxy -----------------------------------------------------
+    def _saved_proxy(self) -> tuple[tuple[str, ...], frozenset[str]]:
+        with closing(self._connect()) as connection:
+            row = connection.execute("SELECT value_json FROM workspace_settings WHERE key = 'proxy'").fetchone()
+        if not row:
+            return (), frozenset(PROXY_SCOPES)
+        value = json.loads(row["value_json"])
+        urls = self._decrypt("proxy", base64.b64decode(value["ciphertext"]), base64.b64decode(value["nonce"]))
+        return parse_proxy_urls(urls), parse_proxy_scope(value.get("scope") or [], default=())
+
+    def proxy_policy(self, deployment: CommunityDeploymentSettings | None = None) -> ProxyPolicy:
+        """The deployment environment wins over addresses saved in settings."""
+        if deployment is not None and deployment.proxy.urls:
+            return deployment.proxy
+        urls, scope = self._saved_proxy()
+        return ProxyPolicy(urls, scope)
+
+    def proxy(self, deployment: CommunityDeploymentSettings | None = None) -> dict[str, object]:
+        environment = deployment is not None and bool(deployment.proxy.urls)
+        policy = self.proxy_policy(deployment)
+        hosts = []
+        for url in policy.urls:
+            parts = urlsplit(url)
+            hosts.append(f"{parts.hostname}:{parts.port}" if parts.port else str(parts.hostname))
+        return {
+            "origin": "environment" if environment else "settings" if policy.urls else "",
+            "hosts": hosts,
+            "scope": [scope for scope in PROXY_SCOPES if scope in policy.scope],
+        }
+
+    def save_proxy(self, request: ProxySettingsInput, deployment: CommunityDeploymentSettings | None = None) -> dict[str, object]:
+        if deployment is not None and deployment.proxy.urls:
+            raise SettingsError("proxy_set_by_environment", 409)
+        current, _ = self._saved_proxy()
+        try:
+            urls = current if request.urls is None else parse_proxy_urls(request.urls)
+        except ValueError:
+            raise SettingsError("proxy_url_invalid") from None
+        with closing(self._connect()) as connection:
+            if urls:
+                ciphertext, nonce = self._encrypt("proxy", "\n".join(urls))
+                value = {"ciphertext": base64.b64encode(ciphertext).decode(), "nonce": base64.b64encode(nonce).decode(),
+                         "scope": [scope for scope in PROXY_SCOPES if scope in request.scope]}
+                connection.execute(
+                    """INSERT INTO workspace_settings (key, value_json) VALUES ('proxy', ?)
+                       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json""",
+                    (json.dumps(value, sort_keys=True),),
+                )
+            else:
+                connection.execute("DELETE FROM workspace_settings WHERE key = 'proxy'")
+            connection.commit()
+        return self.proxy(deployment)
+
     # -- composite views ---------------------------------------------------
     def snapshot(self, deployment: CommunityDeploymentSettings) -> dict[str, object]:
         return {
             "connections": [self._public_connection(row) for row in self._connection_rows()],
             "sources": self.sources(deployment),
             "defaults": self.defaults(),
+            "proxy": self.proxy(deployment),
         }
 
     def apply_to_submission(self, submission: RunSubmission) -> RunSubmission:

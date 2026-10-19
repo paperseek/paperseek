@@ -17,6 +17,8 @@ from paperseek_app.configuration import (
 
 ConnectionKind = Literal["llm", "embedding", "reranker", "decision"]
 PreRankingMode = Literal["local_fusion", "embedding_rerank", "decision"]
+ProxyScope = Literal["models", "ip_limited_sources", "other_sources"]
+PROXY_SCOPE_DEFAULT: tuple[ProxyScope, ...] = ("models", "ip_limited_sources", "other_sources")
 LLM_API_TYPES = ("openai_chat", "openai_responses", "anthropic_messages")
 SOURCE_OPTIONS = {
     "openalex": ("openalex_email",),
@@ -68,6 +70,14 @@ class SourceSettingsInput(BaseModel):
     options: dict[str, str] | None = None
 
 
+class ProxySettingsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    # One proxy URL per line. None keeps the saved addresses; an empty string removes them.
+    urls: str | None = Field(default=None, max_length=8192, repr=False)
+    scope: list[ProxyScope] = Field(default_factory=lambda: list(PROXY_SCOPE_DEFAULT), max_length=3)
+
+
 class TestOutput(BaseModel):
     status: Literal["untested", "ok", "failed"]
     latency_ms: int | None = None
@@ -117,15 +127,24 @@ class DefaultsOutput(BaseModel):
     source: str
 
 
+class ProxySettingsOutput(BaseModel):
+    origin: Literal["", "settings", "environment"]
+    # host:port of each saved proxy; user names and passwords are never returned.
+    hosts: list[str]
+    scope: list[ProxyScope]
+
+
 class WorkspaceSettingsOutput(BaseModel):
     connections: list[ConnectionOutput]
     sources: list[SourceSettingOutput]
     defaults: DefaultsOutput
+    proxy: ProxySettingsOutput | None = None
 
 
 class SecretsClearOutput(BaseModel):
     connections: int
     source_keys: int
+    proxies: int = 0
 
 
 

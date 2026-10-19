@@ -583,6 +583,7 @@ class QueryHistoryEntry(CoreModel):
     message: str = ""
     rationale: str = ""
     controller_reason: str = ""
+    source_feedback: list[str] = Field(default_factory=list)
     view_id: str = ""
     view_type: str = ""
     purpose: str = ""

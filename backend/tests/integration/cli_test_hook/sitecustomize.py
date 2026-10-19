@@ -11,7 +11,7 @@ import paperseek_community.cli as community_cli
 
 
 class _ControlledExecutionResolver:
-    def __init__(self, _settings, _credentials) -> None:
+    def __init__(self, _settings, _credentials, **_options) -> None:
         self.fixture = Path(os.environ["PAPERSEEK_CLI_FIXTURE"])
 
     def __call__(self, run, _cancellation) -> WorkflowExecution:

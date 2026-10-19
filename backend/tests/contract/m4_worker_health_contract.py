@@ -72,7 +72,7 @@ class WorkerHealthContract(unittest.IsolatedAsyncioTestCase):
             app = create_app(Path(temp) / "paperseek.db", execution_resolver=lambda *_: None)
             original_close = SQLiteRunUnitOfWork.close
             with (
-                patch.object(RunExecutor, "run_once", AsyncMock(side_effect=RuntimeError("worker fault"))),
+                patch.object(RunExecutor, "claim", AsyncMock(side_effect=RuntimeError("worker fault"))),
                 patch.object(SQLiteRunUnitOfWork, "close", autospec=True, side_effect=original_close) as close,
             ):
                 lifespan = app.router.lifespan_context(app)

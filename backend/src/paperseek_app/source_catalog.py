@@ -84,7 +84,6 @@ SOURCES = (
         "Web of Science Starter API Key",
         "Register Web of Science Starter application",
         "https://developer.clarivate.com/apis/wos-starter",
-        status="temporarily_unavailable",
     ),
     SourceDefinition(
         "googlescholar",

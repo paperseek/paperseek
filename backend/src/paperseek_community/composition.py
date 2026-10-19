@@ -36,6 +36,7 @@ from paperseek_core.sources.openalex import OpenAlexSource
 from paperseek_core.sources.paperhub import PaperHubSource
 from paperseek_core.sources.pubmed import PubMedSource
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
+from paperseek_core.sources.proxy import ProxyPolicy
 from paperseek_core.sources.wos import WosSource
 
 
@@ -48,9 +49,13 @@ class CommunityExecutionResolver:
         self,
         settings: CommunityDeploymentSettings,
         credentials: EncryptedRunCredentialStore,
+        *,
+        proxy: Callable[[], ProxyPolicy] | None = None,
     ) -> None:
         self.settings = settings
         self.credentials = credentials
+        # Read for each run, so a proxy saved in Settings applies without a restart.
+        self.proxy = proxy or (lambda: settings.proxy)
 
     def __call__(self, run: RunDetail, cancellation: CancellationToken) -> WorkflowExecution:
         deadline_at = time.monotonic() + max(0, (run.deadline_at - datetime.now(timezone.utc)).total_seconds())
@@ -60,7 +65,8 @@ class CommunityExecutionResolver:
         route = resolve_llm_route(self.settings, dict(run.config_snapshot.get("llm") or {}))
         retrieval = resolve_retrieval_route(run.config_snapshot.get("retrieval") or {})
         model_keys = resolve_model_credentials(self.settings, route, retrieval, stored)
-        client = create_http_client([route, *(retrieval.get(kind) or {} for kind in ("embedding", "reranker", "decision"))])
+        client = create_http_client([route, *(retrieval.get(kind) or {} for kind in ("embedding", "reranker", "decision"))],
+                                    self.proxy())
         transport = AsyncHttpTransport(
             client=client,
             context=RequestContext(step_key="source.request", cancellation=cancellation, deadline_at=deadline_at),
@@ -122,6 +128,7 @@ class CommunityExecutionResolver:
                 )),
                 **decision_route, api_key=model_keys["decision"],
             )
+
         return WorkflowExecution(
             decision=decision,
             llm=llm,
