@@ -651,7 +651,6 @@ class QueryLoopResumeState(CoreModel):
     portfolio_lane_results: dict[str, list[PaperRecord]] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     terminal_status: str = ""
-    empty_recovery_attempted: bool = False
 
 
 class QueryLoopRequest(CoreModel):

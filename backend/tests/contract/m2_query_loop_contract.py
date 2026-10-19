@@ -438,7 +438,8 @@ class M2QueryLoopContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.query for item in result.query_iteration_memory], [result.final_query])
         self.assertEqual(result.retrieval_request.supplemental_lanes, {})
         self.assertEqual(result.retrieval_request.primary_hits, [recovered])
-        self.assertEqual([item.action for item in result.history[:2]], ["broaden", "empty_recovery"])
+        self.assertEqual(result.history[0].action, "empty_recovery")
+        self.assertIn("query_empty_recovered", result.warnings)
 
     async def test_checkpoint_resume_skips_completed_primary_query_and_resumes_portfolio(self) -> None:
         records = golden_records()

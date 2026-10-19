@@ -42,7 +42,11 @@ class QueryRefinementContract(unittest.IsolatedAsyncioTestCase):
                 for record, total in zip(records, totals)
             )
         )
-        llm = FixtureLLM(*(json.dumps({"query": query}) for query in queries[1:]))
+        responses = []
+        for index, query in enumerate(queries[1:], 1):
+            # A repeated proposal is asked for once more; the fixture model repeats it again.
+            responses += [json.dumps({"query": query})] * (2 if query in queries[:index] else 1)
+        llm = FixtureLLM(*responses)
         observer = RecordingObserver()
         result = await QueryLoopPipeline(llm, source, observer).run(
             QueryLoopRequest(
@@ -102,7 +106,7 @@ class QueryRefinementContract(unittest.IsolatedAsyncioTestCase):
                 search_plan=SearchPlan(intent="open source software funding", core_concepts=["open source", "software", "funding"]),
                 current_query='"open source" AND funding'))
         with self.assertRaises(StopAfterCheckpoint):
-            await QueryLoopPipeline(FixtureLLM('{"query":"cancer"}', '{"query":"cancer"}'), source, observer).run(request)
+            await QueryLoopPipeline(FixtureLLM(*['{"query":"cancer"}'] * 3), source, observer).run(request)
         resumed = request.model_copy(update={"resume":QueryLoopResumeState.model_validate(observer.checkpoints[-1].state)})
         result = await QueryLoopPipeline(FixtureLLM(), SequenceSource(), RecordingObserver()).run(resumed)
         self.assertEqual(result.total, 48078)
@@ -128,7 +132,8 @@ class QueryRefinementContract(unittest.IsolatedAsyncioTestCase):
             with self.subTest(queries=queries):
                 result, source, llm, observer = await self.run_queries(queries, totals)
                 self.assertEqual(len(source.requests), len(totals))
-                self.assertEqual(len(llm.calls), len(totals))
+                self.assertEqual(len(llm.calls), len(totals) + 1)
+                self.assertIn("already executed", str(llm.calls[-1]["messages"]))
                 self.assertEqual(result.final_query, queries[-2])
                 self.assertIn("query_repeated", result.warnings)
                 self.assertEqual(result.terminal_status, "accept_high")
@@ -164,6 +169,18 @@ class QueryRefinementContract(unittest.IsolatedAsyncioTestCase):
                 for row in result.history
             )
         )
+
+    async def test_a_repeated_proposal_is_asked_for_once_more(self):
+        source = SequenceSource(source_result([PaperRecord(uid="a", title="Evidence", provider="openalex")], total=13151),
+                                source_result([PaperRecord(uid="b", title="Evidence", provider="openalex")], total=25))
+        llm = FixtureLLM('{"query": "ecosystem"}', '{"query": "ecosystem AND resilience"}')
+        result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(QueryLoopRequest(
+            question="ecosystem resilience", budget=QueryLoopBudget(query_portfolio_enabled=False),
+            resume=QueryLoopResumeState(question="ecosystem resilience", source="openalex",
+                                        search_plan=SearchPlan(intent="ecosystem resilience"), current_query="ecosystem")))
+        self.assertEqual([request.query for request in source.requests], ["ecosystem", "ecosystem AND resilience"])
+        self.assertEqual(result.total, 25)
+        self.assertNotIn("query_repeated", result.warnings)
 
     async def test_different_queries_with_same_count_can_still_improve(self):
         result, source, _, _ = await self.run_queries(
@@ -246,7 +263,7 @@ class QueryRefinementContract(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(StopAfterCheckpoint):
             await QueryLoopPipeline(
-                FixtureLLM('{"query": "ecosystem"}'),
+                FixtureLLM('{"query": "ecosystem"}', '{"query": "ecosystem"}'),
                 SequenceSource(source_result([record], total=4381)),
                 observer,
             ).run(request)

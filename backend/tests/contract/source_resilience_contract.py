@@ -1,5 +1,6 @@
 """Zero-result recovery must preserve intent and never disguise upstream failures."""
 import asyncio
+import gzip
 import json
 import time
 import unittest
@@ -15,6 +16,7 @@ from paperseek_core.query_loop import QueryLoopPipeline
 from paperseek_core.sources.contracts import SourceError, SourceSearchRequest
 from paperseek_core.sources.http import AsyncHttpTransport
 from paperseek_core.sources.pubmed import PubMedSource
+from paperseek_core.sources.rate_limit import rate_limit_backoff, reset_source_rate_limits
 from m2_query_loop_contract import FixtureLLM, RecordingObserver, SequenceSource, StopAfterCheckpoint, source_result
 
 
@@ -22,7 +24,13 @@ APPROVED = json.dumps({'core_concepts_preserved': True, 'required_relation_prese
                        'constraints_preserved': True})
 
 
-class EmptyRecoveryContract(unittest.IsolatedAsyncioTestCase):
+class FreshSourceLimits(unittest.IsolatedAsyncioTestCase):
+    """Source pacing is process-wide; each test starts without earlier cooldowns."""
+    def setUp(self):
+        reset_source_rate_limits()
+
+
+class EmptyRecoveryContract(FreshSourceLimits):
     def request(self, source='openalex'):
         return QueryLoopRequest(question='Therapy for adult depression, excluding children',
             budget=QueryLoopBudget(query_portfolio_enabled=False, max_iterations=1, adaptive_max_iterations=1, field_ids=('field-unchanged',)),
@@ -77,17 +85,44 @@ class EmptyRecoveryContract(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.total, 0)
                 self.assertIn('query_empty_recovery_rejected', result.warnings)
 
-    async def test_recovery_is_bounded_and_checkpoint_resume_does_not_repeat_model_calls(self):
-        observer = RecordingObserver(stop_phase='query_empty_recovery_ready')
+    async def test_checkpoint_resume_runs_the_checked_query_without_asking_again(self):
+        observer = RecordingObserver(stop_phase='next_query')
         source = SequenceSource(source_result([], total=0))
         with self.assertRaises(StopAfterCheckpoint):
             await QueryLoopPipeline(FixtureLLM('{"query":"therapy AND depression AND adult NOT children"}', APPROVED), source, observer).run(self.request())
         request = self.request().model_copy(update={'resume': QueryLoopResumeState.model_validate(observer.checkpoints[-1].state)})
         recovery_source = SequenceSource(source_result([], total=0))
-        result = await QueryLoopPipeline(FixtureLLM(), recovery_source, RecordingObserver()).run(request)
-        self.assertEqual(len(recovery_source.requests), 1)
+        llm = FixtureLLM('{"query":"therapy AND depression AND adults"}', '{}')
+        result = await QueryLoopPipeline(llm, recovery_source, RecordingObserver()).run(request)
+        self.assertEqual([item.query for item in recovery_source.requests], ['therapy AND depression AND adult NOT children'])
+        self.assertEqual(len(llm.calls), 2)
         self.assertEqual(result.total, 0)
         self.assertIn('query_empty_unresolved', result.warnings)
+
+    async def test_recovery_is_bounded(self):
+        queries = [f'therapy AND depression AND adult{"s" * index} NOT children' for index in range(1, 6)]
+        llm = FixtureLLM(*[item for query in queries for item in (json.dumps({'query': query}), APPROVED)])
+        source = SequenceSource(*(source_result([], total=0) for _ in range(6)))
+        result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(self.request())
+        self.assertEqual(len(source.requests), 3)
+        self.assertEqual(result.total, 0)
+        self.assertIn('query_empty_unresolved', result.warnings)
+        self.assertEqual([row.action for row in result.history], ['empty_recovery'] * 3)
+
+    async def test_failed_recovery_request_keeps_the_empty_result(self):
+        source = SequenceSource(source_result([], total=0), SourceError('openalex', 'limited', status=429))
+        llm = FixtureLLM('{"query":"therapy AND depression AND adult NOT children"}', APPROVED)
+        result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(self.request())
+        self.assertEqual(result.total, 0)
+        self.assertEqual(result.final_query, self.request().resume.current_query)
+        self.assertIn('query_empty_recovery_failed', result.warnings)
+
+    async def test_fenced_intent_check_is_accepted(self):
+        source = SequenceSource(source_result([], total=0), source_result([PaperRecord(uid='p', title='Adult depression therapy')], total=1))
+        llm = FixtureLLM('{"query":"therapy AND depression AND adult NOT children"}', 'Checked:\n```json\n' + APPROVED + '\n```')
+        result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(self.request())
+        self.assertEqual(result.total, 1)
+        self.assertIn('query_empty_recovered', result.warnings)
 
     async def test_rate_limit_is_not_treated_as_zero_results(self):
         source = SequenceSource(SourceError('openalex', 'limited', status=429))
@@ -102,11 +137,12 @@ class EmptyRecoveryContract(unittest.IsolatedAsyncioTestCase):
             'query_feedback': ['PubMed quotedphrasesnotfound: optional phrase'],
         }))
         source.name = 'pubmed'
-        llm = FixtureLLM(json.dumps({'query': request.resume.current_query}))
+        llm = FixtureLLM(json.dumps({'query': request.resume.current_query}), json.dumps({'query': request.resume.current_query}))
         result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(request)
         self.assertEqual(len(source.requests), 1)
-        self.assertEqual(len(llm.calls), 1)
+        self.assertEqual(len(llm.calls), 2)
         self.assertIn('quotedphrasesnotfound', str(llm.calls[0]['messages']))
+        self.assertIn('already executed and returned 0', str(llm.calls[1]['messages']))
         self.assertIn('query_empty_recovery_rejected', result.warnings)
 
     async def test_query_rate_limit_retains_previously_retrieved_candidates(self):
@@ -119,7 +155,7 @@ class EmptyRecoveryContract(unittest.IsolatedAsyncioTestCase):
         self.assertIn('query_source_unavailable_candidates_retained', result.warnings)
 
 
-class SourceResponseContract(unittest.IsolatedAsyncioTestCase):
+class SourceResponseContract(FreshSourceLimits):
     async def test_pubmed_warnings_are_feedback_not_an_http_failure(self):
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={
             'esearchresult': {'count': '0', 'idlist': [], 'warninglist': {'quotedphrasesnotfound': ['rare phrase']}}
@@ -153,7 +189,7 @@ class SourceResponseContract(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(source.last_response_info['attempts'], 2)
 
 
-class SourceRateLimitContract(unittest.IsolatedAsyncioTestCase):
+class SourceRateLimitContract(FreshSourceLimits):
     async def test_pacing_respects_cancellation_and_deadline_without_sending(self):
         calls = []
         entered = asyncio.Event()
@@ -224,6 +260,43 @@ class SourceRateLimitContract(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(peak, 1)
         self.assertEqual(count, 3)
         self.assertTrue(any(delay >= 3 for delay in waits))
+
+
+    async def test_compressed_embedded_rate_limit_is_a_429_not_a_transport_error(self):
+        calls = []
+        def handle(request):
+            calls.append(request)
+            body = json.dumps({'error': 'API rate limit exceeded'}).encode()
+            return httpx.Response(200, headers={'Content-Encoding': 'gzip', 'Content-Type': 'application/json'},
+                                  content=gzip.compress(body))
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            source = PubMedSource(transport=AsyncHttpTransport(client=client, sleep=AsyncMock()))
+            with self.assertRaises(SourceError) as caught:
+                await source.search(SourceSearchRequest(query='crispr', limit=5))
+        self.assertEqual(caught.exception.status, 429)
+        self.assertIsNone(caught.exception.failure_kind)
+        # The first attempt starts the shared cooldown, which the retries wait out.
+        self.assertEqual(len(calls), 3)
+
+    async def test_arxiv_pacing_is_shared_by_runs_on_other_threads(self):
+        sent = []
+        def run_in_own_loop():
+            async def search():
+                def handle(request):
+                    sent.append(time.monotonic())
+                    return httpx.Response(200)
+                async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+                    await AsyncHttpTransport(client=client).request('arxiv', 'GET', 'https://fixture.invalid/api/query',
+                                                                    min_interval=0.3)
+            asyncio.run(search())
+        await asyncio.gather(*(asyncio.to_thread(run_in_own_loop) for _ in range(3)))
+        sent.sort()
+        self.assertEqual(len(sent), 3)
+        self.assertTrue(all(later - earlier >= 0.28 for earlier, later in zip(sent, sent[1:])))
+
+    def test_429_backoff_is_set_per_source(self):
+        self.assertEqual(rate_limit_backoff('arxiv'), 6.2)
+        self.assertEqual(rate_limit_backoff('openalex'), 2.0)
 
 
 if __name__ == '__main__':
