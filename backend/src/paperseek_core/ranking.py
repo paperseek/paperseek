@@ -212,10 +212,10 @@ class RankingPipeline:
         # Reasons later use the level scoring settled on, lower after a rate limit.
         settled = schedule[0]
         for tier_index, workers in enumerate(schedule):
-            settled = workers
             self.cancellation.raise_if_cancelled()
             if not remaining:
                 break
+            settled = workers
             lower_tier_available = tier_index < len(schedule) - 1
             same_tier_retry_used = False
             while True:

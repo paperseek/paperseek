@@ -63,7 +63,7 @@ class RankingScorer:
         scores: list[dict[str, Any]],
         plan_context: str,
         *,
-        concurrency: int = 4,
+        concurrency: int = 8,
         on_progress: Callable[[str, int, int, int], None] | None = None,
         restored: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
@@ -104,7 +104,10 @@ class RankingScorer:
                 if on_progress is not None:
                     on_progress(phase, finished, len(groups), len(pending))
 
-            await asyncio.gather(*(write(batch) for batch in groups))
+            # A task group cancels the other groups too when the run is cancelled.
+            async with asyncio.TaskGroup() as running:
+                for batch in groups:
+                    running.create_task(write(batch))
         self.missing_reason_count = sum(
             document_identity(document) not in reason_by_uid
             for document in reason_documents

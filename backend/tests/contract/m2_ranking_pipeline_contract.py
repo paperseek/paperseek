@@ -355,6 +355,7 @@ class M2RankingPipelineContractTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.active = self.peak = 0
                 self.kinds = []
+                self.reasons_active = self.reasons_peak = 0
 
             async def chat_json(self, messages, *, temperature=0.0, max_tokens=4096) -> str:
                 self.active += 1
@@ -367,6 +368,10 @@ class M2RankingPipelineContractTest(unittest.TestCase):
                         indexes = re.findall(r"^(\d+)\.$", prompt, re.MULTILINE)
                         return json.dumps({"scores": [[int(index), 9] for index in indexes]})
                     self.kinds.append("reasons")
+                    self.reasons_active += 1
+                    self.reasons_peak = max(self.reasons_peak, self.reasons_active)
+                    await asyncio.sleep(0.01)
+                    self.reasons_active -= 1
                     indexes = re.findall(r"^(\d+)\. Score:", prompt, re.MULTILINE)
                     return json.dumps({"reasons": [[int(index), f"reason-{index}"] for index in indexes]})
                 finally:
@@ -381,6 +386,7 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(llm.kinds.count("score"), 4)  # 200 papers in batches of 64.
         self.assertEqual(llm.kinds.count("reasons"), 7)  # Every paper scored 9 gets a reason, 32 per group.
         self.assertEqual(llm.peak, 2)
+        self.assertEqual(llm.reasons_peak, 2)  # Reasons keep the level scoring finished at.
         self.assertTrue(all(item.reasoning for item in result.items))
         batches = [event.payload for event in observer.events if event.event_type == "ranking.batch_completed"]
         self.assertEqual([payload["completed_batches"] for payload in batches], [1, 2, 3, 4])
@@ -388,6 +394,33 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual([(payload["completed_groups"], payload["group_count"]) for payload in reasons],
                          [(index, 7) for index in range(8)])
         self.assertTrue(all(payload["phase"] == "reasons" for payload in reasons))
+
+    def test_cancelling_reasons_stops_every_group_in_flight(self) -> None:
+        class BlockingLLM:
+            def __init__(self) -> None:
+                self.calls = 0
+                self.stopped = 0
+
+            async def chat_json(self, messages, *, temperature=0.0, max_tokens=4096) -> str:
+                self.calls += 1
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    self.stopped += 1
+                    raise
+                return "{}"
+
+        records = [PaperRecord(uid=f"W{index}", title=f"Paper {index}", provider="fixture") for index in range(1, 201)]
+        scores = [{"uid": record.uid, "score": 9.0} for record in records]
+        llm = BlockingLLM()
+
+        async def run():
+            with self.assertRaises(TimeoutError):
+                await asyncio.wait_for(RankingScorer(llm).attach_reasons(QUESTION, records, scores, "{}", concurrency=4), 0.1)
+
+        asyncio.run(run())
+        self.assertEqual(llm.calls, 4)  # Seven groups wait for four slots.
+        self.assertEqual(llm.stopped, 4)
 
     def test_rate_limit_retries_failed_batch_at_lower_concurrency(self) -> None:
         records = [
