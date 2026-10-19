@@ -1,1 +1,0 @@
-import{B as e,q as t,rt as n}from"./state-CeFrWYUG.js";import{t as r}from"./SavedRecordList-Cv1-Mmu_.js";var i=t({__name:`ReviewList`,setup(t){return(t,i)=>(n(),e(r,{module:`reviews`}))}});export{i as default};
