@@ -12,7 +12,7 @@ import httpx
 from paperseek_core.execution import RequestContext
 from paperseek_core.http_retry import TRANSIENT_STATUSES, cancellable_request, failure_details, request_with_retries, wait_for_retry
 from paperseek_core.sources.contracts import SourceError, SourceFailureKind
-from paperseek_core.sources.rate_limit import PACED_SOURCES, source_rate_limit
+from paperseek_core.sources.rate_limit import rate_limit_backoff, source_rate_limit
 
 
 def split_api_keys(value: str) -> tuple[str, ...]:
@@ -118,7 +118,10 @@ class AsyncHttpTransport:
                             result = await client.request(method, url, **kwargs)
                             status = response_status(result) if response_status is not None else None
                             if status is not None and status != result.status_code:
-                                result = httpx.Response(status, headers=result.headers, content=result.content,
+                                # The body is already decoded, so drop the encoding headers that describe the wire form.
+                                headers = [(name, value) for name, value in result.headers.multi_items()
+                                           if name.lower() not in {'content-encoding', 'content-length', 'transfer-encoding'}]
+                                result = httpx.Response(status, headers=headers, content=result.content,
                                     request=result.request, extensions={**result.extensions, 'paperseek_upstream_status': result.status_code})
                             limiter.observe(result, attempt)
                             return result
@@ -136,7 +139,7 @@ class AsyncHttpTransport:
                 retry_statuses=retry_statuses, retry_transport=retry_transport,
                 retry_auth=retry_auth,
                 sleep=lambda delay: self._wait_with_context(delay, request_context, source, query, attempted),
-                base_delay=5.0 if source in PACED_SOURCES else 1.0,
+                rate_limit_delay=rate_limit_backoff(source),
             )
         except httpx.RequestError as exc:
             raise SourceError(
