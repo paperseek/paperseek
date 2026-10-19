@@ -1,7 +1,6 @@
 """Extract verified evidence and plan grounded review outlines."""
 from __future__ import annotations
 
-import asyncio
 import json
 from math import ceil
 from typing import Literal
@@ -86,8 +85,11 @@ async def extract_evidence(llm: LLMPort, cancellation: CancellationToken,
                         reason = failure.reason if isinstance(failure, ReviewOutputError) else failure.code
                         diagnostics.append(f"{paper.id}: {reason}")
 
-            # The missing papers are independent, so they are retried side by side.
-            await asyncio.gather(*(recover(paper) for paper in papers if paper.id not in ready))
+            # One at a time: this batch already holds one of the review's concurrent slots,
+            # so parallel retries would exceed the overall limit.
+            for paper in papers:
+                if paper.id not in ready:
+                    await recover(paper)
         report()
         return sorted(cards, key=lambda card: next(i for i, paper in enumerate(papers) if paper.id == card.paper_id))
     cards = validate_cards(batch, papers, signature, dropped)
