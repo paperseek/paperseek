@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 import time
+import httpx
 
 from paperseek_community.model_transport import create_http_client
 
@@ -37,6 +38,7 @@ from paperseek_core.sources.paperhub import PaperHubSource
 from paperseek_core.sources.pubmed import PubMedSource
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
 from paperseek_core.sources.wos import WosSource
+from paperseek_core.sources.proxy import SourceProxyTransport
 
 
 def community_static_dir() -> Path:
@@ -61,8 +63,10 @@ class CommunityExecutionResolver:
         retrieval = resolve_retrieval_route(run.config_snapshot.get("retrieval") or {})
         model_keys = resolve_model_credentials(self.settings, route, retrieval, stored)
         client = create_http_client([route, *(retrieval.get(kind) or {} for kind in ("embedding", "reranker", "decision"))])
+        sources = (httpx.AsyncClient(transport=SourceProxyTransport(self.settings.source_proxies), trust_env=False)
+                   if self.settings.source_proxies else client)
         transport = AsyncHttpTransport(
-            client=client,
+            client=sources,
             context=RequestContext(step_key="source.request", cancellation=cancellation, deadline_at=deadline_at),
         )
         source = self._source(
@@ -122,6 +126,13 @@ class CommunityExecutionResolver:
                 )),
                 **decision_route, api_key=model_keys["decision"],
             )
+        async def close():
+            try:
+                await client.aclose()
+            finally:
+                if sources is not client:
+                    await sources.aclose()
+
         return WorkflowExecution(
             decision=decision,
             llm=llm,
@@ -142,7 +153,7 @@ class CommunityExecutionResolver:
                 citation_max_records=preset.citation_max_records,
                 citation_depth=preset.citation_depth,
             ),
-            close=client.aclose,
+            close=close,
             deadline_at=deadline_at,
         )
 

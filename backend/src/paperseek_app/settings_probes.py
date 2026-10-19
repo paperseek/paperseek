@@ -1,7 +1,7 @@
 """Shared connectivity checks with deployment-supplied clients and source adapters."""
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 import httpx
 
@@ -11,6 +11,7 @@ from paperseek_core.models import PaperRecord
 from paperseek_core.ports import SourcePort
 from paperseek_core.sources import AsyncHttpTransport
 from paperseek_core.sources.contracts import SourceError, SourceSearchRequest
+from paperseek_core.sources.proxy import SourceProxyTransport
 
 PROBE_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
 
@@ -86,10 +87,12 @@ async def probe_connection(
 
 async def probe_source(
     source_factory: Callable[[AsyncHttpTransport], SourcePort],
+    *, proxies: Mapping[str, tuple[str, ...]] | None = None,
 ) -> dict[str, object]:
     started = time.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=PROBE_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=PROBE_TIMEOUT,
+                transport=SourceProxyTransport(proxies) if proxies else None, trust_env=not bool(proxies)) as client:
             transport = AsyncHttpTransport(client=client, context=RequestContext(
                 step_key="settings.source_test", deadline_at=time.monotonic() + 30,
             ))

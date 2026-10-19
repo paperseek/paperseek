@@ -107,6 +107,6 @@ def register_settings_routes(
         result = await probe_source(lambda transport: build_source(
             source_id, transport, key, wos_db=options.get("wos_db") or settings.wos_db,
             contacts={name: value for name, value in options.items() if name != "wos_db"}, settings=settings,
-        ))
+        ), proxies=settings.source_proxies)
         await call(store.record_source_test, source_id, result)
         return result

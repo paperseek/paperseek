@@ -98,7 +98,7 @@ class AsyncHttpTransport:
                 "timeout": timeout,
             }
             if isinstance(client, httpx.AsyncClient):
-                kwargs["extensions"] = {"trace": trace}
+                kwargs["extensions"] = {"trace": trace, "paperseek_source": source}
             try:
                 remaining = self._remaining(request_context)
                 deadline_scope = (
