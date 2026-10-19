@@ -15,7 +15,7 @@ Choose an index that fits your research. Coverage, metadata, access, and filters
 | PaperHub top CS conferences | No key | No key | PaperHub's conference collection |
 | [Web of Science Starter](https://developer.clarivate.com/apis/wos-starter) | Clarivate key required | Key required | Supported WoS collection when enabled |
 
-PaperSeek Service manages source access for you; Web of Science is not available through it for now, so use your own key online or use Community. Community permits anonymous access or optional keys as shown above. Online BYOK has a separate access policy: add and save source keys in Settings for every source that takes a key, including OpenAlex, PubMed, and Semantic Scholar. arXiv, Crossref, and PaperHub need no key. A model key is not a data-source key.
+PaperSeek Service manages source access for you. Community permits anonymous access or optional keys as shown above. Online BYOK has a separate access policy: add and save source keys in Settings for every source that takes a key, including OpenAlex, PubMed, and Semantic Scholar. arXiv, Crossref, and PaperHub need no key. A model key is not a data-source key.
 
 ## Configure and test a source
 

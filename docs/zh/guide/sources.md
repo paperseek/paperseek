@@ -15,7 +15,7 @@
 | PaperHub 计算机顶会 | 无需 Key | 无需 Key | PaperHub 提供的顶会集合 |
 | [Web of Science Starter](https://developer.clarivate.com/apis/wos-starter) | 需要 Clarivate Key | 必须配置 Key | 受支持的 WoS 集合 |
 
-PaperSeek 服务的数据源访问由 PaperSeek 管理；Web of Science 暂不通过 PaperSeek 服务提供，可在在线版使用自己的密钥，或使用社区版。社区版按上表允许匿名访问或使用可选密钥；在线版 BYOK 是单独的访问策略，在设置中填写并保存数据源密钥；除 arXiv、Crossref、PaperHub 等无需密钥的数据源外，其余数据源（包括 OpenAlex、PubMed、Semantic Scholar）都必须提供密钥。模型 Key 与数据源 Key 并不通用。
+PaperSeek 服务的数据源访问由 PaperSeek 管理。社区版按上表允许匿名访问或使用可选密钥；在线版 BYOK 是单独的访问策略，在设置中填写并保存数据源密钥；除 arXiv、Crossref、PaperHub 等无需密钥的数据源外，其余数据源（包括 OpenAlex、PubMed、Semantic Scholar）都必须提供密钥。模型 Key 与数据源 Key 并不通用。
 
 ## 配置与测试数据源
 
