@@ -97,9 +97,9 @@ Upgrading from 0.2 requires Python 3.12+ and the [migration guide](https://docs.
 
 ## How it works
 
-![PaperSeek 1.0.0-beta3 research workspace](docs/public/images/workspace-results-en.png)
+[![Watch the PaperSeek tour: from a research question to a cited review](docs/public/images/promo-video-poster.jpg)](https://docs.paperseek.app/videos/paperseek-promo.mp4)
 
-*Community 1.0.0-beta3 with a demonstration record. PaperSeek online shares the same workspace and adds an account and service options.*
+*A 70-second tour from question to review. Select the image to play the video.*
 
 | Step | What happens | What you can inspect |
 | --- | --- | --- |

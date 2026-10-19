@@ -94,9 +94,9 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 
 ## 工作流程
 
-![PaperSeek 1.0.0-beta3 研究工作区](docs/public/images/workspace-results-zh.png)
+[![观看 PaperSeek 介绍视频：从研究问题到带引用的综述](docs/public/images/promo-video-poster.jpg)](https://docs.paperseek.app/videos/paperseek-promo.mp4)
 
-*社区版 1.0.0-beta3，含演示记录。在线版共用同一工作区，并增加账户和服务模式。*
+*70 秒了解从研究问题到综述的全过程，点击图片播放视频（英文界面）。*
 
 | 阶段 | 做什么 | 可以查看什么 |
 | --- | --- | --- |
