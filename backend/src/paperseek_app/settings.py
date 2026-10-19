@@ -18,6 +18,7 @@ from paperseek_app.configuration import (
 ConnectionKind = Literal["llm", "embedding", "reranker", "decision"]
 PreRankingMode = Literal["local_fusion", "embedding_rerank", "decision"]
 ProxyScope = Literal["models", "ip_limited_sources", "other_sources"]
+PROXY_SCOPE_DEFAULT: tuple[ProxyScope, ...] = ("models", "ip_limited_sources", "other_sources")
 LLM_API_TYPES = ("openai_chat", "openai_responses", "anthropic_messages")
 SOURCE_OPTIONS = {
     "openalex": ("openalex_email",),
@@ -74,8 +75,7 @@ class ProxySettingsInput(BaseModel):
 
     # One proxy URL per line. None keeps the saved addresses; an empty string removes them.
     urls: str | None = Field(default=None, max_length=8192, repr=False)
-    scope: list[ProxyScope] = Field(default_factory=lambda: ["models", "ip_limited_sources", "other_sources"],
-                                    max_length=3)
+    scope: list[ProxyScope] = Field(default_factory=lambda: list(PROXY_SCOPE_DEFAULT), max_length=3)
 
 
 class TestOutput(BaseModel):
