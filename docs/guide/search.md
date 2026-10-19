@@ -39,7 +39,7 @@ These are work limits, not promises of a paper count or completion time. Larger 
 
 1. **Intent and queries:** understand the scope and prepare the strategy.
 2. **Query iteration:** test and refine queries using source feedback.
-3. **Retrieval and ranking:** collect candidates, optionally expand citations, apply preliminary ranking, and evaluate relevance.
+3. **Retrieval and ranking:** collect candidates, optionally expand citations, apply preliminary ranking, and evaluate relevance. The model scores the candidates in batches of 64 and then writes a “Why it ranks” reason for every well-scoring paper in groups of 32; up to eight batches or groups run at once, and each has its own progress row.
 4. **Results:** prepare the reading list and exports.
 
 The UI shows stage status and details, rather than a raw terminal log.

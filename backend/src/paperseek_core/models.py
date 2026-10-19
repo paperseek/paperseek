@@ -96,8 +96,9 @@ class RankingRequest(CoreModel):
     plan_context: str = "{}"
     provenance_by_identity: dict[str, dict[str, Any]] = Field(default_factory=dict)
     step_id: str = "llm_reranking"
-    batch_size: int = 256
-    concurrency: int = 16
+    # Scoring batches of this size run side by side, as do the groups that write reasons.
+    batch_size: int = 64
+    concurrency: int = 8
     resume_scores: list[Any] = Field(default_factory=list)
     completed_batch_ids: list[str] = Field(default_factory=list)
     checkpoint_resume_stage: str = "pre_rank"
@@ -818,8 +819,8 @@ class ResearchWorkflowRequest(CoreModel):
     citation_per_seed: int = 4
     citation_max_records: int = 160
     citation_depth: int = 2
-    ranking_batch_size: int = 256
-    ranking_concurrency: int = 16
+    ranking_batch_size: int = 64
+    ranking_concurrency: int = 8
     resume: ResearchWorkflowResumeState | None = None
 
 
