@@ -250,7 +250,8 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
              {"category": item.category, "text": item.text} for item in card.evidence],
              "title": metadata[card.paper_id].title if card.paper_id in metadata else "",
              "year": metadata[card.paper_id].year if card.paper_id in metadata else None} for card in cards]},
-        schema, max_tokens=min(14000, 2000 + count * 1600), validate=validate, language=language,
+        # Large corpora occasionally need a second repair, e.g. after an extra section.
+        schema, max_tokens=min(14000, 2000 + count * 1600), validate=validate, language=language, attempts=3,
     )
     empty = {f"{section.id}:{i + 1}": (section, paragraph)
              for section in plan.sections for i, paragraph in enumerate(section.paragraphs) if not paragraph.paper_ids}
