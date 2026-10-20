@@ -30,7 +30,7 @@
 
 检索与综述的显示标题独立于问题、主题及执行版本。各模块历史共用 UI 行为，API 各自负责持久化。未保存的密钥输入位于表单内存；已保存连接与来源密钥由 `paperseek_community/workspace_settings.py` 加密，`web/src/features/settings/store.ts` 只缓存公开元数据。提交任务时另存加密凭据副本。账户切换时需重置草稿及按用户隔离的设置与历史。恢复历史任务不得静默改用当前服务默认值。
 
-相关变更后，运行 `bibliometrics_contract.py`、检索边界与恢复契约、导入边界检查、前端类型检查，以及 `web/tests/browser/` 下的 `shell.spec.ts`、`settings.spec.ts`、`records.spec.ts`、`reviews.spec.ts`。可选脚本 `backend/scripts/benchmark_bibliometrics.py` 记录 3,000／10,000 篇合成文献的开销，不代表远程服务或浏览器延迟。
+相关变更后，运行 `test_bibliometrics.py`、检索边界与恢复契约、导入边界检查、前端类型检查，以及 `web/tests/browser/` 下的 `shell.spec.ts`、`settings.spec.ts`、`records.spec.ts`、`reviews.spec.ts`。可选脚本 `backend/scripts/benchmark_bibliometrics.py` 记录 3,000／10,000 篇合成文献的开销，不代表远程服务或浏览器延迟。
 
 ## 工作区界面
 

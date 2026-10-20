@@ -32,7 +32,7 @@ Network limits are explicit in the core. API concurrency guards bound simultaneo
 
 Saved searches and reviews have display titles separate from their question/topic and execution versions. Module history shares UI behavior, while each API keeps its own persistence rules. Unsaved key inputs stay in form memory. Saved connections and source keys are encrypted by `paperseek_community/workspace_settings.py`; `web/src/features/settings/store.ts` caches only their public metadata. Submitted runs receive separate encrypted credential copies. Account changes must reset drafts and owner-scoped settings and history. Restoring a past run never silently changes it to current service defaults.
 
-Run `bibliometrics_contract.py`, the retrieval-boundary/recovery contracts, import-boundary checks, frontend type checks, and the offline `web/tests/browser/shell.spec.ts`, `settings.spec.ts`, `records.spec.ts`, and `reviews.spec.ts` fixtures after relevant changes. The opt-in `backend/scripts/benchmark_bibliometrics.py` records synthetic 3,000/10,000-paper costs; it is not a remote server or browser latency benchmark.
+Run `test_bibliometrics.py`, the retrieval-boundary/recovery contracts, import-boundary checks, frontend type checks, and the offline `web/tests/browser/shell.spec.ts`, `settings.spec.ts`, `records.spec.ts`, and `reviews.spec.ts` fixtures after relevant changes. The opt-in `backend/scripts/benchmark_bibliometrics.py` records synthetic 3,000/10,000-paper costs; it is not a remote server or browser latency benchmark.
 
 ## Workspace surfaces
 

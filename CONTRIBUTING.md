@@ -22,11 +22,10 @@ On Windows PowerShell, activate with `./.venv/Scripts/Activate.ps1`.
 ## Local checks
 
 ```bash
-python -m compileall -q backend/src
 uv run --directory backend --locked ruff check --config pyproject.toml src ../integrations/mcp/src
 uv run --directory backend --locked mypy
-uv run --directory backend --locked python -m unittest discover -s tests/contract -p "*contract.py"
-uv run --directory backend --locked python -m unittest discover -s tests/integration -p "*.py"
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_*.py"
+uv run --directory backend --locked python -m unittest discover -s tests/integration -p "*integration.py"
 uv run --directory backend --locked python -m unittest discover -s tests/migration -p "*.py"
 uv run --directory backend --locked python tests/import_boundaries.py
 npm --prefix web run typecheck
@@ -44,9 +43,11 @@ Python type checking currently covers the shared HTTP transport, key rotation, c
 
 Keep tests few and meaningful: assert behavior that protects users (credentials, data, cancellation, results) and core journeys, not exact copy, layout details, or every viewport. Keep permanent automated tests and fixtures in the repository. Store private migration records, live API experiments, temporary test output, and credentials outside the source tree; they must not enter distribution archives.
 
+Follow the [test scope and maintenance policy](docs/developers/contributing.md#test-scope-and-maintenance) for layer ownership, focused commands and unstable tests. User-facing changes must include English/Chinese usage documentation and an Unreleased changelog entry; test infrastructure changes belong in contributor documentation.
+
 ## Scope and safety
 
-- Add a failing behavior contract before changing an implementation boundary.
+- Extend the owning feature test for a behavior change; do not add a second suite for the same outcome.
 - Do not duplicate submission, workflow, provider, ranking, persistence, or tool logic across adapters.
 - Do not add compatibility fallbacks for removed commands, Python APIs, configuration names, or runtimes.
 - Keep credentials, cookies, private deployment configuration, user data, and full sensitive logs out of commits.
