@@ -14,6 +14,8 @@ from paperseek_app.review.citations import CitationStyle
 from paperseek_app.review.exports import export_review
 from paperseek_app.review.models import (
     OutlineSave,
+    PaperSuggestionRequest,
+    PaperSuggestions,
     ReviewCreate,
     ReviewDetail,
     ReviewError,
@@ -23,7 +25,8 @@ from paperseek_app.review.models import (
     SectionSave,
 )
 from paperseek_app.review.rendering import render_review
-from paperseek_app.review.services import ReviewService
+from paperseek_app.execution import CancellationScope, run_blocking
+from paperseek_app.review.services import ReviewService, suggest_review_papers
 from paperseek_app.services.run_queries import RunQueryService
 from paperseek_app.settings import (
     SettingsError,
@@ -38,11 +41,14 @@ from paperseek_community.api_dependencies import (
 from paperseek_community.artifacts import FileArtifactStore
 from paperseek_community.credential_resolution import resolve_model_credentials
 from paperseek_community.credentials import EncryptedRunCredentialStore
+from paperseek_community.model_transport import create_http_client
 from paperseek_community.persistence.sqlite_review_jobs import SQLiteReviewUnitOfWork
 from paperseek_community.settings import CommunityDeploymentSettings
 from paperseek_community.workspace_settings import (
     WorkspaceSettingsStore,
 )
+from paperseek_core.errors import LLMRequestError
+from paperseek_core.llm import HttpLLMAdapter
 from paperseek_core.review.evidence import fingerprint
 
 
@@ -111,12 +117,7 @@ def register_review_routes(app: FastAPI, *, database: Path, settings: CommunityD
         with open_reviews(database, credentials) as store:
             return ReviewVersions(items=store.review_versions(review_id, part))
 
-    @app.post("/api/v1/reviews/{review_id}/jobs", status_code=202, response_model=RunDetail)
-    def submit_job(review_id: str, request: ReviewJobRequest,
-                   idempotency_key: str = Header(alias="Idempotency-Key", min_length=1, max_length=200)):
-        task = app.state.worker_task
-        if not accept_jobs or (app.state.worker_required and task is not None and task.done()):
-            raise ApiError(503, "executor_unavailable", "The worker is unavailable.")
+    def model_route(request: ReviewJobRequest | PaperSuggestionRequest, fallback: dict):
         if request.connection_id:
             try:
                 route, key = workspace.connection_secret(request.connection_id, "llm")
@@ -125,19 +126,50 @@ def register_review_routes(app: FastAPI, *, database: Path, settings: CommunityD
             request = request.model_copy(update={
                 "llm": LLMRouteInput(**route), "credential": CredentialInput(api_key=key), "connection_id": "",
             })
+        overrides = {key: value for key, value in request.llm.model_dump().items() if value}
+        route = resolve_llm_route(settings, overrides or fallback)
+        url = urlsplit(route["base_url"])
+        if (route["provider"] not in LLM_PROVIDERS or route["api_type"] not in {
+            "openai_chat", "openai_responses", "anthropic_messages",
+        } or url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password
+                or url.query or url.fragment or not route["model"]):
+            raise ReviewError("review_model_configuration_invalid", status=422)
+        temporary = {"llm": request.credential.model_dump()}
+        if not resolve_model_credentials(settings, route, {}, temporary)["llm"]:
+            raise ReviewError("review_credential_required", status=422)
+        return request, route, temporary
+
+    @app.post("/api/v1/reviews/paper-suggestions", response_model=PaperSuggestions)
+    async def suggest_papers(request: PaperSuggestionRequest):
+        def prepare():
+            with open_reviews(database, credentials) as store:
+                run = store.get_run(str(request.source_run_id))
+                checked, route, temporary = model_route(request, dict(run.config_snapshot.get("llm") or {}))
+                candidates = ReviewService(store, store).suggestion_candidates(str(request.source_run_id))
+                return checked, route, resolve_model_credentials(settings, route, {}, temporary)["llm"], candidates
+
+        checked, route, key, candidates = await run_blocking(prepare)
+        client = create_http_client([route], workspace.proxy_policy(settings))
+        try:
+            llm = HttpLLMAdapter(client=client, cancellation=CancellationScope(), api_type=route["api_type"],
+                                 base_url=route["base_url"], model=route["model"], api_key=key)
+            return await suggest_review_papers(llm, checked, candidates)
+        except ReviewError as exc:
+            raise ApiError(exc.status, exc.code, exc.code) from exc
+        except LLMRequestError as exc:
+            raise ApiError(502, exc.code, exc.code) from exc
+        finally:
+            await client.aclose()
+
+    @app.post("/api/v1/reviews/{review_id}/jobs", status_code=202, response_model=RunDetail)
+    def submit_job(review_id: str, request: ReviewJobRequest,
+                   idempotency_key: str = Header(alias="Idempotency-Key", min_length=1, max_length=200)):
+        task = app.state.worker_task
+        if not accept_jobs or (app.state.worker_required and task is not None and task.done()):
+            raise ApiError(503, "executor_unavailable", "The worker is unavailable.")
         with open_reviews(database, credentials) as store:
             review = store.get_review(review_id)
-            overrides = {key: value for key, value in request.llm.model_dump().items() if value}
-            route = resolve_llm_route(settings, overrides or dict(review.content.model_route))
-            url = urlsplit(route["base_url"])
-            if (route["provider"] not in LLM_PROVIDERS or route["api_type"] not in {
-                "openai_chat", "openai_responses", "anthropic_messages",
-            } or url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password
-                    or url.query or url.fragment or not route["model"]):
-                raise ReviewError("review_model_configuration_invalid", status=422)
-            temporary = {"llm": request.credential.model_dump()}
-            if not resolve_model_credentials(settings, route, {}, temporary)["llm"]:
-                raise ReviewError("review_credential_required", status=422)
+            request, route, temporary = model_route(request, dict(review.content.model_route))
             digest = fingerprint({"request": request.model_dump(mode="json", exclude={"credential", "llm"}),
                                   "route": route, "credential_digest": fingerprint(temporary)})
             return store.submit_review_job(review_id, request, route=route, credentials=temporary,

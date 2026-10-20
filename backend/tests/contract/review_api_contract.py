@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -214,6 +215,37 @@ class ReviewApiTest(unittest.TestCase):
         self.assertFalse(self.store.credential_store.resolve(job["id"]))
         again = client.post(f"{root}/jobs/{job['id']}/cancel")
         self.assertIn(again.status_code, {202, 409})
+
+    def test_paper_suggestions_cover_the_topic_without_creating_anything(self):
+        source = create_source(self.directory, 6)
+        client = self.client(worker=False)
+        body = {"source_run_id": source.id, "topic": "Compare durable studies", "language": "en", "count": 3,
+                "llm": ROUTE, "credential": {"api_key": "ephemeral-secret"}}
+        original = self.llm.chat_json
+        prompts = []
+
+        async def record(messages, **kwargs):
+            prompts.append(messages)
+            if len(prompts) == 1:
+                return json.dumps({"papers": [{"id": "c1"}, {"id": "c1"}, {"id": "c99"}]})
+            return await original(messages, **kwargs)
+
+        self.llm.chat_json = record
+        with patch("paperseek_community.api_routes.reviews.HttpLLMAdapter", lambda **_: self.llm):
+            response = client.post("/api/v1/reviews/paper-suggestions", json=body)
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual([item["uid"] for item in response.json()["items"]], ["fixed-001", "fixed-002", "fixed-003"])
+            self.assertEqual(response.json()["items"][0]["reason"], "Covers a distinct setting.")
+            self.assertIn("c99", prompts[-1][-1]["content"])
+            self.assertTrue(all(len(item["abstract"]) <= 300 for item in json.loads(prompts[0][1]["content"])["candidates"]))
+            # Asking for more papers than the search has returns every paper with an abstract, without a model call.
+            calls = len(prompts)
+            everything = client.post("/api/v1/reviews/paper-suggestions", json={**body, "count": 50}).json()["items"]
+            self.assertEqual(len(everything), 6)
+            self.assertEqual(len(prompts), calls)
+            missing = client.post("/api/v1/reviews/paper-suggestions", json={**body, "credential": {}})
+            self.assertEqual(missing.json()["error"]["code"], "review_credential_required")
+        self.assertEqual(client.get("/api/v1/reviews").json()["items"], [])
 
     def test_no_key_is_reused_for_a_different_endpoint(self):
         client = self.client(worker=False)

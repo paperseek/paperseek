@@ -6,9 +6,21 @@ from paperseek_app.models import RunStatus
 from paperseek_app.ports import RunUnitOfWork
 from paperseek_app.errors import ArtifactNotFound
 from paperseek_app.services.run_queries import RunQueryService
-from paperseek_app.review.models import ReviewContent, ReviewCreate, ReviewDetail, ReviewError
+from paperseek_app.execution import CancellationScope
+from paperseek_app.review.models import (
+    PaperSuggestion,
+    PaperSuggestionRequest,
+    PaperSuggestions,
+    ReviewContent,
+    ReviewCreate,
+    ReviewDetail,
+    ReviewError,
+)
 from paperseek_app.review.ports import ReviewStore
-from paperseek_core.review.evidence import fingerprint, snapshot
+from paperseek_core.ports import LLMPort
+from paperseek_core.review.evidence import fingerprint, normalize_abstract, snapshot
+from paperseek_core.review.selection import Candidate, suggest_papers
+from paperseek_core.review.structured import ReviewOutputError
 
 
 class ReviewService:
@@ -46,3 +58,21 @@ class ReviewService:
         )
         digest = fingerprint({**request.model_dump(mode="json"), "paper_uids": sorted(request.paper_uids)})
         return self.store.create_review(source_id, content, idempotency_key, digest)
+
+    def suggestion_candidates(self, source_run_id: str) -> list[Candidate]:
+        run = self.runs.get_run(source_run_id)
+        if run.kind != "research" or run.status not in {RunStatus.COMPLETED, RunStatus.COMPLETED_WITH_WARNINGS}:
+            raise ReviewError("review_source_not_completed", status=422)
+        records = sorted(self.runs.get_results(source_run_id), key=lambda item: item.rank)
+        return [Candidate(item.record.uid, item.record.title, normalize_abstract(item.record.abstract),
+                          item.record.year or item.record.publish_year) for item in records]
+
+
+async def suggest_review_papers(llm: LLMPort, request: PaperSuggestionRequest,
+                                candidates: list[Candidate]) -> PaperSuggestions:
+    try:
+        picks = await suggest_papers(llm, CancellationScope(), topic=request.topic, language=request.language,
+                                     candidates=candidates, count=request.count)
+    except ReviewOutputError as exc:
+        raise ReviewError("review_selection_failed", status=502) from exc
+    return PaperSuggestions(items=[PaperSuggestion(uid=item.uid, theme=item.theme, reason=item.reason) for item in picks])
