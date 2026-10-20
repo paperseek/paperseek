@@ -6,6 +6,20 @@ outline: 2
 
 Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta3.
 
+## Unreleased
+
+These changes are under development and are not included in the published 1.0.0-beta3 package.
+
+- Review setup now comes before paper selection. Choose chapter count, paragraphs per chapter, and paragraph length in the output language's unit.
+- **Auto-select by topic** considers the first 256 papers with usable abstracts in search-rank order and explains its choices. Manual selection accepts up to 256 papers from the whole search.
+- Each generated paragraph plan uses at most 10 papers. Papers the outline leaves out are listed with a reason, and the writer may skip a planned paper only with a reason, which the evidence check reviews.
+- Citations a paragraph cannot place beside a specific claim are listed under it, also in Markdown and Word exports. Internal evidence IDs no longer appear in the text, and one failed section no longer stops the other sections.
+- Reviews that have no written sections yet extract evidence again the next time you generate the outline. Reviews with written sections keep their evidence.
+- Outline exclusions stay consistent with assigned papers. Evidence quotations preserve supporting source passages across languages, and incomplete omission checks are clearly marked.
+- Ranking and review evidence extraction can process batches in parallel. With your own key, the provider may receive several requests at once; its rate limits still apply.
+
+See [Literature reviews](guide/reviews.md) for the workflow and limits.
+
 ## 1.0.0-beta3 {#v1-0-0-beta3}
 
 Searches that find nothing get a careful second try, data sources are paced across every running task, and you can route traffic through your own proxy. It upgrades earlier 1.0 betas in place, without a migration.

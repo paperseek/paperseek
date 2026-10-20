@@ -201,7 +201,7 @@ PaperSeek now supports Jev for preliminary ranking: add a System One connection 
 
 ## Reviews · Experimental
 
-Select papers with useful abstracts, create a review project, generate and edit an outline, then write and revise sections. The workspace supports versions, linked citations, and **Markdown, Word, and BibTeX** exports.
+Set the topic and length, select papers with useful abstracts (or let the writing model pick them by topic), generate and edit an outline, then write and revise sections. The workspace supports versions, linked citations, and **Markdown, Word, and BibTeX** exports.
 
 Reviews are based on available abstracts and metadata. They do not imply that the model has read full-text PDFs. Check the evidence and citations against the original research before using a draft.
 

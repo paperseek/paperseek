@@ -8,7 +8,7 @@ PaperSeek Service is the default online mode: PaperSeek provides the models, and
 2. Describe your question, choose a data source and a search budget.
 3. Start the search. The form shows how many credits the task uses and how many are left today.
 
-Searching uses **Auto**, a built-in model chosen by PaperSeek. For reviews, choose **Fast** (the default, quicker) or **Deep Research** (more thorough, slower) as the writing model. Preliminary ranking is configured in the same place. Both settings live in **Settings › Model service**. Available sources are shown in the application.
+Searches and reviews use **Default**, the built-in model chosen by PaperSeek. Preliminary ranking is configured in **Settings › Model service**. Available sources are shown in the application.
 
 ## Credits
 
@@ -20,7 +20,7 @@ During the public beta every account receives **20 free credits a day**. Only Pa
 | Bibliometric analysis | 1 |
 | Review | 5 for the whole review |
 
-Credits are deducted when you submit a task. A review is charged once, by its first writing task; generating the outline again, writing, and rewriting sections of the same review are free. If a task fails or is cancelled, its credits are returned; a task that completes with warnings is not refunded.
+Credits are deducted when you submit a task. A review is charged once, by its first writing task; generating the outline again, writing, and rewriting sections of the same review are free. **Auto-select by topic** when choosing papers is free and does not count as a writing task. If a task fails or is cancelled, its credits are returned; a task that completes with warnings is not refunded.
 
 Your remaining credits appear in the sidebar and in **Settings › User**, together with the daily refill time.
 

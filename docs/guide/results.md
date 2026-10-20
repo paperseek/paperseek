@@ -16,7 +16,7 @@ Relevance measures the match to **your question**. It is not a study-quality sco
 
 Result controls search the returned set, apply available filters, and change the order. They do not issue a fresh external search.
 
-Select individual papers for a smaller export or a review, and check the selected count before continuing. **Select loaded** applies only to the currently loaded papers. Review creation requires 2–100 selected papers. Switching modules preserves the selection during this session.
+Select individual papers for a smaller export or a review, and check the selected count before continuing. **Select loaded** applies only to the currently loaded papers. Review creation requires 2–256 selected papers. Switching modules preserves the selection during this session.
 
 ## Export
 
