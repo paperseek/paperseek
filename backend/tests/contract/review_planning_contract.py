@@ -15,7 +15,7 @@ from paperseek_core.review.evidence import snapshot, validate_cards
 from paperseek_core.review.generation import (
     write_section,
 )
-from paperseek_core.review.models import EvidenceBatch, ReviewOutline, SectionBody
+from paperseek_core.review.models import EvidenceBatch, EvidenceCard, ReviewEvidence, ReviewOutline, SectionBody
 from paperseek_core.review.planning import (
     extract_evidence,
     prepare_outline,
@@ -39,6 +39,130 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
     async def outline(self, count=None, length="standard"):
         return await prepare_outline(self.llm, CancellationScope(), topic="Study settings", language="en",
                                      length=length, section_count=count, cards=self.cards, papers=self.papers)
+
+    def only_first_paper(self, result, *, reason="Duplicates the larger study p_001."):
+        first = next(item for item in self.cards[0].evidence)
+        for paragraph in result["paragraphs"]:
+            paragraph["text"] = "One study reports a related finding (p_001)."
+            paragraph["evidence_ids"] = [first.id]
+        if reason is not None:
+            result["omitted"] = [{"paper_id": "p_002", "reason": reason}]
+        return result
+
+    async def test_a_planned_paper_left_out_with_a_reason_is_kept_without_a_warning(self):
+        outline = await self.outline(1)
+        original = self.llm.chat_json
+
+        async def leave_out(messages, **kwargs):
+            result = json.loads(await original(messages, **kwargs))
+            if any(f"TASK: {task}\n" in messages[0]["content"] for task in ("section", "section_edit")):
+                result = self.only_first_paper(result)
+            if "TASK: support_check\n" in messages[0]["content"]:
+                data = json.loads(messages[1]["content"])
+                self.assertEqual([item["paper_id"] for item in data["omitted_papers"]], ["p_002"])
+                self.assertEqual(data["omitted_papers"][0]["abstract"], self.papers[1].abstract)
+            return json.dumps(result)
+
+        self.llm.chat_json = leave_out
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="en",
+            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers)
+        self.assertEqual([(item.paper_id, item.reason, item.questioned) for item in body.omitted],
+                         [("p_002", "Duplicates the larger study p_001.", False)])
+        self.assertTrue(all(item.status == "supported" for item in findings))
+        self.assertEqual(self.llm.calls["section_sources"], 0)
+
+    async def test_a_doubtful_reason_is_questioned_and_marked_for_review(self):
+        outline = await self.outline(1)
+        original = self.llm.chat_json
+
+        async def doubtful(messages, **kwargs):
+            result = json.loads(await original(messages, **kwargs))
+            if any(f"TASK: {task}\n" in messages[0]["content"] for task in ("section", "section_edit")):
+                result = self.only_first_paper(result, reason="Not related to the topic.")
+            if "TASK: support_check\n" in messages[0]["content"]:
+                result["omissions"] = [{"paper_id": "p_002", "status": "questioned",
+                                        "reason": "Its abstract reports the association this paragraph compares."}]
+            return json.dumps(result)
+
+        self.llm.chat_json = doubtful
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="en",
+            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers)
+        self.assertTrue(body.omitted[0].questioned)
+        self.assertIn("association", body.omitted[0].check_reason)
+        self.assertEqual(findings[0].status, "needs_revision")
+        self.assertIn("p_002 may not hold", findings[0].reason)
+
+    async def test_a_planned_paper_dropped_without_a_reason_gets_cited_or_explained(self):
+        outline = await self.outline(1)
+        original = self.llm.chat_json
+
+        async def silent(messages, **kwargs):
+            if "TASK: section_sources\n" in messages[0]["content"]:
+                self.llm.calls["section_sources"] += 1
+                data = json.loads(messages[1]["content"])
+                key = next(iter(data["paragraphs"]))
+                draft = data["paragraphs"][key]["draft"]
+                return json.dumps({key: draft, "omitted": [{"paper_id": "p_002", "reason": "Different population."}]})
+            result = json.loads(await original(messages, **kwargs))
+            if any(f"TASK: {task}\n" in messages[0]["content"] for task in ("section", "section_edit")):
+                result = self.only_first_paper(result, reason=None)
+            return json.dumps(result)
+
+        self.llm.chat_json = silent
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="zh",
+            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers)
+        self.assertEqual(self.llm.calls["section_sources"], 1)
+        self.assertEqual([(item.paper_id, item.reason) for item in body.omitted], [("p_002", "Different population.")])
+        self.assertTrue(all("没有说明原因" not in item.reason for item in findings))
+
+    async def test_invented_citations_are_cleaned_and_the_section_is_kept(self):
+        outline = await self.outline(1)
+        original = self.llm.chat_json
+        diagnostics = []
+
+        async def invented(messages, **kwargs):
+            result = json.loads(await original(messages, **kwargs))
+            if "TASK: section\n" in messages[0]["content"]:
+                for paragraph in result["paragraphs"]:
+                    paragraph["text"] += " Both agree (e_0123456789abcdef01234567)."
+                    paragraph["evidence_ids"].append("e_p_010")
+            return json.dumps(result)
+
+        self.llm.chat_json = invented
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="en",
+            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers,
+            diagnostics=diagnostics)
+        self.assertEqual(self.llm.calls["section"], 3)
+        self.assertNotIn("e_p_010", body.paragraphs[0].evidence_ids)
+        self.assertNotIn("e_0123", body.paragraphs[0].text)
+        self.assertTrue(diagnostics and diagnostics[0].startswith("section:"))
+        self.assertEqual(findings[0].status, "needs_revision")
+        self.assertIn("do not exist were removed", findings[0].reason)
+
+    async def test_support_check_falls_back_to_single_paragraphs_and_records_why(self):
+        outline = await prepare_outline(self.llm, CancellationScope(), topic="Settings", language="en", length="standard",
+                                        section_count=1, cards=self.cards, papers=self.papers, paragraph_count=2)
+        original = self.llm.chat_json
+        diagnostics = []
+        prompts = []
+
+        async def broken_section_check(messages, **kwargs):
+            if "TASK: support_check\n" in messages[0]["content"]:
+                prompts.append(messages[0]["content"])
+                data = json.loads(messages[1]["content"])
+                if len(data["paragraphs"]) > 1:
+                    return json.dumps({"findings": [{"paragraph": 0, "status": "supported", "reason": "only one"}]})
+            return await original(messages, **kwargs)
+
+        self.llm.chat_json = broken_section_check
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="zh",
+            length="standard", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers,
+            diagnostics=diagnostics)
+        self.assertEqual(len(body.paragraphs), 2)
+        self.assertEqual([item.paragraph for item in findings], [0, 1])
+        self.assertTrue(all(item.status == "supported" for item in findings))
+        self.assertTrue(any("support_check section" in item for item in diagnostics))
+        self.assertIn("Write every reason in Chinese.", prompts[0])
 
     async def test_bad_batch_quote_recovers_only_the_missing_paper(self):
         original = self.llm.chat_json
@@ -73,7 +197,8 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
         cards = await extract_evidence(self.llm, CancellationScope(), self.papers, 'en', 'test', diagnostics)
         self.assertEqual([card.paper_id for card in cards], ['p_001', 'p_002'])
         self.assertEqual(batches, [['p_001', 'p_002'], ['p_001', 'p_002'], ['p_002']])
-        self.assertIn('at most 2000', diagnostics[0])
+        # A long quote is no longer a schema error; one that is not in the abstract is still rejected.
+        self.assertIn('Non-verbatim', diagnostics[0])
 
     async def test_isolated_request_failure_preserves_verified_cards_but_cancellation_propagates(self):
         original = self.llm.chat_json
@@ -170,7 +295,8 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.llm.calls["section"], 3)
         self.assertEqual(len(body.paragraphs[0].evidence_ids), 2)
         self.assertEqual(findings[0].status, "needs_revision")
-        self.assertIn("未在正文中标注", findings[0].reason)
+        # Unplaced citations are listed under the paragraph when shown, not reported as a note.
+        self.assertNotIn("未在正文中标注", findings[0].reason)
         self.assertIn("英文", findings[0].reason)
 
     def test_ellipsis_quotes_split_unverifiable_extras_drop_and_a_seventh_item_is_ignored(self):
@@ -180,13 +306,30 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
                  {"category": "finding", "text": "Invented", "quote": "A sentence that appears nowhere in this abstract at all."}]
         items += [{"category": "scope", "text": "Repeated observation", "quote": "Zeta eta theta iota kappa."} for _ in range(5)]
         batch = EvidenceBatch.model_validate({"cards": [{"paper_id": paper.id, "evidence": items}]})
-        self.assertEqual(len(batch.cards[0].evidence), 6)
+        self.assertEqual(len(batch.cards[0].evidence), 7)
         dropped = []
         card = validate_cards(batch, [paper], "test", dropped)[0]
         self.assertEqual([item.quote for item in card.evidence],
                          ["Alpha beta gamma delta epsilon", "Lambda mu nu xi omicron", "Zeta eta theta iota kappa."])
         self.assertEqual(len(dropped), 1)
         self.assertIn("appears nowhere", dropped[0])
+
+    def test_extra_observations_keep_every_category_and_long_quotes_keep_their_best_sentences(self):
+        sentences = [f"Sentence {index} reports finding number {index} in adults across two cohorts." for index in range(1, 13)]
+        abstract = " ".join(sentences)
+        paper = snapshot(FinalPaperResult(rank=1, uid="long", title="Long", abstract=abstract), "source", 1)
+        items = [{"category": "finding", "text": f"Finding {index}", "quote": sentences[index - 1]} for index in range(1, 10)]
+        items.append({"category": "scope", "text": "Scope note", "quote": sentences[9]})
+        items.append({"category": "method", "text": "Sentence 11 reports finding number 11", "quote": abstract,
+                      "unexpected": "ignored"})
+        batch = EvidenceBatch.model_validate({"cards": [{"paper_id": paper.id, "evidence": items, "note": "x"}]})
+        card = validate_cards(batch, [paper], "test")[0]
+        self.assertEqual(len(card.evidence), 8)
+        self.assertEqual({item.category for item in card.evidence}, {"finding", "scope", "method"})
+        method = next(item for item in card.evidence if item.category == "method")
+        self.assertIn("Sentence 11 reports finding number 11", method.quote)
+        self.assertLessEqual(len(method.quote), 2 * len(sentences[10]) + 1)
+        self.assertEqual(abstract[method.start:method.end], method.quote)
 
     async def test_outline_leaves_out_papers_without_verified_evidence_instead_of_failing(self):
         original = self.llm.chat_json
@@ -468,95 +611,119 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("paragraphs.0.text", caught.exception.reason)
         self.assertNotIn("private-input-value", caught.exception.reason)
 
-    async def test_large_outline_assigns_omitted_papers_without_rewriting_or_expanding(self):
+    def corpus(self, count):
         papers = [snapshot(FinalPaperResult(rank=i, uid=str(i), title=f"Study {i}", abstract=f"Finding {i}."),
-                           "source", i) for i in range(1, 45)]
+                           "source", i) for i in range(1, count + 1)]
         cards = [validate_cards(EvidenceBatch(cards=[{"paper_id": p.id, "evidence": [{
             "category": "finding", "text": p.abstract, "quote": p.abstract}]}]), [p], "test")[0] for p in papers]
-        original = self.llm.chat_json
-        missing = {"p_010", "p_012", "p_017", "p_026", "p_029", "p_035", "p_039", "p_041", "p_042"}
+        return papers, cards
 
+    async def test_unused_papers_are_placed_within_capacity_or_excluded_with_a_reason(self):
+        papers, cards = self.corpus(20)
+        original = self.llm.chat_json
+        missing = {"p_005", "p_010", "p_015", "p_020"}
         initial = None
 
-        async def omit_once(messages, **kwargs):
+        async def leave_four(messages, **kwargs):
             nonlocal initial
             if "TASK: outline_assign\n" in messages[0]["content"]:
                 self.llm.calls["outline_assign"] += 1
                 data = json.loads(messages[1]["content"])
                 self.assertEqual({p["id"] for p in data["papers"]}, missing)
-                self.assertEqual(len(data["targets"]), 3)
-                return json.dumps({p: "theme_2:1" for p in missing})
+                self.assertEqual([t["available_slots"] for t in data["targets"]], [1, 3])
+                return json.dumps({"p_005": {"target": "theme:1", "reason": ""},
+                                   "p_010": {"target": "theme_2:1", "reason": ""},
+                                   "p_015": {"target": "exclude", "reason": "Duplicates a larger cohort study."},
+                                   "p_020": {"target": "exclude", "reason": "Background only."}})
             result = json.loads(await original(messages, **kwargs))
             retained = [p.id for p in papers if p.id not in missing]
-            for i, section in enumerate(result["sections"]):
-                section["paper_ids"] = retained[i::3]
-                section["paragraphs"][0]["paper_ids"] = section["paper_ids"]
+            result["excluded"] = []
+            for section, ids in zip(result["sections"], (retained[:9], retained[9:]), strict=True):
+                section["paper_ids"] = ids
+                section["paragraphs"][0]["paper_ids"] = ids
             initial = result
             return json.dumps(result)
 
-        self.llm.chat_json = omit_once
+        self.llm.chat_json = leave_four
         outline = await prepare_outline(self.llm, CancellationScope(), topic="Themes", language="en",
-            length="standard", section_count=3, cards=cards, papers=papers)
-        self.assertEqual({p for s in outline.sections for p in s.paper_ids}, {p.id for p in papers})
+                                        length="standard", section_count=2, cards=cards, papers=papers)
         self.assertEqual(self.llm.calls["outline"], 1)
         self.assertEqual(self.llm.calls["outline_assign"], 1)
         self.assertEqual(outline.focus, initial["focus"])
-        for section, before in zip(outline.sections, initial["sections"], strict=True):
-            self.assertEqual(len(section.paragraphs), 1)
-            self.assertEqual(section.title, before["title"])
-            self.assertEqual(section.paragraphs[0].goal, before["paragraphs"][0]["goal"])
-        self.assertTrue(missing <= set(outline.sections[1].paper_ids))
-        self.assertTrue(missing.isdisjoint(outline.sections[0].paper_ids))
+        self.assertIn("p_005", outline.sections[0].paper_ids)
+        self.assertIn("p_010", outline.sections[1].paper_ids)
+        self.assertEqual({item.paper_id: item.reason for item in outline.excluded},
+                         {"p_015": "Duplicates a larger cohort study.", "p_020": "Background only."})
+        self.assertTrue(all(len(p.paper_ids) <= 10 for s in outline.sections for p in s.paragraphs))
+        planned = {p for s in outline.sections for p in s.paper_ids}
+        self.assertEqual(planned | {item.paper_id for item in outline.excluded}, {p.id for p in papers})
 
-    async def test_overloaded_outline_redistributes_sources_without_adding_or_rewriting_paragraphs(self):
-        papers = [snapshot(FinalPaperResult(rank=i, uid=str(i), title=f"Study {i}", abstract=f"Finding {i}."),
-                           "source", i) for i in range(1, 17)]
-        cards = [validate_cards(EvidenceBatch(cards=[{"paper_id": p.id, "evidence": [{
-            "category": "finding", "text": p.abstract, "quote": p.abstract}]}]), [p], "test")[0] for p in papers]
+    async def test_placement_beyond_ten_papers_or_without_a_reason_is_repaired(self):
+        papers, cards = self.corpus(12)
         original = self.llm.chat_json
-        attempts = 0
+        attempts = []
 
         async def crowded(messages, **kwargs):
-            nonlocal attempts
             if "TASK: outline_assign\n" in messages[0]["content"]:
-                attempts += 1
-                data = json.loads(messages[1]["content"])
-                targets = [t['id'] for t in data['targets']]
-                return json.dumps({p['id']: targets[0 if i < 7 else 1 + (i - 7) % 3]
-                                   for i, p in enumerate(data['papers'])})
+                attempts.append(messages[-1]["content"])
+                if len(attempts) == 1:
+                    return json.dumps({"p_011": {"target": "theme:1", "reason": ""},
+                                       "p_012": {"target": "exclude", "reason": ""}})
+                return json.dumps({"p_011": {"target": "exclude", "reason": "Outside the planned comparison."},
+                                   "p_012": {"target": "exclude", "reason": "Background only."}})
             result = json.loads(await original(messages, **kwargs))
-            for s in result['sections']:
-                s['paragraphs'] *= 2
+            result["excluded"] = []
             return json.dumps(result)
 
         self.llm.chat_json = crowded
-        outline = await prepare_outline(self.llm, CancellationScope(), topic="Themes", language="en",
-            length="standard", section_count=2, cards=cards, papers=papers)
-        self.assertEqual(attempts, 1)
-        self.assertEqual([len(s.paragraphs) for s in outline.sections], [2, 2])
-        self.assertEqual([len(p.paper_ids) for s in outline.sections for p in s.paragraphs], [7, 3, 3, 3])
-        self.assertEqual({p for s in outline.sections for p in s.paper_ids}, {p.id for p in papers})
-        self.assertTrue(all(p.goal == 'Compare findings across study settings.' for s in outline.sections for p in s.paragraphs))
+        outline = await self.outline_for(papers, cards, 1)
+        self.assertEqual(len(attempts), 2)
+        self.assertIn("exceed 10 papers", attempts[1])
+        self.assertEqual(len(outline.sections[0].paper_ids), 10)
+        self.assertEqual({item.paper_id for item in outline.excluded}, {"p_011", "p_012"})
 
-    async def test_optional_assignment_failure_retains_complete_outline_but_never_hides_missing_sources(self):
-        papers = [snapshot(FinalPaperResult(rank=i, uid=str(i), title=f"Study {i}", abstract=f"Finding {i}."),
-                           "source", i) for i in range(1, 17)]
-        cards = [validate_cards(EvidenceBatch(cards=[{"paper_id": p.id, "evidence": [{
-            "category": "finding", "text": p.abstract, "quote": p.abstract}]}]), [p], "test")[0] for p in papers]
+    async def test_an_overloaded_paragraph_plan_is_asked_for_again(self):
+        papers, cards = self.corpus(12)
+        original = self.llm.chat_json
+        prompts = []
+
+        async def overloaded(messages, **kwargs):
+            if "TASK: outline\n" in messages[0]["content"]:
+                prompts.append(messages[-1]["content"])
+                result = json.loads(await original(messages, **kwargs))
+                ids = [p.id for p in papers]
+                if len(prompts) == 1:
+                    result["excluded"] = []
+                    result["sections"][0]["paragraphs"][0]["paper_ids"] = ids
+                return json.dumps(result)
+            return await original(messages, **kwargs)
+
+        self.llm.chat_json = overloaded
+        outline = await self.outline_for(papers, cards, 1)
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("at most 10", prompts[1])
+        self.assertEqual(len(outline.sections[0].paragraphs[0].paper_ids), 10)
+        self.assertEqual({item.paper_id for item in outline.excluded}, {"p_011", "p_012"})
+
+    async def test_complete_outline_needs_no_placement_and_placement_failures_surface(self):
+        papers, cards = self.corpus(8)
         original = self.llm.chat_json
         for incomplete in (False, True):
             for failure in ("json", "unknown_target", "http", "cancel"):
                 with self.subTest(incomplete=incomplete, failure=failure):
                     scope = CancellationScope()
+                    placements = []
 
                     async def broken_assignment(messages, **kwargs):
                         if "TASK: outline_assign\n" in messages[0]["content"]:
+                            placements.append(1)
                             if failure == "cancel":
                                 scope.cancel()
                                 scope.raise_if_cancelled()
                             if failure == "http":
                                 raise LLMRequestError("Rate limited", code="model_rate_limited")
-                            return "not json" if failure == "json" else json.dumps({p.id: "unknown:1" for p in papers})
+                            return "not json" if failure == "json" else json.dumps(
+                                {p.id: {"target": "unknown:1", "reason": ""} for p in papers})
                         result = json.loads(await original(messages, **kwargs))
                         for section in result["sections"]:
                             section["paragraphs"][0]["paper_ids"] = [p.id for p in (papers[:-1] if incomplete else papers)]
@@ -565,16 +732,20 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
                     self.llm.chat_json = broken_assignment
                     call = prepare_outline(self.llm, scope, topic="Themes", language="en", length="standard",
                                            section_count=3, cards=cards, papers=papers)
-                    if failure == "cancel":
+                    if not incomplete:
+                        outline = await call
+                        self.assertEqual(placements, [])
+                        self.assertTrue(all(s.paper_ids == [p.id for p in papers] for s in outline.sections))
+                    elif failure == "cancel":
                         with self.assertRaises(asyncio.CancelledError):
                             await call
-                    elif incomplete:
+                    else:
                         with self.assertRaises(LLMRequestError if failure == "http" else ReviewOutputError):
                             await call
-                    else:
-                        outline = await call
-                        self.assertEqual(len(outline.sections), 3)
-                        self.assertTrue(all(s.paper_ids == [p.id for p in papers] for s in outline.sections))
+
+    async def outline_for(self, papers, cards, count):
+        return await prepare_outline(self.llm, CancellationScope(), topic="Themes", language="en", length="standard",
+                                     section_count=count, cards=cards, papers=papers)
 
     async def test_empty_assignment_targets_reuse_their_original_thematic_sources(self):
         papers = [snapshot(FinalPaperResult(rank=i, uid=str(i), title=f"Study {i}", abstract=f"Finding {i}."),
@@ -675,7 +846,7 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
         async def invalid_assignment(messages, **kwargs):
             if "TASK: outline_assign\n" in messages[0]["content"]:
                 attempts.append(messages)
-                return '{}' if len(attempts) == 1 else '{"p_002":"invented:1"}'
+                return '{}' if len(attempts) == 1 else '{"p_002":{"target":"invented:1","reason":""}}'
             result = json.loads(await original(messages, **kwargs))
             for section in result["sections"]:
                 section["paragraphs"][0]["paper_ids"] = ["p_001"]
@@ -774,38 +945,48 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_large_evidence_reuses_all_notes_and_checks_original_quotes_without_llm_compression(self):
         papers = [snapshot(FinalPaperResult(rank=i, uid=str(i), title=f"Study {i}",
-                           abstract=(f"Study {i} examined shared workflows. " * 50)), "source", i) for i in range(1, 45)]
-        cards = [validate_cards(EvidenceBatch(cards=[{"paper_id": p.id, "evidence": [{
-            "category": "finding", "text": f"Study {i} examined shared workflows.", "quote": p.abstract}]}]),
-            [p], "test")[0] for i, p in enumerate(papers, 1)]
+                           abstract=" ".join(f"Study {i} observation {j} examined shared workflows across many settings "
+                                             f"{'and contexts ' * 40}." for j in range(8))), "source", i) for i in range(1, 11)]
+        # Eight long verbatim sentences per paper: enough evidence to exceed the writing prompt's budget.
+        cards = []
+        for i, p in enumerate(papers, 1):
+            items = []
+            for sentence in p.abstract.split(". ")[:8]:
+                start = p.abstract.index(sentence)
+                items.append(ReviewEvidence(category="finding", text=f"Study {i} examined shared workflows.",
+                                            quote=sentence, id=f"e_{i:02}{start:06}", paper_id=p.id, start=start,
+                                            end=start + len(sentence), abstract_hash=p.abstract_hash))
+            cards.append(EvidenceCard(paper_id=p.id, signature="test", evidence=items))
         outline = await prepare_outline(self.llm, CancellationScope(), topic="Workflows", language="en",
                                        length="standard", cards=cards, papers=papers, section_count=1)
         original = self.llm.chat_json
         checked = set()
+        planned = [card for card in cards if card.paper_id in outline.sections[0].paper_ids]
 
         async def inspect(messages, **kwargs):
             task = messages[0]["content"].split("TASK: ")[1].split("\n")[0]
             data = json.loads(messages[1]["content"])
             self.assertNotEqual(task, "evidence_group")
             if task in {"section", "section_edit"}:
-                self.assertEqual(len(data["abstract_evidence"]), len(cards))
-                for note, card in zip(data["abstract_evidence"], cards, strict=True):
-                    self.assertEqual(note["id"], card.evidence[0].id)
-                    self.assertEqual(note["text"], card.evidence[0].text)
+                notes = [item for card in planned for item in card.evidence]
+                self.assertEqual(len(data["abstract_evidence"]), len(notes))
+                for note, item in zip(data["abstract_evidence"], notes, strict=True):
+                    self.assertEqual(note["id"], item.id)
+                    self.assertEqual(note["text"], item.text)
                     self.assertNotIn("quote", note)
                     self.assertNotIn("abstract_hash", note)
             if task == "support_check":
-                quotes = {c.paper_id: c.evidence[0].quote for c in cards}
+                quotes = {item.id: item.quote for c in cards for item in c.evidence}
                 for paragraph in data["paragraphs"]:
                     for item in paragraph["abstract_quotes"]:
-                        self.assertEqual(item["quote"], quotes[item["paper_id"]])
+                        self.assertIn(item["quote"], quotes.values())
                         checked.add(item["paper_id"])
             return await original(messages, **kwargs)
 
         self.llm.chat_json = inspect
         await write_section(self.llm, CancellationScope(), topic="Workflows", language="en", length="standard",
                             outline=outline, section=outline.sections[0], cards=cards, papers=papers)
-        self.assertEqual(checked, {p.id for p in papers})
+        self.assertEqual(checked, {card.paper_id for card in planned})
 
     async def test_generated_sections_derive_sources_from_their_paragraph_plans(self):
         original = self.llm.chat_json

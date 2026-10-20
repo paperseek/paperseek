@@ -36,10 +36,17 @@ class ReviewLLM:
             result = {"cards": [{"paper_id": paper["id"], "evidence": [
                 {"category": "finding", "text": "Evidence described in the abstract.", "quote": paper["abstract"][:200]}]
             } for paper in data["papers"]]}
+        elif task == "paper_selection":
+            result = {"papers": [{"id": item["id"], "theme": "Fixture theme", "reason": "Covers a distinct setting."}
+                                 for item in data["candidates"][:data["count"]]]}
         elif task == "outline":
-            ids = [paper["id"] for paper in data["papers"]]
+            # Up to ten papers per paragraph, as the planner allows; the rest are excluded with a reason.
+            ids = [paper["id"] for paper in data["papers"]][:10]
+            spare = [paper["id"] for paper in data["papers"]][10:]
             count = data["section_count"]
-            result = {"focus": "Compare methods and their study settings.", "sections": [
+            result = {"focus": "Compare methods and their study settings.",
+                      "excluded": [{"paper_id": paper, "reason": "Fixture: outside the planned argument."} for paper in spare],
+                      "sections": [
                 {"id": "theme" if i == 0 else "summary" if count >= 5 and i == count - 1 else f"theme_{i + 1}",
                  "title": "Summary" if count >= 5 and i == count - 1 else f"Common findings {i + 1}",
                  "kind": "conclusion" if count >= 5 and i == count - 1 else "theme",
@@ -54,9 +61,19 @@ class ReviewLLM:
         elif task == "section_condense":
             result = {"text": _inline(data["abstract_evidence"]),
                       "evidence_ids": data["paragraph"]["evidence_ids"]}
+        elif task == "outline_assign":
+            room = {target["id"]: target["available_slots"] for target in data["targets"]}
+            result = {}
+            for paper in data["papers"]:
+                target = next((key for key, free in room.items() if free > 0), None)
+                if target:
+                    room[target] -= 1
+                result[paper["id"]] = {"target": target or "exclude", "reason": "" if target else "Fixture: no room."}
         elif task == "support_check":
             result = {"findings": [{"paragraph": p["index"], "status": "supported", "reason": "Fixture evidence check."}
-                                    for p in data["paragraphs"]]}
+                                    for p in data["paragraphs"]],
+                      "omissions": [{"paper_id": item["paper_id"], "status": "accepted", "reason": ""}
+                                    for item in data.get("omitted_papers", [])]}
         elif task == "consistency_check":
             result = {"has_material_issue": False, "findings": []}
         else:

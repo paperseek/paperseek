@@ -2,21 +2,26 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 
 from pydantic import BaseModel, Field, create_model
 
 from paperseek_core.ports import CancellationToken, LLMPort
+from paperseek_core.errors import LLMRequestError
 from paperseek_core.review.evidence import (
+    PAPER_MENTION,
     CitationStyleError,
     citation_style_issues,
     evidence_index,
+    strip_evidence_ids,
     validate_body,
     validate_mentions,
 )
 from paperseek_core.review.models import (
     EvidenceCard,
     OutlineSection,
+    PaperExclusion,
     ReviewModel,
     ReviewOutline,
     ReviewPaper,
@@ -29,13 +34,35 @@ from paperseek_core.review.prompts import INLINE_CITATIONS, INLINE_CITATIONS_ZH,
 from paperseek_core.review.structured import ReviewOutputError, structured_call
 
 
+def cited_papers(body: SectionBody, cards: list[EvidenceCard]) -> set[str]:
+    index = evidence_index(cards)
+    return {index[key].paper_id for paragraph in body.paragraphs for key in paragraph.evidence_ids if key in index}
+
+
+def reconcile_omissions(body: SectionBody, section: OutlineSection, cards: list[EvidenceCard],
+                        *earlier: list[PaperExclusion]) -> SectionBody:
+    """Keep one reason per planned paper that the text does not cite; drop the rest."""
+    cited = cited_papers(body, cards)
+    reasons: dict[str, PaperExclusion] = {}
+    for item in [*body.omitted, *(entry for group in earlier for entry in group)]:
+        if item.paper_id in section.paper_ids and item.paper_id not in cited and item.reason.strip():
+            reasons.setdefault(item.paper_id, item)
+    body.omitted = [reasons[paper] for paper in section.paper_ids if paper in reasons]
+    return body
+
+
+def unexplained(body: SectionBody, section: OutlineSection, cards: list[EvidenceCard]) -> set[str]:
+    """Planned papers neither cited nor listed with a reason."""
+    return set(section.paper_ids) - cited_papers(body, cards) - {item.paper_id for item in body.omitted}
+
+
 async def complete_section_sources(llm: LLMPort, cancellation: CancellationToken, body: SectionBody,
                                    section: OutlineSection, cards: list[EvidenceCard], data: dict,
                                    validate: Callable[[SectionBody], object]) -> SectionBody:
-    """Repair missing sources in their planned paragraphs, preserving all other prose."""
+    """Integrate planned papers the draft left out without a reason, or have the writer give one."""
     index = evidence_index(cards)
     cited = {index[key].paper_id for paragraph in body.paragraphs for key in paragraph.evidence_ids}
-    missing = set(section.paper_ids) - cited
+    missing = unexplained(body, section, cards)
     if not missing:
         return body
     targets: dict[int, list[str]] = {}
@@ -43,16 +70,19 @@ async def complete_section_sources(llm: LLMPort, cancellation: CancellationToken
         target = next(i for i, plan in enumerate(section.paragraphs) if paper_id in plan.paper_ids)
         targets.setdefault(target, []).append(paper_id)
     schema = create_model("ParagraphSourceRepair", __base__=ReviewModel,
+                          omitted=(list[PaperExclusion], Field(default_factory=list, max_length=100)),
                           **{f"paragraph_{i + 1}": (ReviewParagraph, ...) for i in targets})
 
     def apply(value: BaseModel, *, require_coverage: bool = True) -> SectionBody:
         updated = body.model_copy(deep=True)
         for i in targets:
             updated.paragraphs[i] = getattr(value, f"paragraph_{i + 1}")
+        updated.omitted = [*body.omitted, *value.omitted]
         validate(updated)
-        covered = {index[key].paper_id for paragraph in updated.paragraphs for key in paragraph.evidence_ids}
-        if require_coverage and (remaining := set(section.paper_ids) - covered):
-            raise ValueError(f"Integrate these papers with supporting evidence while retaining existing sources: {sorted(remaining)}.")
+        reconcile_omissions(updated, section, cards)
+        if require_coverage and (remaining := unexplained(updated, section, cards)):
+            raise ValueError(f"Cite these papers with supporting evidence, or list each in omitted with a short reason: "
+                             f"{sorted(remaining)}.")
         return updated
 
     relevant = missing | {index[key].paper_id for i in targets for key in body.paragraphs[i].evidence_ids}
@@ -64,6 +94,8 @@ async def complete_section_sources(llm: LLMPort, cancellation: CancellationToken
                 "Return each requested paragraph under its exact field name, with text and evidence_ids. "
                 "Keep the argument, existing supported findings and their source attribution. "
                 "Synthesize the added study's contribution in the prose; do not just append a citation to an unrelated claim. "
+                "If a missing study does not genuinely serve the paragraph's argument, leave it out and add "
+                '{"paper_id","reason"} to omitted with a short reason in the requested language. '
                 + INLINE_CITATIONS +
                 "Use the supplied observations and exact evidence IDs. Keep each paragraph as one continuous paragraph, "
                 "in the requested language. Keep within paragraph_limits; integrate through a shared argument rather than "
@@ -72,6 +104,7 @@ async def complete_section_sources(llm: LLMPort, cancellation: CancellationToken
                 "每个段落按其字段名原样返回，包含 text 和 evidence_ids。"
                 "保留原有论证、已有依据的发现及其文献归属。"
                 "在论述中综合新增研究的贡献，不要只是在一个无关的论断后面追加引用。"
+                '如果某篇缺失研究并不能真正支撑该段论点，就不引用它，并在 omitted 中加入 {"paper_id","reason"}，用中文简要说明原因。'
                 + INLINE_CITATIONS_ZH +
                 "使用提供的观察和准确的证据编号。每段保持为一个连续的中文段落，"
                 "遵守 paragraph_limits；通过共同的论证整合文献，而不是逐篇罗列。不要添加标题、段落或数字引用标记。"),
@@ -96,6 +129,8 @@ async def complete_section_sources(llm: LLMPort, cancellation: CancellationToken
             return body
         covered = {index[key].paper_id for paragraph in partial.paragraphs for key in paragraph.evidence_ids}
         return partial if cited <= covered else body
+    except LLMRequestError:
+        return body
     return apply(patch)
 
 
@@ -165,6 +200,11 @@ async def condense_paragraphs(llm: LLMPort, cancellation: CancellationToken, bod
             )
         except ReviewOutputError:
             unresolved.append(i)
+        else:
+            kept = {index[key].paper_id for key in updated.paragraphs[i].evidence_ids}
+            reason = "篇幅限制下从本段删去。" if data["language"] == "zh" else "Removed from this paragraph to keep it within the length limit."
+            updated.omitted = [*updated.omitted, *(PaperExclusion(paper_id=paper, reason=reason) for paper in sorted(cited - kept))]
+    reconcile_omissions(updated, section, cards)
     return updated, unresolved
 
 
@@ -173,6 +213,7 @@ async def write_section(
     outline: ReviewOutline, section: OutlineSection, cards: list[EvidenceCard],
     instruction: str = "", previous: SectionBody | None = None, summaries: list[dict] | None = None,
     papers: list[ReviewPaper] | None = None, paragraph_length: int | None = None,
+    diagnostics: list[str] | None = None,
 ) -> tuple[SectionBody, list[SupportFinding]]:
     assigned = [card for card in cards if card.paper_id in section.paper_ids]
     evidence = [item.model_dump(include={"id", "paper_id", "category", "text", "quote"})
@@ -215,6 +256,10 @@ async def write_section(
         "Follow the approved paragraph plan in order: one prose paragraph per planned paragraph unless "
         "the explicit user revision request asks for a different structure. Use each plan's sources where relevant, "
         "and cover the assigned literature across the section rather than stacking citations indiscriminately. "
+        "A planned paper that does not genuinely serve its paragraph may be left out: then add "
+        '{"paper_id","reason"} to omitted, with a short, specific reason in the requested language '
+        "(for example it duplicates a stronger study, addresses a different population, or the length limit). "
+        "Every planned paper is either cited or listed in omitted. "
         "Build paragraphs around a substantive advance or analytical point, connect the findings, then explain "
         "their implication for the research question. A single-paper paragraph is appropriate for a distinct "
         "contribution; do not mechanically force two citations into every paragraph. "
@@ -245,6 +290,8 @@ async def write_section(
         + INLINE_CITATIONS_ZH +
         "按已批准的段落计划依次撰写：每个计划段落写成一个论述段落，除非明确的用户修改要求另有安排。"
         "在相关处使用各段计划的文献，并在全节中覆盖分配的文献，不要不加区分地堆砌引用。"
+        '计划文献如果不能真正支撑所在段落，可以不引用，但要在 omitted 中加入 {"paper_id","reason"}，'
+        "用中文简要、具体地说明原因（例如与证据更充分的研究重复、研究对象不同、篇幅所限）。每篇计划文献要么被引用，要么列入 omitted。"
         "每段围绕一项实质性进展或一个分析要点展开，把发现联系起来，再说明它们对研究问题的意义。"
         "独特的贡献可以单篇成段；不要机械地在每段强塞两条引用。"
         "使用具体的概念、研究情境和已报告的发现，避免写成“甲发现……，乙发现……”的串联。"
@@ -277,37 +324,43 @@ async def write_section(
         validate_mentions(value, cards, language=language, exempt=accepted)
         if planned and len(value.paragraphs) != len(section.paragraphs):
             raise ValueError(f"Follow the approved plan: write {len(section.paragraphs)} prose paragraphs.")
+        reconcile_omissions(value, section, cards)
         return value
     body_schema = create_model("PlannedSectionBody", __base__=SectionBody,
         paragraphs=(list[ReviewParagraph], Field(min_length=len(section.paragraphs), max_length=len(section.paragraphs)))) \
         if planned else SectionBody
+    notes: dict[int, list[str]] = {}
+
+    def note(paragraph: int, zh: str, en: str) -> None:
+        notes.setdefault(paragraph, []).append(zh if language == "zh" else en)
+
     try:
         body = await structured_call(llm, cancellation, "section", prompt, data, body_schema,
                                      max_tokens=tokens, validate=validate, attempts=3, language=language)
     except ReviewOutputError as exc:
-        # A draft that fails only placement or language rules is kept and marked for review.
+        # A draft that fails only placement or language rules is kept and marked for review;
+        # one with repairable citation errors is cleaned up and kept rather than failing the job.
         if not isinstance(exc.result, SectionBody):
             raise
+        if diagnostics is not None:
+            diagnostics.append(f"section: {exc.reason}"[:2000])
+        draft = salvage(exc.result, cards, section, planned, note)
+        if draft is None:
+            raise
         try:
-            validate(exc.result)
+            validate(draft)
         except CitationStyleError:
-            accepted.update(paragraph.text for paragraph in exc.result.paragraphs)
-            try:
-                validate(exc.result)
-            except ValueError:
-                raise exc from None
+            accepted.update(paragraph.text for paragraph in draft.paragraphs)
         except ValueError:
-            raise exc from None
-        body = exc.result
+            # Mentions without evidence stay visible: the rendered text marks them for checking.
+            accepted.update(paragraph.text for paragraph in draft.paragraphs)
+        body = reconcile_omissions(draft, section, cards)
     weak_phrases = ("遗憾的是", "仅为", "仍明显落后", "效果有限", "作用有限", "效应有限", "微乎其微",
                     "unfortunately", "merely", "still lags behind", "limited effectiveness")
     editing_focus = [{"paragraph": i, "expressions_to_reframe": matches}
                      for i, paragraph in enumerate(body.paragraphs)
                      if (matches := [phrase for phrase in weak_phrases if phrase in paragraph.text.lower()])]
-    notes: dict[int, list[str]] = {}
-
-    def note(paragraph: int, zh: str, en: str) -> None:
-        notes.setdefault(paragraph, []).append(zh if language == "zh" else en)
+    drafted = list(body.omitted)
 
     try:
         body = await structured_call(
@@ -326,7 +379,8 @@ async def write_section(
             "The ending must reinforce the central insight, without adding a weakness list or negating the contribution. "
             "Replace unsupported inferences with precise source findings, not layers of caveats. "
             "Preserve the section's substantive evidence, comparison facts and correct source attribution. "
-            "Every paragraph needs actual supplied evidence IDs; copy IDs exactly. Cover the assigned papers. "
+            "Every paragraph needs actual supplied evidence IDs; copy IDs exactly. Cover the assigned papers, "
+            "keeping the draft's omitted list for planned papers it deliberately does not cite. "
             + INLINE_CITATIONS +
             "Keep the approved paragraph count and order unless the explicit user revision request changes them. "
             "Keep each paragraph within paragraph_limits. "
@@ -345,7 +399,7 @@ async def write_section(
             "结尾必须强化核心见解，不要添加不足清单或否定前文贡献。"
             "用准确的文献发现替换没有依据的推断，而不是层层加限定语。"
             "保留本节的实质证据、比较事实和正确的文献归属。"
-            "每段都需要实际提供的证据编号，编号须原样复制。覆盖分配给本节的论文。"
+            "每段都需要实际提供的证据编号，编号须原样复制。覆盖分配给本节的论文，并保留草稿中有意不引用的计划文献及其 omitted 理由。"
             + INLINE_CITATIONS_ZH +
             "保持已批准的段落数量和顺序，除非明确的用户修改要求另有改动。每段遵守 paragraph_limits。"
             "使用连续的中文学术论述，不要使用内部标题或项目符号列表。"
@@ -355,28 +409,26 @@ async def write_section(
             {**data, "draft": body.model_dump(), "editing_focus": editing_focus},
             body_schema, max_tokens=tokens, validate=validate, language=language,
         )
-    except ReviewOutputError:
+    except (ReviewOutputError, LLMRequestError):
         # Editing is optional polish: keep the validated draft and still run every check below.
         note(0, "润色步骤未返回有效结构，已保留通过校验的初稿。",
              "The editing pass returned an invalid structure; the validated draft was retained.")
+    body = reconcile_omissions(body, section, cards, drafted)
 
     async def finish(value: SectionBody) -> SectionBody:
         if planned:
             value = await complete_section_sources(llm, cancellation, value, section, assigned, data, validate)
             value, unresolved = await condense_paragraphs(llm, cancellation, value, section, cards, data, validate)
+            limit = data["paragraph_limits"]["size"]
             for i in unresolved:
                 size = text_size(value.paragraphs[i].text, unit)
-                note(i, f"本段超出篇幅建议（{size} 字），可编辑精简。",
-                     f"This paragraph exceeds the suggested length ({size} {unit}); edit to tighten it.")
+                note(i, f"本段 {size} 字，超出建议篇幅（{limit} 字以内），可编辑精简。",
+                     f"This paragraph has {size} {unit}, over the suggested {limit}; edit to tighten it.")
         return value
 
     async def support(value: SectionBody) -> list[SupportFinding]:
-        try:
-            return await check_support(llm, cancellation, value, cards, papers)
-        except ReviewOutputError:
-            reason = ("未能完成自动证据检查，请人工核对本段引用。" if language == "zh"
-                      else "The automatic evidence check could not complete; review this paragraph's citations.")
-            return [SupportFinding(paragraph=i, status="needs_revision", reason=reason) for i in range(len(value.paragraphs))]
+        return await checked_support(llm, cancellation, value, cards, papers, section=section,
+                                     language=language, diagnostics=diagnostics)
 
     body = await finish(body)
     findings = await support(body)
@@ -395,32 +447,34 @@ async def write_section(
                 {**data, "draft": body.model_dump(), "issues": [item.model_dump() for item in findings]},
                 body_schema, max_tokens=tokens, validate=validate, attempts=3, language=language,
             )
-        except ReviewOutputError:
+        except (ReviewOutputError, LLMRequestError):
             # Keep the draft with its findings: the section is saved as needing review, not lost.
             note(0, "自动修订未能完成，已保留原文并标出需要核对的段落。",
                  "Automatic revision could not complete; the draft is kept with the paragraphs to review marked.")
         else:
-            body = await finish(repaired)
+            body = await finish(reconcile_omissions(repaired, section, cards, body.omitted))
             findings = await support(body)
+    # Citations not placed beside a claim are listed under their paragraph when the review is shown.
     style_notes = {
-        "unplaced": ("部分引用未在正文中标注到具体论断，已附在段末，请核对。",
-                     "Some citations are not placed beside their claims and appear at the end; check them."),
         "grouped": ("本段引用集中在段末，未对应到具体论断，请核对。",
                     "This paragraph groups its citations at the end rather than beside each claim; check them."),
         "language": ("本段含有英文句子或题名，请改写为中文。",
                      "This paragraph contains English sentences or titles; rewrite them in Chinese."),
     }
     for paragraph, kind, _ in citation_style_issues(body, cards, language):
-        note(paragraph, *style_notes[kind])
-    index = evidence_index(cards)
-    cited = {index[key].paper_id for paragraph in body.paragraphs for key in paragraph.evidence_ids}
-    missing = set(section.paper_ids) - cited
-    if missing and planned:
+        if kind in style_notes:
+            note(paragraph, *style_notes[kind])
+    if planned and (missing := unexplained(body, section, cards)):
         for i, plan in enumerate(section.paragraphs):
-            omitted = sorted(missing & set(plan.paper_ids))
-            if omitted and i < len(body.paragraphs):
-                note(i, f"计划文献尚未纳入本段：{', '.join(omitted)}。可编辑或重写本节补充。",
-                     f"Planned sources not yet incorporated: {', '.join(omitted)}. Edit or rewrite this section to include them.")
+            left = sorted(missing & set(plan.paper_ids))
+            if left and i < len(body.paragraphs):
+                note(i, f"计划文献未被引用，也没有说明原因：{', '.join(left)}。可编辑或重写本节补充。",
+                     f"Planned sources neither cited nor explained: {', '.join(left)}. Edit or rewrite this section to include them.")
+    for item in body.omitted:
+        if item.questioned:
+            target = next((i for i, plan in enumerate(section.paragraphs) if item.paper_id in plan.paper_ids), 0)
+            note(min(target, len(body.paragraphs) - 1), f"不引用 {item.paper_id} 的理由可能不成立：{item.check_reason}",
+                 f"The reason for not citing {item.paper_id} may not hold: {item.check_reason}")
     for paragraph, messages in notes.items():
         finding = next((item for item in findings if item.paragraph == paragraph), None)
         if finding is None:
@@ -431,19 +485,96 @@ async def write_section(
     return body, findings
 
 
+_NUMBERED_MARKER = re.compile(r"\s*\[\d+(?:\s*[,–-]\s*\d+)*\]")
+
+
+def salvage(body: SectionBody, cards: list[EvidenceCard], section: OutlineSection, planned: bool,
+            note: Callable[[int, str, str], None]) -> SectionBody | None:
+    """Clean a draft whose citations failed validation, rather than failing the whole job.
+
+    Unknown evidence IDs are dropped, evidence IDs and numbered markers written into the prose
+    are removed, and each change is noted on its paragraph. A draft is unusable only when a
+    paragraph keeps no real evidence or the approved paragraph count is not met.
+    """
+    index = evidence_index(cards)
+    allowed = {key for key, item in index.items() if item.paper_id in section.paper_ids}
+    result = body.model_copy(deep=True)
+    if planned and len(result.paragraphs) != len(section.paragraphs):
+        return None
+    for i, paragraph in enumerate(result.paragraphs):
+        valid = list(dict.fromkeys(key for key in paragraph.evidence_ids if key in allowed))
+        if not valid:
+            return None
+        if len(valid) != len(paragraph.evidence_ids):
+            note(i, "已移除本段中不存在的证据编号，请核对引用。", "Evidence IDs that do not exist were removed; check this paragraph's citations.")
+        paragraph.evidence_ids = valid
+        text = _NUMBERED_MARKER.sub("", strip_evidence_ids(paragraph.text))
+        if text != paragraph.text:
+            note(i, "已从正文中删去证据编号或数字引用标记，请核对表述。",
+                 "Evidence IDs or numbered markers were removed from the text; check the wording.")
+            paragraph.text = text.strip() or paragraph.text
+    for i, paragraph in enumerate(result.paragraphs):
+        cited = {index[key].paper_id for key in paragraph.evidence_ids}
+        if stray := sorted({match.group() for match in PAPER_MENTION.finditer(paragraph.text)} - cited):
+            note(i, f"正文提到 {', '.join(stray)}，但本段没有它们的摘要证据，请核对文献归属。",
+                 f"The text names {', '.join(stray)} without evidence from them in this paragraph; check the attribution.")
+    return result
+
+
+def _could_not_check(language: str) -> str:
+    return ("未能完成自动证据检查，请人工核对本段引用。" if language == "zh"
+            else "The automatic evidence check could not complete; review this paragraph's citations.")
+
+
+async def checked_support(llm: LLMPort, cancellation: CancellationToken, body: SectionBody,
+                          cards: list[EvidenceCard], papers: list[ReviewPaper] | None, *,
+                          section: OutlineSection | None = None, language: str = "en",
+                          diagnostics: list[str] | None = None) -> list[SupportFinding]:
+    """Check the whole section; if that cannot complete, check paragraph by paragraph."""
+    def record(exc: Exception, scope: str) -> None:
+        if diagnostics is not None:
+            reason = exc.reason if isinstance(exc, ReviewOutputError) else getattr(exc, "code", type(exc).__name__)
+            diagnostics.append(f"support_check {scope}: {reason}"[:2000])
+
+    try:
+        return await check_support(llm, cancellation, body, cards, papers, language=language, section=section)
+    except (ReviewOutputError, LLMRequestError) as exc:
+        record(exc, "section")
+    findings = []
+    for i, paragraph in enumerate(body.paragraphs):
+        try:
+            [finding] = await check_support(llm, cancellation, SectionBody(paragraphs=[paragraph]), cards, papers,
+                                            language=language)
+            findings.append(finding.model_copy(update={"paragraph": i}))
+        except (ReviewOutputError, LLMRequestError, ValueError) as exc:
+            record(exc, f"paragraph {i}")
+            findings.append(SupportFinding(paragraph=i, status="needs_revision", reason=_could_not_check(language)))
+    return findings
+
+
 async def check_support(llm: LLMPort, cancellation: CancellationToken,
                         body: SectionBody, cards: list[EvidenceCard],
-                        papers: list[ReviewPaper] | None = None) -> list[SupportFinding]:
+                        papers: list[ReviewPaper] | None = None, *, language: str = "en",
+                        section: OutlineSection | None = None) -> list[SupportFinding]:
+    """Check each paragraph against its sources, and each omission reason against the omitted paper.
+
+    Omission results are recorded on ``body.omitted`` (questioned flag and check reason).
+    """
     index = evidence_index(cards)
     abstracts = {paper.id: paper.abstract for paper in papers or []}
+    omitted = [item for item in body.omitted if item.paper_id in abstracts] if section else []
+    goals = {paper: plan.goal for plan in (section.paragraphs if section else []) for paper in plan.paper_ids}
 
     def validate(check: SupportCheck) -> None:
         if sorted(item.paragraph for item in check.findings) != list(range(len(body.paragraphs))):
             raise ValueError("Check each paragraph exactly once, using zero-based indices.")
+        if unknown := {item.paper_id for item in check.omissions} - {item.paper_id for item in omitted}:
+            raise ValueError(f"Check only the supplied omitted papers; unknown IDs: {sorted(unknown)}.")
 
     check = await structured_call(
         llm, cancellation, "support_check",
-        'Return {"findings":[{"paragraph":0,"status":"supported","reason":"..."}]}. '
+        'Return {"findings":[{"paragraph":0,"status":"supported","reason":"..."}],'
+        '"omissions":[{"paper_id":"p_001","status":"accepted","reason":"..."}]}. '
         "Check every paragraph against its cited papers' quotes AND supplied full abstracts. "
         "Status is supported, needs_revision or unsupported. A claim supported elsewhere in the same cited "
         "paper's abstract is valid even if the selected excerpt is incomplete. Do not use uncited papers. "
@@ -464,14 +595,29 @@ async def check_support(llm: LLMPort, cancellation: CancellationToken,
         "for an empirical effectiveness claim. Evaluate factual support, not whether the prose includes enough caveats. "
         "Do not request generic limitations, hedging or self-criticism as a condition of being supported. "
         "A real citation alone does not mean its claims are supported. Do not add claims. "
-        "Keep each reason concise, at most 500 characters. For supported paragraphs, a brief confirmation suffices.",
+        "Keep each reason concise, at most 500 characters. For supported paragraphs, a brief confirmation suffices. "
+        "omitted_papers lists planned papers the section chose not to cite, with the writer's reason, the goal of the "
+        "paragraph it was planned for, and its abstract. Return one omissions entry for each. Mark it questioned ONLY "
+        "when the abstract plainly provides evidence for that paragraph goal AND the reason claims the paper is "
+        "irrelevant, off-topic or lacks evidence. Accept reasons about duplication, a stronger or more direct study, "
+        "a different population, setting or measure, a narrower scope, or the length limit, and accept whenever "
+        "uncertain: leaving a paper out is an editorial choice, not an error. "
+        + ("Write every reason in Chinese." if language == "zh" else "Write every reason in English."),
         {"paragraphs": [{"index": i, "text": paragraph.text,
                          "abstract_quotes": [{"paper_id": index[key].paper_id, "quote": index[key].quote}
-                                             for key in paragraph.evidence_ids],
+                                             for key in paragraph.evidence_ids if key in index],
                          "cited_paper_abstracts": [{"paper_id": paper_id, "abstract": abstracts[paper_id]}
-                                                   for paper_id in sorted({index[key].paper_id for key in paragraph.evidence_ids})
+                                                   for paper_id in sorted({index[key].paper_id for key in paragraph.evidence_ids
+                                                                           if key in index})
                                                    if paper_id in abstracts]}
-                        for i, paragraph in enumerate(body.paragraphs)]},
-        SupportCheck, validate=validate,
+                        for i, paragraph in enumerate(body.paragraphs)],
+         "omitted_papers": [{"paper_id": item.paper_id, "reason": item.reason, "planned_goal": goals.get(item.paper_id, ""),
+                             "abstract": abstracts[item.paper_id]} for item in omitted]},
+        SupportCheck, validate=validate, language=language,
     )
+    verdicts = {item.paper_id: item for item in check.omissions}
+    for item in body.omitted:
+        verdict = verdicts.get(item.paper_id)
+        item.questioned = bool(verdict and verdict.status == "questioned")
+        item.check_reason = verdict.reason[:600] if item.questioned and verdict else ""
     return check.findings

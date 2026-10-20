@@ -11,7 +11,7 @@ import unicodedata
 
 from paperseek_core.models import FinalPaperResult
 from paperseek_core.review.models import (
-    EvidenceBatch, EvidenceCard, ReviewEvidence, ReviewOutline, ReviewPaper, SectionBody,
+    EVIDENCE_PER_PAPER, EvidenceBatch, EvidenceCard, ReviewEvidence, ReviewOutline, ReviewPaper, SectionBody,
 )
 
 
@@ -25,6 +25,11 @@ _QUOTE_TYPOGRAPHY = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"
 _WORD = re.compile(r"[㐀-鿿豈-﫿]|[^\W_]+(?:[.,]\d+)*")
 _FUZZY_MATCH = 0.8
 _SHORT_QUOTE = 4
+# A located quote longer than this is cut to the one or two abstract sentences that best match
+# its observation; the result is still a continuous span of the abstract.
+_LONG_QUOTE = 600
+_SENTENCE_END = re.compile(r"[。！？；]|[.!?;](?=\s)")
+EVIDENCE_ID_IN_TEXT = re.compile(r"(?<![A-Za-z0-9_])e_[0-9a-f]{8,}")
 
 
 class _AbstractText(HTMLParser):
@@ -112,6 +117,69 @@ def _locate(quote: str, source: str, abstract: str) -> tuple[int, int] | None:
     return (match.start(), match.end()) if match else locate_quote(quote, abstract)
 
 
+def _sentences(abstract: str, start: int, end: int) -> list[tuple[int, int]]:
+    spans, cursor = [], start
+    for match in _SENTENCE_END.finditer(abstract, start, end):
+        spans.append((cursor, match.end()))
+        cursor = match.end()
+    if cursor < end:
+        spans.append((cursor, end))
+    trimmed = []
+    for left, right in spans:
+        while left < right and abstract[left].isspace():
+            left += 1
+        while right > left and abstract[right - 1].isspace():
+            right -= 1
+        if right > left:
+            trimmed.append((left, right))
+    return trimmed
+
+
+def best_sentences(abstract: str, start: int, end: int, observation: str) -> tuple[int, int]:
+    """The one or two adjacent sentences of a long quote that best match its observation.
+
+    Observations in another language share few words with the quote; then the opening
+    sentences are kept, which in an abstract usually carry the claim being quoted.
+    """
+    sentences = _sentences(abstract, start, end)
+    if len(sentences) <= 1:
+        return start, min(end, start + 2000)
+    wanted = {word for word, _, _ in _words(observation)}
+    best = None
+    for i in range(len(sentences)):
+        for j in (i, i + 1):
+            if j >= len(sentences):
+                continue
+            left, right = sentences[i][0], sentences[j][1]
+            if right - left > 2000:
+                continue
+            words = {word for word, _, _ in _words(abstract[left:right])}
+            score = (len(words & wanted), -(right - left), -i)
+            if best is None or score > best[0]:
+                best = (score, left, right)
+    if best is None or best[0][0] == 0:
+        left, right = sentences[0]
+        if len(sentences) > 1 and sentences[1][1] - left <= _LONG_QUOTE:
+            right = sentences[1][1]
+        return left, min(right, left + 2000)
+    return best[1], best[2]
+
+
+def _keep_varied(evidence: list[ReviewEvidence]) -> list[ReviewEvidence]:
+    """At most EVIDENCE_PER_PAPER observations, keeping the first of every category before the rest."""
+    if len(evidence) <= EVIDENCE_PER_PAPER:
+        return evidence
+    first = {}
+    for index, item in enumerate(evidence):
+        first.setdefault(item.category, index)
+    keep = set(first.values())
+    for index in range(len(evidence)):
+        if len(keep) >= EVIDENCE_PER_PAPER:
+            break
+        keep.add(index)
+    return [item for index, item in enumerate(evidence) if index in keep]
+
+
 def validate_cards(batch: EvidenceBatch, papers: list[ReviewPaper], signature: str,
                    dropped: list[str] | None = None) -> list[EvidenceCard]:
     """Keep every quote found in its abstract; a paper fails only when none of its quotes are.
@@ -133,9 +201,11 @@ def validate_cards(batch: EvidenceBatch, papers: list[ReviewPaper], signature: s
             parts = [part for part in _ELLIPSIS.split(item.quote.strip()) if part.strip()] or [item.quote]
             spans = [_locate(part, source, paper.abstract) for part in parts]
             if not all(spans):
-                rejected.append(f"{paper.id}: {item.quote[:180]!r}")
+                rejected.append(f"{paper.id}: {item.quote[:600]!r}")
                 continue
             for start, end in spans:
+                if end - start > _LONG_QUOTE:
+                    start, end = best_sentences(paper.abstract, start, end, item.text)
                 # Evidence always keeps the abstract's own text, never the model's copy.
                 quote = paper.abstract[start:end]
                 key = "e_" + fingerprint([paper.id, paper.abstract_hash, quote])[:24]
@@ -143,7 +213,7 @@ def validate_cards(batch: EvidenceBatch, papers: list[ReviewPaper], signature: s
                        for existing in evidence):
                     continue
                 evidence.append(ReviewEvidence(
-                    **item.model_dump(exclude={"quote"}), quote=quote, id=key,
+                    category=item.category, text=item.text, quote=quote, id=key,
                     paper_id=paper.id, start=start, end=start + len(quote), abstract_hash=paper.abstract_hash,
                 ))
         if rejected and not evidence:
@@ -151,7 +221,7 @@ def validate_cards(batch: EvidenceBatch, papers: list[ReviewPaper], signature: s
             continue
         if dropped is not None:
             dropped.extend(rejected)
-        result.append(EvidenceCard(paper_id=paper.id, signature=signature, evidence=evidence[:6]))
+        result.append(EvidenceCard(paper_id=paper.id, signature=signature, evidence=_keep_varied(evidence)))
     if quote_errors:
         raise ValueError("Non-verbatim quotes: " + "; ".join(quote_errors[:8])
                          + ". Copy exact continuous spans from the original abstracts; preserve capitalization, "
@@ -166,6 +236,7 @@ def usable_cards(cards: list[EvidenceCard], papers: list[ReviewPaper]) -> list[E
 
 
 def validate_outline(outline: ReviewOutline, cards: list[EvidenceCard], *, require_all: bool = True) -> ReviewOutline:
+    """Every usable paper is either planned in a paragraph or excluded with a reason, never silently dropped."""
     available = {card.paper_id for card in cards if card.evidence}
     assigned = set()
     for section in outline.sections:
@@ -173,14 +244,27 @@ def validate_outline(outline: ReviewOutline, cards: list[EvidenceCard], *, requi
             raise ValueError(f"Section {section.id} references papers without valid evidence: {sorted(unknown)}. "
                              f"Use these supplied paper IDs: {sorted(available)}.")
         assigned.update(section.paper_ids)
-    if require_all and assigned != available:
-        raise ValueError(f"The outline is missing these supplied papers: {sorted(available - assigned)}. "
-                         "Place each in a relevant section and its paragraph plan, without adding sections.")
+    excluded = [item.paper_id for item in outline.excluded]
+    if len(set(excluded)) != len(excluded) or set(excluded) - available:
+        raise ValueError(f"Exclude each supplied paper at most once, using these IDs: {sorted(available)}.")
+    if both := assigned & set(excluded):
+        raise ValueError(f"These papers are both planned and excluded: {sorted(both)}. Keep each in one place.")
+    if require_all and (missing := available - assigned - set(excluded)):
+        raise ValueError(f"The outline neither uses nor excludes these supplied papers: {sorted(missing)}. "
+                         "Place each in a relevant paragraph plan, or list it in excluded with a short reason.")
     return outline
 
 
 def evidence_index(cards: list[EvidenceCard]) -> dict[str, ReviewEvidence]:
     return {evidence.id: evidence for card in cards for evidence in card.evidence}
+
+
+_EVIDENCE_GROUP = re.compile(r"\s*[（(]\s*e_[0-9a-f]{8,}(?:[\s,，;；、]+e_[0-9a-f]{8,})*\s*[)）]")
+
+
+def strip_evidence_ids(text: str) -> str:
+    """Remove evidence IDs a model wrote into the prose, with their enclosing parentheses."""
+    return EVIDENCE_ID_IN_TEXT.sub("", _EVIDENCE_GROUP.sub("", text)).strip() or text
 
 
 def validate_body(body: SectionBody, cards: list[EvidenceCard], paper_ids: list[str]) -> SectionBody:
@@ -243,6 +327,9 @@ def validate_mentions(body: SectionBody, cards: list[EvidenceCard], *, language:
     """Citations sit beside the claims they support, so a reader can tell which study says what."""
     index = evidence_index(cards)
     for paragraph in body.paragraphs:
+        if EVIDENCE_ID_IN_TEXT.search(paragraph.text):
+            raise ValueError("Do not write evidence IDs (e_...) in the text; name papers by their paper IDs (p_...) "
+                             "and list evidence IDs only in evidence_ids.")
         cited = {index[key].paper_id for key in paragraph.evidence_ids}
         if missing := {match.group() for match in PAPER_MENTION.finditer(paragraph.text)} - cited:
             raise ValueError(f"Text mentions {sorted(missing)} without evidence from those papers in this paragraph. "
