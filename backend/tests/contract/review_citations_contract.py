@@ -47,6 +47,20 @@ class ReviewCitationsTest(unittest.TestCase):
         self.assertEqual([s.citation.paper_id for s in paragraph.spans if s.citation],
                          ["p_002", "p_001", "p_002", "p_001"])
 
+    def test_unplaced_citations_are_listed_apart_and_evidence_ids_never_reach_the_reader(self):
+        section = self.review.content.sections[0]
+        section.body.paragraphs[0].text = "p_002 and p_001 agree (p_002、p_001) (e_0123456789abcdef01234567)."
+        document = render_review(self.review)
+        first, second = document.sections[0].paragraphs
+        self.assertNotIn("e_0123", first.text)
+        self.assertEqual([citation.paper_id for citation in second.unplaced], ["p_003", "p_004"])
+        self.assertFalse([span for span in second.spans if span.citation])
+        self.assertEqual(document.sections[0].validation, "needs_revision")
+        markdown = export_review(self.review, "md").content.decode()
+        self.assertIn("Also cited (not placed beside a claim): [3](#ref-3); [4](#ref-4)", markdown)
+        docx = "\n".join(p.text for p in Document(BytesIO(export_review(self.review, "docx").content)).paragraphs)
+        self.assertIn("Also cited (not placed beside a claim): [3]; [4]", docx)
+
     def test_harvard_uses_metadata_disambiguates_and_sorts_references(self):
         document = render_review(self.review, "harvard")
         paragraph = document.sections[0].paragraphs[0]

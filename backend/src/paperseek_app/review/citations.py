@@ -44,7 +44,13 @@ def author_year_labels(papers: list[ReviewPaper]) -> dict[str, tuple[str, str]]:
     return result
 
 
-def citation_spans(text: str, citations: list[ReviewCitation], language: str) -> tuple[list[CitationSpan], list[str]]:
+def citation_spans(text: str, citations: list[ReviewCitation],
+                   language: str) -> tuple[list[CitationSpan], list[str], list[ReviewCitation]]:
+    """Spans of the prose with inline citations, warnings, and the citations no claim names.
+
+    Citations the text does not place beside a claim are returned apart, so the reader is not
+    led to take them as support for the paragraph's last sentence.
+    """
     by_paper = {citation.paper_id: citation for citation in citations}
     spans, warnings, used = [], [], set()
     end = 0
@@ -67,7 +73,4 @@ def citation_spans(text: str, citations: list[ReviewCitation], language: str) ->
         end = match.end()
     if end < len(text):
         spans.append(CitationSpan(text=text[end:]))
-    for citation in citations:
-        if citation.paper_id not in used:
-            spans.extend([CitationSpan(text=" "), CitationSpan(citation=citation)])
-    return spans, warnings
+    return spans, warnings, [citation for citation in citations if citation.paper_id not in used]
