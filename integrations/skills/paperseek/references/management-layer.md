@@ -6,7 +6,7 @@
 
 - Locate `paperseek` with `command -v paperseek` on macOS/Linux or `Get-Command paperseek -ErrorAction SilentlyContinue` in PowerShell, then run `paperseek version`.
 - Reuse the user's selected virtual environment or configured executable path. A command missing from PATH does not prove the package is absent.
-- This Skill targets 1.0.0-beta3. Do not silently upgrade an existing installation or migrate its data; use the installed command help and the [upgrade guide](https://docs.paperseek.app/self-hosting/upgrade) when a version change is needed.
+- This Skill targets 1.0.0-beta4. Do not silently upgrade an existing installation or migrate its data; use the installed command help and the [upgrade guide](https://docs.paperseek.app/self-hosting/upgrade) when a version change is needed.
 
 ### Install when missing
 
@@ -18,7 +18,7 @@ macOS/Linux (`python3 --version` must report 3.12 or newer):
 
 ```sh
 python3 -m venv "$HOME/.local/share/paperseek/venv"
-"$HOME/.local/share/paperseek/venv/bin/python" -m pip install "paperseek==1.0.0b3"
+"$HOME/.local/share/paperseek/venv/bin/python" -m pip install "paperseek==1.0.0b4"
 "$HOME/.local/share/paperseek/venv/bin/paperseek" version
 "$HOME/.local/share/paperseek/venv/bin/paperseek" doctor --json
 ```
@@ -28,20 +28,20 @@ Windows PowerShell (use an installed Python 3.12+ interpreter):
 ```powershell
 $paperseekVenv = Join-Path $env:LOCALAPPDATA 'PaperSeek/venv'
 py -3.12 -m venv $paperseekVenv
-& "$paperseekVenv/Scripts/python.exe" -m pip install "paperseek==1.0.0b3"
+& "$paperseekVenv/Scripts/python.exe" -m pip install "paperseek==1.0.0b4"
 & "$paperseekVenv/Scripts/paperseek.exe" version
 & "$paperseekVenv/Scripts/paperseek.exe" doctor --json
 ```
 
 Use that environment's executable for subsequent commands. Activation, global PATH changes, and PowerShell execution-policy changes are not required. A published Community wheel includes the Web UI; Node.js is not needed to use it.
 
-If the requested release is unavailable, report the installation failure instead of silently installing an older version. With a user-selected 1.0.0-beta3 source checkout, run `python -m pip install ./backend` from its root using the selected environment's Python. For source frontend builds, follow that checkout's `CONTRIBUTING.md`.
+If the requested release is unavailable, report the installation failure instead of silently installing an older version. With a user-selected 1.0.0-beta4 source checkout, run `python -m pip install ./backend` from its root using the selected environment's Python. For source frontend builds, follow that checkout's `CONTRIBUTING.md`.
 
 The Skill contains no fallback search runtime. Do not run its reference files as application code. After installation, distinguish successful package setup from missing model/source configuration; `doctor` checks the latter without making a paid search.
 
 ### Optional MCP installation
 
-Only for an MCP client, install `paperseek-mcp==1.0.0b3` with the same environment's Python. It requires the exact same-version Community package. Configure the client with the absolute path to `paperseek-mcp` (Windows: `Scripts/paperseek-mcp.exe`) and `--transport stdio`; do not assume a desktop client inherits the terminal's PATH or credentials. Check `paperseek-mcp --help`, then connect and call `list_sources` to verify the tool connection without starting a search.
+Only for an MCP client, install `paperseek-mcp==1.0.0b4` with the same environment's Python. It requires the exact same-version Community package. Configure the client with the absolute path to `paperseek-mcp` (Windows: `Scripts/paperseek-mcp.exe`) and `--transport stdio`; do not assume a desktop client inherits the terminal's PATH or credentials. Check `paperseek-mcp --help`, then connect and call `list_sources` to verify the tool connection without starting a search.
 
 ## Current configuration
 

@@ -1,6 +1,6 @@
 # PaperSeek Agent Skill
 
-`integrations/skills/paperseek/` is a thin usage guide for an installed PaperSeek v1.0.0-beta3 Community product. It does not contain a second search runtime and never stores API keys, cookies, or account credentials.
+`integrations/skills/paperseek/` is a thin usage guide for an installed PaperSeek v1.0.0-beta4 Community product. It does not contain a second search runtime and never stores API keys, cookies, or account credentials.
 
 The Skill routes agents to the formal product surfaces:
 

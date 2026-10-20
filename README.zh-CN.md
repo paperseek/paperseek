@@ -9,7 +9,7 @@
   <p>开源文献检索、初步文献计量与基于摘要的文献综述。</p>
   <p>
     <a href="LICENSE"><img alt="Apache 2.0 许可" src="https://img.shields.io/badge/license-Apache%202.0-171717?style=flat-square"></a>
-    <img alt="版本 1.0.0-beta3" src="https://img.shields.io/badge/version-1.0.0--beta3-171717?style=flat-square">
+    <img alt="版本 1.0.0-beta4" src="https://img.shields.io/badge/version-1.0.0--beta4-171717?style=flat-square">
     <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-171717?style=flat-square">
     <img alt="Vue 3" src="https://img.shields.io/badge/frontend-Vue%203-171717?style=flat-square">
     <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek"><img alt="在魔搭体验" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.paperseek.app%2Fbadges%2Fmodelscope.json&style=flat-square"></a>
@@ -56,6 +56,15 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 ## 1.0 的变化
 
 1.0 系列围绕持久化任务和共享核心重建了 PaperSeek。1.0 之前的版本见[完整更新日志](https://docs.paperseek.app/zh/changelog)。
+
+### 1.0.0-beta4
+
+- **综述先定范围：**先设置章节和篇幅，再选择文献；每档篇幅给出建议篇数，也可**按主题自动挑选**。
+- **说明未采用的文献：**大纲或写作中没有用上的文献会列出理由，证据核对会标出可能不成立的理由。
+- **引用更清楚：**无法对应到具体论断的引用单独列在段落下方；某一节失败不再中断其他章节。
+- **排序更快：**打分和排序理由并行生成，分别显示进度。
+
+可从更早的 1.0 测试版原地升级。详见[更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta4)和[升级步骤](https://docs.paperseek.app/zh/self-hosting/upgrade#from-an-earlier-1-0-beta)。
 
 ### 1.0.0-beta3
 
@@ -131,7 +140,7 @@ OpenAlex 与 Serper 支持多 Key 轮询。元数据覆盖与领域筛选能力�
 需要 **Python 3.12+**，发行包自带已构建的网页。
 
 ```sh
-python -m pip install "paperseek==1.0.0b3"
+python -m pip install "paperseek==1.0.0b4"
 paperseek serve
 ```
 
@@ -143,10 +152,10 @@ paperseek serve
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta3 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta4 docker compose up -d
 ```
 
-启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta3"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta3`。
+启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta4"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta4`。
 
 ### ModelScope 创空间
 
@@ -232,7 +241,7 @@ paperseek search "How does open-source funding affect maintenance?" --source ope
 ### Model Context Protocol
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b3"
+python -m pip install "paperseek-mcp==1.0.0b4"
 paperseek-mcp --transport stdio
 ```
 

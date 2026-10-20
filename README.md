@@ -9,7 +9,7 @@
   <p>Open-source literature search, preliminary bibliometrics, and abstract-based reviews.</p>
   <p>
     <a href="https://github.com/paperseek/paperseek/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-171717?style=flat-square"></a>
-    <img alt="Version 1.0.0-beta3" src="https://img.shields.io/badge/version-1.0.0--beta3-171717?style=flat-square">
+    <img alt="Version 1.0.0-beta4" src="https://img.shields.io/badge/version-1.0.0--beta4-171717?style=flat-square">
     <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-171717?style=flat-square">
     <img alt="Vue 3" src="https://img.shields.io/badge/frontend-Vue%203-171717?style=flat-square">
     <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek"><img alt="Try it on ModelScope" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.paperseek.app%2Fbadges%2Fmodelscope.json&style=flat-square"></a>
@@ -61,6 +61,15 @@ Run the Community edition on your own machine or server, or use [PaperSeek onlin
 ## What’s new in 1.0
 
 The 1.0 line rebuilds PaperSeek around durable tasks and a shared core. Releases before 1.0 are in the [full changelog](https://docs.paperseek.app/changelog).
+
+### 1.0.0-beta4
+
+- **Reviews start from your scope:** set chapters and length first, then select papers, with a suggested count for each length and **Auto-select by topic**.
+- **Reviews explain what they leave out:** papers the outline or the writer does not use are listed with a reason, and the evidence check marks doubtful reasons.
+- **Clearer citations:** citations that cannot be placed beside a claim are listed under the paragraph, and one failed section no longer stops the rest.
+- **Faster ranking:** scores and explanations run in parallel, with separate progress.
+
+It upgrades earlier 1.0 betas in place. See the [changelog](https://docs.paperseek.app/changelog#v1-0-0-beta4) and the [upgrade steps](https://docs.paperseek.app/self-hosting/upgrade#from-an-earlier-1-0-beta).
 
 ### 1.0.0-beta3
 
@@ -134,7 +143,7 @@ OpenAlex and Serper support multi-key rotation. Metadata coverage and field filt
 Requires **Python 3.12+**. The release package includes the built Web UI.
 
 ```sh
-python -m pip install "paperseek==1.0.0b3"
+python -m pip install "paperseek==1.0.0b4"
 paperseek serve
 ```
 
@@ -146,10 +155,10 @@ Open [localhost:8765](http://127.0.0.1:8765), configure a model connection and s
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta3 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta4 docker compose up -d
 ```
 
-Edit `.env` before starting. On PowerShell, use `Copy-Item` instead of `cp`, then `$env:PAPERSEEK_VERSION="1.0.0-beta3"; docker compose up -d`. The included Compose service publishes 127.0.0.1:8765 and uses a persistent `paperseek-data` volume. These commands pin the beta image; prereleases do not update `latest`. The supplied Compose file and `.env.example` also default to `1.0.0-beta3`.
+Edit `.env` before starting. On PowerShell, use `Copy-Item` instead of `cp`, then `$env:PAPERSEEK_VERSION="1.0.0-beta4"; docker compose up -d`. The included Compose service publishes 127.0.0.1:8765 and uses a persistent `paperseek-data` volume. These commands pin the beta image; prereleases do not update `latest`. The supplied Compose file and `.env.example` also default to `1.0.0-beta4`.
 
 ### ModelScope Studio
 
@@ -235,7 +244,7 @@ Configure credentials in the process environment first. The six commands are `se
 ### Model Context Protocol
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b3"
+python -m pip install "paperseek-mcp==1.0.0b4"
 paperseek-mcp --transport stdio
 ```
 
