@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 import re
 from typing import Any
 
@@ -60,29 +62,52 @@ class RankingScorer:
         documents: list[PaperRecord],
         scores: list[dict[str, Any]],
         plan_context: str,
+        *,
+        concurrency: int = 8,
+        on_progress: Callable[[str, int, int, int], None] | None = None,
+        restored: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
+        # Reasons restored from a checkpoint are kept; only the missing ones are requested.
+        reason_by_uid: dict[str, str] = {uid: text for uid, text in (restored or {}).items() if text}
         reason_documents = self.reason_documents(documents, scores)
-        reason_by_uid: dict[str, str] = {}
         exhausted: set[str] = set()
         self.missing_reason_count = 0
         self.reason_failures = []
-        # One pass in moderate batches, then one retry for whatever a batch left out in smaller ones.
-        for size in (32, 12):
+        slots = asyncio.Semaphore(max(1, int(concurrency)))
+        # One pass in moderate groups, then one retry for whatever a group left out in smaller ones.
+        # Groups are independent, so up to `concurrency` of them run at once.
+        for phase, size in (("reasons", 32), ("reasons_retry", 12)):
             pending = [
                 document
                 for document in reason_documents
                 if document_identity(document) not in reason_by_uid and document_identity(document) not in exhausted
             ]
-            for start in range(0, len(pending), size):
-                batch = pending[start : start + size]
-                try:
-                    reason_by_uid.update(
-                        await self.request_reasons(question, batch, scores, plan_context)
-                    )
-                except Exception as exc:
-                    self.reason_failures.append(failure_details(exc))
-                    if not self.should_retry_in_chunks(exc):
-                        exhausted.update(document_identity(document) for document in batch)
+            groups = [pending[start : start + size] for start in range(0, len(pending), size)]
+            if not groups:
+                continue
+            finished = 0
+            if on_progress is not None:
+                on_progress(phase, 0, len(groups), len(pending))
+
+            async def write(batch: list[PaperRecord]) -> None:
+                nonlocal finished
+                async with slots:
+                    try:
+                        reason_by_uid.update(
+                            await self.request_reasons(question, batch, scores, plan_context)
+                        )
+                    except Exception as exc:
+                        self.reason_failures.append(failure_details(exc))
+                        if not self.should_retry_in_chunks(exc):
+                            exhausted.update(document_identity(document) for document in batch)
+                finished += 1
+                if on_progress is not None:
+                    on_progress(phase, finished, len(groups), len(pending))
+
+            # A task group cancels the other groups too when the run is cancelled.
+            async with asyncio.TaskGroup() as running:
+                for batch in groups:
+                    running.create_task(write(batch))
         self.missing_reason_count = sum(
             document_identity(document) not in reason_by_uid
             for document in reason_documents
@@ -168,7 +193,7 @@ class RankingScorer:
         question: str,
         documents: list[PaperRecord],
         plan_context: str,
-        chunk_size: int = 64,
+        chunk_size: int = 32,
     ) -> list[dict[str, Any]]:
         scores = []
         for start in range(0, len(documents), chunk_size):

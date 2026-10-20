@@ -75,9 +75,8 @@ async def extract_evidence(llm: LLMPort, cancellation: CancellationToken,
         # A failed batch must not force the user to rerun all successfully extracted papers.
         if len(papers) > 1:
             ready = {card.paper_id for card in cards}
-            for paper in papers:
-                if paper.id in ready:
-                    continue
+
+            async def recover(paper: ReviewPaper) -> None:
                 try:
                     recovered = await _extract_batch(llm, cancellation, [paper], language, signature)
                     cards.extend(validate_cards(recovered, [paper], signature, dropped))
@@ -85,6 +84,12 @@ async def extract_evidence(llm: LLMPort, cancellation: CancellationToken,
                     if diagnostics is not None:
                         reason = failure.reason if isinstance(failure, ReviewOutputError) else failure.code
                         diagnostics.append(f"{paper.id}: {reason}")
+
+            # One at a time: this batch already holds one of the review's concurrent slots,
+            # so parallel retries would exceed the overall limit.
+            for paper in papers:
+                if paper.id not in ready:
+                    await recover(paper)
         report()
         return sorted(cards, key=lambda card: next(i for i, paper in enumerate(papers) if paper.id == card.paper_id))
     cards = validate_cards(batch, papers, signature, dropped)

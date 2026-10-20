@@ -337,7 +337,8 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(result.items[0].provenance["retrieval_score"], 0.4)
         self.assertEqual(llm.score_calls, 2)
         self.assertEqual(llm.reason_calls, 1)
-        self.assertEqual(len(observer.checkpoints), 2)
+        # One checkpoint per scoring batch, then one with the written reasons.
+        self.assertEqual(len(observer.checkpoints), 3)
         self.assertEqual(len(result.completed_batch_ids), 2)
         self.assertEqual(observer.events[0].event_type, "ranking.started")
         self.assertEqual(observer.events[-1].event_type, "ranking.completed")
@@ -348,6 +349,78 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(completed[-1]["scored_count"], 4)
         self.assertEqual(completed[-1]["concurrency"], 4)
         self.assertEqual(result.warnings, [])
+
+    def test_scoring_batches_and_reason_groups_run_side_by_side_with_progress(self) -> None:
+        class ParallelLLM:
+            def __init__(self) -> None:
+                self.active = self.peak = 0
+                self.kinds = []
+                self.reasons_active = self.reasons_peak = 0
+
+            async def chat_json(self, messages, *, temperature=0.0, max_tokens=4096) -> str:
+                self.active += 1
+                self.peak = max(self.peak, self.active)
+                try:
+                    await asyncio.sleep(0.01)
+                    prompt = messages[-1]["content"]
+                    if "integer-indexed papers" in messages[0]["content"]:
+                        self.kinds.append("score")
+                        indexes = re.findall(r"^(\d+)\.$", prompt, re.MULTILINE)
+                        return json.dumps({"scores": [[int(index), 9] for index in indexes]})
+                    self.kinds.append("reasons")
+                    self.reasons_active += 1
+                    self.reasons_peak = max(self.reasons_peak, self.reasons_active)
+                    await asyncio.sleep(0.01)
+                    self.reasons_active -= 1
+                    indexes = re.findall(r"^(\d+)\. Score:", prompt, re.MULTILINE)
+                    return json.dumps({"reasons": [[int(index), f"reason-{index}"] for index in indexes]})
+                finally:
+                    self.active -= 1
+
+        records = [PaperRecord(uid=f"W{index}", title=f"Paper {index}", provider="fixture") for index in range(1, 201)]
+        llm = ParallelLLM()
+        observer = RecordingObserver()
+        result = asyncio.run(RankingPipeline(llm, observer).run(
+            RankingRequest(question="parallel ranking", documents=records, concurrency=2)))
+
+        self.assertEqual(llm.kinds.count("score"), 4)  # 200 papers in batches of 64.
+        self.assertEqual(llm.kinds.count("reasons"), 7)  # Every paper scored 9 gets a reason, 32 per group.
+        self.assertEqual(llm.peak, 2)
+        self.assertEqual(llm.reasons_peak, 2)  # Reasons keep the level scoring finished at.
+        self.assertTrue(all(item.reasoning for item in result.items))
+        batches = [event.payload for event in observer.events if event.event_type == "ranking.batch_completed"]
+        self.assertEqual([payload["completed_batches"] for payload in batches], [1, 2, 3, 4])
+        reasons = [event.payload for event in observer.events if event.event_type == "ranking.reasons_progress"]
+        self.assertEqual([(payload["completed_groups"], payload["group_count"]) for payload in reasons],
+                         [(index, 7) for index in range(8)])
+        self.assertTrue(all(payload["phase"] == "reasons" for payload in reasons))
+
+    def test_cancelling_reasons_stops_every_group_in_flight(self) -> None:
+        class BlockingLLM:
+            def __init__(self) -> None:
+                self.calls = 0
+                self.stopped = 0
+
+            async def chat_json(self, messages, *, temperature=0.0, max_tokens=4096) -> str:
+                self.calls += 1
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    self.stopped += 1
+                    raise
+                return "{}"
+
+        records = [PaperRecord(uid=f"W{index}", title=f"Paper {index}", provider="fixture") for index in range(1, 201)]
+        scores = [{"uid": record.uid, "score": 9.0} for record in records]
+        llm = BlockingLLM()
+
+        async def run():
+            with self.assertRaises(TimeoutError):
+                await asyncio.wait_for(RankingScorer(llm).attach_reasons(QUESTION, records, scores, "{}", concurrency=4), 0.1)
+
+        asyncio.run(run())
+        self.assertEqual(llm.calls, 4)  # Seven groups wait for four slots.
+        self.assertEqual(llm.stopped, 4)
 
     def test_rate_limit_retries_failed_batch_at_lower_concurrency(self) -> None:
         records = [
@@ -376,7 +449,7 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(len(failed), 1)
         self.assertTrue(failed[0].payload["rate_limited"])
         self.assertEqual(failed[0].payload["concurrency"], 8)
-        self.assertEqual(len(observer.checkpoints), 2)
+        self.assertEqual(len(observer.checkpoints), 3)
 
     def test_completed_batch_resumes_without_rescoring_and_checkpoints_only_new_work(self) -> None:
         records = [
@@ -407,8 +480,20 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(llm.reason_calls, 1)
         self.assertEqual([item.document.uid for item in result.items], ["W4", "W3", "W2", "W1"])
         self.assertEqual(len(result.completed_batch_ids), 2)
-        self.assertEqual(len(observer.checkpoints), 1)
-        self.assertNotEqual(observer.checkpoints[0].idempotency_key, first_batch_id)
+        self.assertEqual(len(observer.checkpoints), 2)
+        self.assertNotIn(first_batch_id, [checkpoint.idempotency_key for checkpoint in observer.checkpoints])
+
+    def test_resume_after_reasons_were_written_makes_no_model_calls(self) -> None:
+        records = [PaperRecord(uid=f"W{index}", title=f"Batch Paper {index}", provider="fixture") for index in range(1, 5)]
+        observer = RecordingObserver()
+        request = RankingRequest(question="batch ranking", documents=records, batch_size=2)
+        asyncio.run(RankingPipeline(GeneratedBatchLLM(), observer).run(request))
+        final = observer.checkpoints[-1].state
+        llm = GeneratedBatchLLM()
+        resumed = asyncio.run(RankingPipeline(llm, RecordingObserver()).run(request.model_copy(update={
+            "resume_scores": final["ranking_scores"], "completed_batch_ids": final["completed_batch_ids"]})))
+        self.assertEqual((llm.score_calls, llm.reason_calls), (0, 0))
+        self.assertTrue(all(item.reasoning for item in resumed.items))
 
     def test_pipeline_matches_golden_search_ranking_and_candidate_provenance(self) -> None:
         golden = json.loads(read_fixture("golden_search/final_result.json"))
@@ -502,9 +587,10 @@ class M2RankingPipelineContractTest(unittest.TestCase):
 
     def test_scheduler_and_codec_keep_existing_defaults_and_matching(self) -> None:
         scheduler = RankingBatchScheduler(batch_size_value="invalid", concurrency_value="invalid")
-        self.assertEqual(scheduler.batch_size(300), 256)
-        self.assertEqual(scheduler.concurrency_schedule(), [16, 8, 4])
-        self.assertEqual(RankingBatchScheduler(concurrency_value=1).concurrency_schedule(), [4])
+        self.assertEqual(scheduler.batch_size(300), 64)
+        self.assertEqual(scheduler.concurrency_schedule(), [8, 4, 2, 1])
+        self.assertEqual(RankingBatchScheduler(concurrency_value=1).concurrency_schedule(), [1])
+        self.assertEqual(RankingBatchScheduler(concurrency_value=12).concurrency_schedule(), [12, 8, 4, 2, 1])
 
         codec = RankingOutputCodec()
         records = documents()[:2]

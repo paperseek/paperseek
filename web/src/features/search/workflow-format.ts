@@ -29,6 +29,7 @@ export function eventLabel(t: TFunc, eventType: string): string {
     "citation.degraded": "eventCitationDegraded",
     "ranking.started": "eventRankingStarted",
     "ranking.batch_completed": "eventRankingProgress",
+    "ranking.reasons_progress": "eventRankingReasons",
     "ranking.completed": "eventRankingCompleted",
     "ranking.degraded": "eventRankingDegraded",
     "ranking.failed": "eventRankingFailed",
@@ -91,6 +92,9 @@ export function eventDetail(t: TFunc, event: { event_type: string; payload?: Rec
   if (event.event_type.startsWith("ranking.")) {
     if (/failed/.test(event.event_type)) return localizedFailure(t, payload.code);
     if (/degraded/.test(event.event_type)) return t("degraded");
+    if (event.event_type === "ranking.reasons_progress") {
+      return `${t(payload.phase === "reasons_retry" ? "reasonRetryGroups" : "reasonGroups")} ${Number(payload.completed_groups ?? 0)} / ${Number(payload.group_count ?? 0)} · ${Number(payload.paper_count ?? 0)} ${t("papersUnit")}`;
+    }
     const current = Number(payload.completed_batches ?? 0);
     const total = Number(payload.batch_count ?? 0);
     const scored = Number(payload.scored_count ?? 0);

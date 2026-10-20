@@ -149,21 +149,42 @@ const rankingSteps = computed<StepRow[]>(() => {
     if (failedPayload) status = "failed";
     else if (completedPayload) status = "done";
     else if (degradedPayload) status = "degraded";
+    // Scoring runs in batches; reasons are then written in groups. Each gets its own row.
+    const reasons = lastPayload("ranking.reasons_progress");
+    const scoringDone = Boolean(reasons || completedPayload);
+    // Missing reasons belong to the reasons row; any other degradation to scoring.
+    const degradedCodes = rankingEvents.filter((event) => event.event_type === "ranking.degraded").map((event) => String(event.payload?.code || ""));
+    const reasonsDegraded = degradedCodes.includes("ranking_reasons_missing");
+    const scoringDegraded = degradedCodes.some((code) => code !== "ranking_reasons_missing");
     const current = Number(batch?.completed_batches ?? 0);
     const total = Number(batch?.batch_count ?? 0);
+    const scoringStatus: StepStatus = failedPayload ? "failed" : scoringDegraded ? "degraded" : scoringDone ? "done" : status;
     const detail = failedPayload
       ? `${localizedFailure(t, failedPayload.code)}${failedPayload.failed_candidates !== undefined ? ` · ${t("failedCandidates")} ${Number(failedPayload.failed_candidates)}` : ""}`
       : completedPayload
       ? `${Number(completedPayload.scored_count ?? 0)} / ${Number(completedPayload.candidate_count ?? 0)}${Number(completedPayload.warning_count ?? 0) ? ` · ${Number(completedPayload.warning_count)} ${t("warnings")}` : ""}`
       : batch
-        ? `${current} / ${total}`
+        ? `${t("rankingBatches")} ${current} / ${total}`
         : "";
     rows.push({
       id: "stepLlmRanking",
-      status,
+      status: scoringStatus,
       detail,
-      progress: status === "current" && total ? { current, total } : null,
+      progress: scoringStatus === "current" && total ? { current, total } : null,
     });
+    if (reasons) {
+      const groups = Number(reasons.group_count ?? 0);
+      const written = Number(reasons.completed_groups ?? 0);
+      const reasonStatus: StepStatus = completedPayload ? (reasonsDegraded ? "degraded" : "done") : "current";
+      rows.push({
+        id: "stepRankingReasons",
+        status: reasonStatus,
+        detail: completedPayload
+          ? `${Number(reasons.paper_count ?? 0)} ${t("papersUnit")}`
+          : `${t(reasons.phase === "reasons_retry" ? "reasonRetryGroups" : "reasonGroups")} ${written} / ${groups}`,
+        progress: reasonStatus === "current" && groups ? { current: written, total: groups } : null,
+      });
+    }
   }
   return rows;
 });

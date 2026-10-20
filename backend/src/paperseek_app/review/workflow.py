@@ -31,6 +31,9 @@ from paperseek_core.review.structured import (
 )
 
 
+# Evidence batches and sections written at the same time.
+REVIEW_CONCURRENCY = 8
+
 class ReviewStageWorkflow:
     def __init__(self, store: ReviewStore, lease: LeaseToken, review: ReviewDetail,
                  context: ReviewJobContext, llm: LLMPort, route: dict, cancellation: CancellationToken) -> None:
@@ -79,7 +82,7 @@ class ReviewStageWorkflow:
         ready = {card.paper_id for card in content.cards
                  if content.sections or card.signature == signature and card.paper_id in usable_ids}
         papers = [paper for paper in content.papers if paper.has_abstract and paper.id not in ready]
-        semaphore = asyncio.Semaphore(2)
+        semaphore = asyncio.Semaphore(REVIEW_CONCURRENCY)
 
         async def extract(batch: list[ReviewPaper]) -> None:
             async with semaphore:
@@ -225,7 +228,7 @@ class ReviewStageWorkflow:
                 raise ReviewError("review_section_not_found", status=404)
             await self.write_one(section, rewrite=True)
         else:
-            semaphore = asyncio.Semaphore(2)
+            semaphore = asyncio.Semaphore(REVIEW_CONCURRENCY)
             failures: list[ReviewOutputError] = []
 
             async def theme(section: OutlineSection) -> None:
@@ -241,13 +244,12 @@ class ReviewStageWorkflow:
                 for section in content.outline.sections:
                     if section.kind == "theme":
                         group.create_task(theme(section))
-            # Summaries consume the now-persisted theme paragraphs and citations.
-            for section in content.outline.sections:
-                if section.kind != "theme":
-                    try:
-                        await self.write_one(section)
-                    except ReviewOutputError as exc:
-                        failures.append(exc)
+            # Summaries consume the now-persisted theme paragraphs and citations, not each other,
+            # so they are written side by side once every theme is done.
+            async with asyncio.TaskGroup() as group:
+                for section in content.outline.sections:
+                    if section.kind != "theme":
+                        group.create_task(theme(section))
             if failures:
                 raise failures[0]
         content = self.review.content

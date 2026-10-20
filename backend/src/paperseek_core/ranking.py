@@ -27,29 +27,28 @@ from paperseek_core.ranking_scoring import RankingScorer
 
 @dataclass(frozen=True)
 class RankingBatchScheduler:
-    batch_size_value: Any = 256
-    concurrency_value: Any = 16
+    batch_size_value: Any = 64
+    concurrency_value: Any = 8
 
     def batch_size(self, total_documents: int) -> int:
         try:
-            configured = max(1, int(self.batch_size_value or 256))
+            configured = max(1, int(self.batch_size_value or 64))
         except (TypeError, ValueError):
-            configured = 256
+            configured = 64
         return min(configured, max(1, int(total_documents or 0)))
 
     def concurrency(self) -> int:
         try:
-            return min(32, max(4, int(self.concurrency_value or 16)))
+            return min(32, max(1, int(self.concurrency_value or 8)))
         except (TypeError, ValueError):
-            return 16
+            return 8
 
     def concurrency_schedule(self) -> list[int]:
+        """The configured level first, then lower ones to fall back to after a rate limit."""
         configured = self.concurrency()
-        schedule = [tier for tier in (32, 16, 8, 4) if tier <= configured]
+        schedule = [tier for tier in (32, 16, 8, 4, 2, 1) if tier <= configured]
         if configured not in schedule:
             schedule.insert(0, configured)
-        if 4 not in schedule:
-            schedule.append(4)
         return schedule
 
     @staticmethod
@@ -172,6 +171,7 @@ class RankingPipeline:
                 documents,
                 batch_scores,
                 request.plan_context,
+                concurrency,
             )
         except Exception as exc:
             self._degraded(exc, failed_batches=1, failed_candidates=len(documents))
@@ -209,10 +209,13 @@ class RankingPipeline:
         ]
         schedule = scheduler.concurrency_schedule()
         exhausted = []
+        # Reasons later use the level scoring settled on, lower after a rate limit.
+        settled = schedule[0]
         for tier_index, workers in enumerate(schedule):
             self.cancellation.raise_if_cancelled()
             if not remaining:
                 break
+            settled = workers
             lower_tier_available = tier_index < len(schedule) - 1
             same_tier_retry_used = False
             while True:
@@ -314,8 +317,13 @@ class RankingPipeline:
                 list(request.documents),
                 scores,
                 request.plan_context,
+                settled,
+                restored={str(entry["uid"]): str(entry["reasoning"])
+                          for entry in self.codec.validated_scores(request.resume_scores) if entry["reasoning"]},
             )
             warnings.extend(reason_warnings)
+            # Keep the written reasons, so resuming after this point does not ask for them again.
+            await self._checkpoint(request, f"{request.step_id}:reasons", scores, completed_ids)
         return scores, warnings
 
     async def _attach_reasons(
@@ -324,12 +332,23 @@ class RankingPipeline:
         documents: list[PaperRecord],
         scores: list[dict[str, Any]],
         plan_context: str,
+        concurrency: int,
+        restored: dict[str, str] | None = None,
     ) -> tuple[list[dict[str, Any]], list[str]]:
+        def progress(phase: str, completed: int, total: int, papers: int) -> None:
+            self._event("ranking.reasons_progress", {
+                "phase": phase, "completed_groups": completed, "group_count": total,
+                "paper_count": papers, "concurrency": concurrency,
+            })
+
         scores = await self.scorer.attach_reasons(
             question,
             documents,
             scores,
             plan_context,
+            concurrency=concurrency,
+            on_progress=progress,
+            restored=restored,
         )
         self.cancellation.raise_if_cancelled()
         if not self.scorer.missing_reason_count:
