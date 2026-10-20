@@ -190,13 +190,14 @@ class ReviewStageWorkflow:
         summaries = [{"section_id": body.section_id, "paragraphs": [p.model_dump() for p in body.body.paragraphs]}
                      for body in content.sections if body.section_id in themes] if section.kind != "theme" else []
         started = monotonic()
+        diagnostics: list[str] = []
         body, findings = await write_section(
             self.llm, self.cancellation, topic=content.topic, language=content.language, length=content.length,
             paragraph_length=content.paragraph_length,
             outline=content.outline, section=section, cards=content.cards,
             papers=content.papers,
             instruction=self.context.instruction if rewrite else "", previous=previous.body if rewrite and previous else None,
-            summaries=summaries,
+            summaries=summaries, diagnostics=diagnostics,
         )
 
         def save(value: ReviewContent) -> None:
@@ -216,6 +217,7 @@ class ReviewStageWorkflow:
 
         await self.persist(save, "review.section.completed", {
             "section_id": section.id, "elapsed_seconds": round(monotonic() - started, 3),
+            "reason": "\n".join(diagnostics)[:2000],
         }, part=section.id)
 
     async def write(self) -> None:

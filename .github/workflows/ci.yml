@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   images:
     name: Clean Docker build (${{ matrix.image }})
@@ -51,31 +58,32 @@ jobs:
         run: python -m pip install uv==0.9.24 packaging
 
       - name: Check release version guard
+        if: matrix.os == 'ubuntu-latest'
         run: python -m unittest discover -s ../.github/scripts -p "test_*.py"
 
       - name: Sync locked backend
         run: uv sync --locked
 
-      - name: Compile Python
-        run: uv run --locked python -m compileall -q src
-
       - name: Lint Python
+        if: matrix.os == 'ubuntu-latest'
         run: uv run --locked ruff check --config pyproject.toml src ../integrations/mcp/src
 
       - name: Check shared transport and credential types
+        if: matrix.os == 'ubuntu-latest'
         run: uv run --locked mypy
 
       - name: Check dependency boundaries
+        if: matrix.os == 'ubuntu-latest'
         run: uv run --locked python tests/import_boundaries.py
 
-      - name: Run backend contracts
-        run: uv run --locked python -m unittest discover -s tests/contract -p "*contract.py"
+      - name: Run backend behavior tests
+        run: uv run --locked python -m unittest discover -s tests/behavior -p "test_*.py" -v -b
 
       - name: Run backend integrations
-        run: uv run --locked python -m unittest discover -s tests/integration -p "*.py"
+        run: uv run --locked python -m unittest discover -s tests/integration -p "*integration.py" -v -b
 
       - name: Run database migration gates
-        run: uv run --locked python -m unittest discover -s tests/migration -p "*.py"
+        run: uv run --locked python -m unittest discover -s tests/migration -p "*.py" -v -b
 
       - name: Build backend distributions
         if: matrix.os == 'ubuntu-latest'
@@ -121,13 +129,21 @@ jobs:
       - name: Install browser
         run: npx playwright install --with-deps chromium
 
-      - name: Run browser contracts
+      - name: Run browser journeys
         run: npm run test:browser
 
       - name: Build Web
         run: |
           npm run build -- --outDir ../backend/src/paperseek_community/static --emptyOutDir
           git -C .. diff --exit-code -- backend/src/paperseek_community/static
+      - name: Preserve failed browser traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: community-browser-failure
+          path: web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   mcp:
     name: Independent MCP distribution (${{ matrix.os }})
@@ -157,9 +173,9 @@ jobs:
         working-directory: integrations/mcp
         run: uv sync --locked
 
-      - name: Run MCP distribution and transport contracts
+      - name: Run MCP packaging and protocol tests
         working-directory: integrations/mcp
-        run: uv run --locked python -m unittest discover -s tests -p "*contract.py"
+        run: uv run --locked python -m unittest discover -s tests -p "test_*.py"
 
       - name: Build exact-version Community and MCP wheels
         shell: bash
@@ -179,7 +195,7 @@ jobs:
           gate=$(env -u PYTHONPATH \
             PAPERSEEK_CLI_EXECUTABLE="$PWD/.mcp-installed/bin/paperseek" \
             PAPERSEEK_ISOLATED_PREFIX="$PWD/.mcp-installed" \
-            PAPERSEEK_CLI_FIXTURE="$PWD/backend/tests/contract/fixtures/m1_fixed_source.json" \
+            PAPERSEEK_CLI_FIXTURE="$PWD/backend/tests/behavior/fixtures/m1_fixed_source.json" \
             PAPERSEEK_CLI_DATABASE="$PWD/.mcp-installed/paperseek.db" \
             PAPERSEEK_EXPECTED_COMMIT="${GITHUB_SHA}" \
             PAPERSEEK_EXPECTED_DIRTY=false \

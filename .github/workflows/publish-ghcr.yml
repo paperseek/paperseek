@@ -51,12 +51,12 @@ jobs:
         run: |
           uv sync --locked --project backend
           uv run --locked --project backend python backend/tests/import_boundaries.py
-          uv run --locked --project backend python -m unittest discover -s backend/tests/contract -p "*contract.py"
+          uv run --locked --project backend python -m unittest discover -s backend/tests/behavior -p "test_*.py"
           uv run --locked --project backend python -m unittest discover -s backend/tests/integration -p "*.py"
           uv run --locked --project backend python -m unittest discover -s backend/tests/migration -p "*.py"
           uv lock --check --project integrations/mcp
           uv sync --locked --project integrations/mcp
-          PYTHONPATH=backend/src uv run --locked --project integrations/mcp python -m unittest discover -s integrations/mcp/tests -p "*contract.py"
+          PYTHONPATH=backend/src uv run --locked --project integrations/mcp python -m unittest discover -s integrations/mcp/tests -p "test_*.py"
           mkdir -p .release-mcp/dist
           uv build --wheel --out-dir .release-mcp/dist backend
           uv build --wheel --out-dir .release-mcp/dist integrations/mcp
@@ -67,7 +67,7 @@ jobs:
           gate=$(env -u PYTHONPATH \
             PAPERSEEK_CLI_EXECUTABLE="$PWD/.release-mcp/venv/bin/paperseek" \
             PAPERSEEK_ISOLATED_PREFIX="$PWD/.release-mcp/venv" \
-            PAPERSEEK_CLI_FIXTURE="$PWD/backend/tests/contract/fixtures/m1_fixed_source.json" \
+            PAPERSEEK_CLI_FIXTURE="$PWD/backend/tests/behavior/fixtures/m1_fixed_source.json" \
             PAPERSEEK_CLI_DATABASE="$PWD/.release-mcp/paperseek.db" \
             PAPERSEEK_EXPECTED_COMMIT="${RELEASE_COMMIT}" \
             PAPERSEEK_EXPECTED_DIRTY=false \
@@ -138,15 +138,15 @@ jobs:
           done
 
           docker exec paperseek-release-community mkdir -p /tmp/fixtures
-          docker cp backend/tests/contract/fixtures/m1_fixed_source.json paperseek-release-community:/tmp/fixtures/m1_fixed_source.json
-          docker cp backend/tests/contract/m3_cancellation_request_lifecycle_contract.py paperseek-release-community:/tmp/m3_cancellation_request_lifecycle_contract.py
+          docker cp backend/tests/behavior/fixtures/m1_fixed_source.json paperseek-release-community:/tmp/fixtures/m1_fixed_source.json
+          docker cp backend/tests/behavior/test_run_cancellation.py paperseek-release-community:/tmp/test_run_cancellation.py
           docker exec \
             -e PYTHONPATH=/tmp \
             paperseek-release-community \
             python -m unittest -v \
-            m3_cancellation_request_lifecycle_contract.M3CancellationRequestLifecycleContractTest.test_real_slow_http_stop_covers_all_four_async_stages_without_late_writes
+            test_run_cancellation.M3CancellationRequestLifecycleContractTest.test_real_http_stop_covers_retrieval_ranking_and_citation_without_late_writes
 
-          docker cp backend/tests/contract/fixtures/m1_fixed_source.json paperseek-release-community:/tmp/fixture.json
+          docker cp backend/tests/behavior/fixtures/m1_fixed_source.json paperseek-release-community:/tmp/fixture.json
           docker cp backend/tests/integration/installed_product_smoke.py paperseek-release-community:/tmp/installed_product_smoke.py
           docker cp backend/tests/integration/cli_test_hook paperseek-release-community:/tmp/cli_test_hook
           gate=$(docker exec \

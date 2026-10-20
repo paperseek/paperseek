@@ -11,7 +11,7 @@ from paperseek_app.errors import RunError
 from paperseek_app.models import RunDetail
 from paperseek_app.submission import CredentialInput, LLMRouteInput, ServiceSelectionInput
 from paperseek_core.review.models import (
-    ConsistencyFinding, EvidenceCard, RenderedReview, ReviewModel, ReviewOutline, ReviewPaper, SectionBody, WrittenSection,
+    MAX_REVIEW_PAPERS, ConsistencyFinding, EvidenceCard, RenderedReview, ReviewModel, ReviewOutline, ReviewPaper, SectionBody, WrittenSection,
 )
 
 
@@ -27,7 +27,7 @@ PARAGRAPH_LENGTH_RANGE = {"zh": (100, 1500), "en": (50, 800)}
 
 class ReviewCreate(ReviewModel):
     source_run_id: UUID
-    paper_uids: list[str] = Field(min_length=2, max_length=100)
+    paper_uids: list[str] = Field(min_length=2, max_length=MAX_REVIEW_PAPERS)
     topic: str = Field(min_length=1, max_length=2000)
     language: Literal["zh", "en"] = "zh"
     length: Literal["short", "standard", "detailed"] = "standard"
@@ -162,3 +162,24 @@ class ReviewRevision(ReviewModel):
 
 class ReviewVersions(ReviewModel):
     items: list[ReviewRevision]
+
+
+class PaperSuggestionRequest(ReviewModel):
+    service: ServiceSelectionInput | None = None
+    source_run_id: UUID
+    topic: str = Field(min_length=1, max_length=2000)
+    language: Literal["zh", "en"] = "zh"
+    count: int = Field(ge=2, le=MAX_REVIEW_PAPERS, strict=True)
+    llm: LLMRouteInput = Field(default_factory=LLMRouteInput)
+    credential: CredentialInput = Field(default_factory=CredentialInput, repr=False)
+    connection_id: str = Field(default="", max_length=64)
+
+
+class PaperSuggestion(ReviewModel):
+    uid: str
+    theme: str = ""
+    reason: str = ""
+
+
+class PaperSuggestions(ReviewModel):
+    items: list[PaperSuggestion]

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from paperseek_app.review.models import ReviewDetail
 from paperseek_app.review.citations import CitationStyle, PAPER_MENTION, author_year_labels, citation_spans
-from paperseek_core.review.evidence import evidence_index, validate_body
+from paperseek_core.review.evidence import evidence_index, strip_evidence_ids, validate_body
 from paperseek_core.review.models import CitedParagraph, RenderedReview, RenderedSection, ReviewCitation, ReviewReference
 
 
@@ -43,12 +43,15 @@ def render_review(review: ReviewDetail, citation_style: CitationStyle = "numeric
                 if key not in citation.evidence_ids:
                     citation.evidence_ids.append(key)
             ordered = sorted(citations.values(), key=lambda item: item.number)
-            spans, warnings = citation_spans(paragraph.text, ordered, content.language)
-            paragraphs.append(CitedParagraph(text=paragraph.text, citations=ordered, spans=spans, citation_warnings=warnings))
+            # Older drafts may carry evidence IDs in their prose; readers never see them.
+            text = strip_evidence_ids(paragraph.text)
+            spans, warnings, unplaced = citation_spans(text, ordered, content.language)
+            paragraphs.append(CitedParagraph(text=text, citations=ordered, spans=spans, citation_warnings=warnings,
+                                             unplaced=unplaced))
         rendered.sections.append(RenderedSection(id=plan.id, title=plan.title, level=2 if plan.parent_id else 1,
                                                 revision=body.revision, validation="needs_revision" if any(
-                                                    p.citation_warnings for p in paragraphs) else body.validation, stale=body.stale,
-                                                paragraphs=paragraphs))
+                                                    p.citation_warnings or p.unplaced for p in paragraphs) else body.validation,
+                                                stale=body.stale, paragraphs=paragraphs, omitted=body.body.omitted))
     for paper_id, number in numbers.items():
         paper = papers[paper_id]
         year = labels[paper_id][1] if citation_style == "harvard" else str(paper.year or "")

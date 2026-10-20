@@ -8,7 +8,7 @@ import sys
 
 import uvicorn
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "contract"))
+sys.path.insert(0, str(Path(__file__).parents[1] / "behavior"))
 from fixtures.review_support import ROUTE, ReviewLLM, create_source, review_settings  # noqa: E402
 from paperseek_app.review.execution import ReviewExecution  # noqa: E402
 from paperseek_community.api import create_app  # noqa: E402

@@ -15,6 +15,7 @@ Find your symptom in the index, check the likely cause, then follow the link to 
 | No results, missing abstracts, or counts differ | Over-restrictive query or gaps in the source record | [No results](#no-results-missing-abstracts-or-different-counts) |
 | The citation map is empty | Source without expansion, or no links within budget | [The citation map is empty](#the-citation-map-is-empty) |
 | A review outline or section fails | Model availability or a provider error | [A review outline or section fails](#a-review-outline-or-section-fails) |
+| Auto-select by topic returns nothing usable | The writing model returned an invalid list or could not be reached | [Auto-select by topic returns nothing usable](#auto-select-by-topic-returns-nothing-usable) |
 | The local service cannot start | Python version, database path, or port conflict | [Local service cannot start](#local-service-cannot-start) |
 | Sign-in or email-code problems | Spam folder, expired or replaced code | [Your account](../online/account.md#email-or-password-problems) |
 
@@ -62,6 +63,12 @@ Online, your own key cannot point to localhost, private networks, and other non-
 Review writing is experimental and depends on selected evidence and model availability. Select papers with useful abstracts, inspect the current project/job state, and retry the failed work after resolving the reported provider issue. Avoid repeatedly creating duplicate projects.
 
 Longer drafts need more output from the model. A completed outline does not guarantee that the next writing request will succeed. Keep manual edits and inspect versions before regenerating.
+
+When one section fails, the other sections are still written and saved. Retrying writes only the sections that are missing or need revision.
+
+### Auto-select by topic returns nothing usable
+
+The writing model did not return a valid list, or could not be reached. Check the writing model in the setup step, try again, or tick papers yourself. Auto-select only proposes papers; nothing is created until you generate the outline.
 
 ## Local service
 

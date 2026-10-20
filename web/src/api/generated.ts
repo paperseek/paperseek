@@ -69,6 +69,7 @@ export interface components {
         "citations" : Array<components["schemas"]["ReviewCitation"]>;
         "spans"?: Array<components["schemas"]["CitationSpan"]>;
         "text" : string;
+        "unplaced"?: Array<components["schemas"]["ReviewCitation"]>;
       };
     "ConnectionInput": {
         "api_key"?: string | null;
@@ -315,6 +316,31 @@ export interface components {
         "parent_id"?: string;
         "title" : string;
       };
+    "PaperExclusion": {
+        "check_incomplete"?: boolean;
+        "check_reason"?: string;
+        "paper_id" : string;
+        "questioned"?: boolean;
+        "reason" : string;
+      };
+    "PaperSuggestion": {
+        "reason"?: string;
+        "theme"?: string;
+        "uid" : string;
+      };
+    "PaperSuggestionRequest": {
+        "connection_id"?: string;
+        "count" : number;
+        "credential"?: components["schemas"]["CredentialInput"];
+        "language"?: "zh" | "en";
+        "llm"?: components["schemas"]["LLMRouteInput"];
+        "service"?: components["schemas"]["ServiceSelectionInput"] | null;
+        "source_run_id" : string;
+        "topic" : string;
+      };
+    "PaperSuggestions": {
+        "items" : Array<components["schemas"]["PaperSuggestion"]>;
+      };
     "ParagraphPlan": {
         "goal" : string;
         "paper_ids" : Array<string>;
@@ -382,6 +408,7 @@ export interface components {
     "RenderedSection": {
         "id" : string;
         "level" : number;
+        "omitted"?: Array<components["schemas"]["PaperExclusion"]>;
         "paragraphs" : Array<components["schemas"]["CitedParagraph"]>;
         "revision" : number;
         "stale" : boolean;
@@ -537,6 +564,7 @@ export interface components {
         "section_id"?: string;
       };
     "ReviewOutline": {
+        "excluded"?: Array<components["schemas"]["PaperExclusion"]>;
         "focus"?: string;
         "sections" : Array<components["schemas"]["OutlineSection"]>;
       };
@@ -692,6 +720,7 @@ export interface components {
         "source_keys" : number;
       };
     "SectionBody": {
+        "omitted"?: Array<components["schemas"]["PaperExclusion"]>;
         "paragraphs" : Array<components["schemas"]["ReviewParagraph"]>;
       };
     "SectionSave": {
@@ -850,6 +879,10 @@ export type NetworkNode = components["schemas"]["NetworkNode"];
 export type NetworkRequest = components["schemas"]["NetworkRequest"];
 export type OutlineSave = components["schemas"]["OutlineSave"];
 export type OutlineSection = components["schemas"]["OutlineSection"];
+export type PaperExclusion = components["schemas"]["PaperExclusion"];
+export type PaperSuggestion = components["schemas"]["PaperSuggestion"];
+export type PaperSuggestionRequest = components["schemas"]["PaperSuggestionRequest"];
+export type PaperSuggestions = components["schemas"]["PaperSuggestions"];
 export type ParagraphPlan = components["schemas"]["ParagraphPlan"];
 export type PersistedEvent = components["schemas"]["PersistedEvent"];
 export type ProbeOutput = components["schemas"]["ProbeOutput"];

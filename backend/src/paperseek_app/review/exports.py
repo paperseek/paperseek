@@ -32,6 +32,7 @@ def export_review(review: ReviewDetail, format: str, citation_style: CitationSty
     if rendered.draft:
         label += " · 草稿，含待检查或待更新内容" if zh else " · Draft with pending checks or updates"
     heading = "参考文献" if zh else "References"
+    unplaced_label = "本段另引（未对应到具体论断）：" if zh else "Also cited (not placed beside a claim):"
     if format == "md":
         lines = ["# " + _text(rendered.title), "", label, ""]
         for section in rendered.sections:
@@ -40,6 +41,10 @@ def export_review(review: ReviewDetail, format: str, citation_style: CitationSty
                 parts = [f"[{c.number if citation_style == 'numeric' else _text(c.label)}](#ref-{c.number})"
                          if (c := span.citation) else _text(span.text) for span in paragraph.spans]
                 lines.extend(["".join(parts), ""])
+                if paragraph.unplaced:
+                    lines.extend(["*" + unplaced_label + " " + "; ".join(
+                        f"[{c.number if citation_style == 'numeric' else _text(c.label)}](#ref-{c.number})"
+                        for c in paragraph.unplaced) + "*", ""])
                 lines.extend("> " + _text(warning) + "\n" for warning in paragraph.citation_warnings)
         lines.extend(["## " + heading, ""])
         for reference in rendered.references:
@@ -56,6 +61,8 @@ def export_review(review: ReviewDetail, format: str, citation_style: CitationSty
             document.add_heading(section.title, section.level)
             for paragraph in section.paragraphs:
                 document.add_paragraph("".join(span.citation.label if span.citation else span.text for span in paragraph.spans))
+                if paragraph.unplaced:
+                    document.add_paragraph(unplaced_label + " " + "; ".join(c.label for c in paragraph.unplaced))
                 for warning in paragraph.citation_warnings:
                     document.add_paragraph(warning)
         document.add_heading(heading, 1)

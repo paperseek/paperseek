@@ -46,6 +46,13 @@ function label(id: string) {
   const surname = tokens.find((token) => token.length > 2 && !token.endsWith(".")) || tokens[0] || paper.title.slice(0, 12);
   return `[${index + 1}] ${surname}${paper.year ? ` ${paper.year}` : ""}`;
 }
+// Papers no section plans keep a reason: the planner's own, or the user's removal.
+const leftOut = computed(() => {
+  const planned = new Set(draft.value.sections.flatMap((item) => item.paper_ids));
+  const reasons = new Map((draft.value.excluded || []).map((item) => [item.paper_id, item.reason]));
+  return papers.value.filter((paper) => available.value.has(paper.id) && !planned.has(paper.id))
+    .map((paper) => ({ paper_id: paper.id, reason: reasons.get(paper.id) || u("removedByUser") }));
+});
 const kindOptions = computed(() => (["theme", "overview", "conclusion"] as const).map((value) => ({ value, label: u(`kind_${value}`) })));
 
 function add() {
@@ -76,6 +83,7 @@ function addParagraph() {
   if (section.value) (section.value.paragraphs ||= []).push({ goal: "", paper_ids: [...section.value.paper_ids] });
 }
 async function saveOutline() {
+  draft.value.excluded = leftOut.value;
   const outline = JSON.parse(JSON.stringify(draft.value));
   const value = await reviewApi.outline(props.review.id, { expected_version: version, expected_revision: revision, outline });
   original.value = JSON.stringify(outline);
@@ -188,6 +196,13 @@ function discard() {
         </fieldset>
       </section>
     </div>
+    <details v-if="leftOut.length" class="card c" style="padding: 12px 16px">
+      <summary class="row sm medium" style="cursor: pointer; gap: 8px">{{ u("excludedPapers", { n: leftOut.length }) }}<Icon name="chevron-down" class="muted" /></summary>
+      <p class="help" style="margin-top: 6px">{{ u("excludedHelp") }}</p>
+      <ul class="stack" style="gap: 6px; margin-top: 8px; padding-left: 20px">
+        <li v-for="item in leftOut" :key="item.paper_id" class="xs muted"><span class="medium" style="color: var(--foreground)">{{ label(item.paper_id) }} {{ papers.find((paper) => paper.id === item.paper_id)?.title }}</span>{{ u("colon") }}{{ item.reason }}</li>
+      </ul>
+    </details>
     <div v-if="dirty" class="bulk" role="region" :aria-label="u('unsavedOutline')">
       <span class="sm medium">{{ u("unsavedOutline") }}</span>
       <span class="div"></span>

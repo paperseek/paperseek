@@ -27,10 +27,26 @@ class ReviewPaper(ReviewModel):
     has_abstract: bool
 
 
+MAX_REVIEW_PAPERS = 256
+MAX_EVIDENCE_QUOTE = 2000
+
+
 class EvidenceDraft(ReviewModel):
     category: Literal["question", "method", "finding", "scope"]
     text: str = Field(min_length=1, max_length=600)
-    quote: str = Field(min_length=1, max_length=2000)
+    quote: str = Field(min_length=1, max_length=MAX_EVIDENCE_QUOTE)
+
+
+class _DraftModel(ReviewModel):
+    # Model output: unknown keys are ignored rather than discarding the whole batch.
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+
+class EvidenceItemDraft(_DraftModel):
+    category: Literal["question", "method", "finding", "scope"]
+    text: str = Field(min_length=1, max_length=600)
+    # Overlong model quotes can be repaired before a grounded span is saved.
+    quote: str = Field(min_length=1, max_length=60000)
 
 
 class ReviewEvidence(EvidenceDraft):
@@ -42,30 +58,42 @@ class ReviewEvidence(EvidenceDraft):
     evidence_type: Literal["abstract"] = "abstract"
 
 
+# Observations kept per paper; extra ones are trimmed, keeping every category the paper has.
+EVIDENCE_PER_PAPER = 8
+
+
 class EvidenceCard(ReviewModel):
     paper_id: str
     signature: str
-    evidence: list[ReviewEvidence] = Field(max_length=6)
+    evidence: list[ReviewEvidence] = Field(max_length=EVIDENCE_PER_PAPER)
 
 
-class EvidenceCardDraft(ReviewModel):
+class EvidenceCardDraft(_DraftModel):
     paper_id: str
-    evidence: list[EvidenceDraft] = Field(max_length=6)
-
-    @field_validator("evidence", mode="before")
-    @classmethod
-    def keep_first_six(cls, value):
-        # A seventh observation is surplus, not a reason to discard the other six.
-        return value[:6] if isinstance(value, list) else value
+    evidence: list[EvidenceItemDraft] = Field(max_length=40)
 
 
-class EvidenceBatch(ReviewModel):
+class EvidenceBatch(_DraftModel):
     cards: list[EvidenceCardDraft] = Field(min_length=1, max_length=4)
 
 
 class ParagraphPlan(ReviewModel):
     goal: str = Field(min_length=1, max_length=1200)
-    paper_ids: list[str] = Field(min_length=1, max_length=100)
+    paper_ids: list[str] = Field(min_length=1, max_length=MAX_REVIEW_PAPERS)
+
+
+# Most papers a generated paragraph plan may carry; a user's own outline is not limited by it.
+PLANNED_PAPERS_PER_PARAGRAPH = 10
+
+
+class PaperExclusion(ReviewModel):
+    """A selected paper the outline or a section deliberately does not cite, and why."""
+    paper_id: str = Field(min_length=1, max_length=64)
+    reason: str = Field(min_length=1, max_length=400)
+    # Set by the evidence check when the reason looks doubtful for this paper's evidence.
+    questioned: bool = False
+    check_incomplete: bool = False
+    check_reason: str = Field(default="", max_length=600)
 
 
 class OutlineSection(ReviewModel):
@@ -75,7 +103,7 @@ class OutlineSection(ReviewModel):
     kind: Literal["theme", "overview", "conclusion"] = "theme"
     goal: str = Field(min_length=1, max_length=1500)
     comparisons: list[str] = Field(default_factory=list, max_length=8)
-    paper_ids: list[str] = Field(min_length=1, max_length=100)
+    paper_ids: list[str] = Field(min_length=1, max_length=MAX_REVIEW_PAPERS)
     paragraphs: list[ParagraphPlan] = Field(default_factory=list, max_length=12)
 
     @field_validator("id")
@@ -89,6 +117,8 @@ class OutlineSection(ReviewModel):
 class ReviewOutline(ReviewModel):
     focus: str = Field(default="", max_length=2000)
     sections: list[OutlineSection] = Field(min_length=1, max_length=14)
+    # Selected papers the outline leaves out on purpose, each with its reason.
+    excluded: list[PaperExclusion] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
 
     @model_validator(mode="after")
     def hierarchy(self) -> ReviewOutline:
@@ -122,6 +152,8 @@ class ReviewParagraph(ReviewModel):
 
 class SectionBody(ReviewModel):
     paragraphs: list[ReviewParagraph] = Field(min_length=1, max_length=40)
+    # Planned papers this section does not cite, each with the writer's reason.
+    omitted: list[PaperExclusion] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
 
 
 class SupportFinding(ReviewModel):
@@ -130,8 +162,15 @@ class SupportFinding(ReviewModel):
     reason: str = Field(default="", max_length=1500)
 
 
+class OmissionCheck(ReviewModel):
+    paper_id: str
+    status: Literal["accepted", "questioned"]
+    reason: str = Field(default="", max_length=600)
+
+
 class SupportCheck(ReviewModel):
     findings: list[SupportFinding] = Field(min_length=1, max_length=40)
+    omissions: list[OmissionCheck] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
 
 
 class ConsistencyFinding(ReviewModel):
@@ -181,6 +220,8 @@ class CitedParagraph(ReviewModel):
     citations: list[ReviewCitation]
     spans: list[CitationSpan] = Field(default_factory=list)
     citation_warnings: list[str] = Field(default_factory=list)
+    # Citations the text does not place beside a claim, listed apart from the prose.
+    unplaced: list[ReviewCitation] = Field(default_factory=list)
 
 
 class RenderedSection(ReviewModel):
@@ -191,6 +232,7 @@ class RenderedSection(ReviewModel):
     validation: str
     stale: bool
     paragraphs: list[CitedParagraph]
+    omitted: list[PaperExclusion] = Field(default_factory=list)
 
 
 class ReviewReference(ReviewModel):

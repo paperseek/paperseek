@@ -59,7 +59,7 @@ uv run --locked --project backend paperseek serve
 ```sh
 uv run --directory backend --locked ruff check --config pyproject.toml src ../integrations/mcp/src
 uv run --directory backend --locked python tests/import_boundaries.py
-uv run --directory backend --locked python -m unittest discover -s tests/contract -p "*contract.py"
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_*.py"
 uv run --directory backend --locked python scripts/generate_openapi_types.py --check
 npm --prefix web run typecheck
 npm --prefix web run build
@@ -68,6 +68,45 @@ npm --prefix web run build
 Python 的 Ruff 检查覆盖生产源码的语法、未使用名称及部分正确性规则；mypy 当前检查 `backend/pyproject.toml` 列出的七个传输、凭据和共享设置模块，并非全后端类型检查。Web 使用严格 TypeScript 检查。
 
 按实际改动选择检查，完整发行检查参考 CI。真实提供方实验与确定性测试分开，迁移和集成测试不能连接生产数据库。
+
+### 测试范围与维护
+
+在能发现问题的最低层保留回归测试。新增前先找到负责该行为的现有测试，优先补充用例，避免在每个适配层重复执行完整流程。
+
+| 边界 | 主要检查 |
+| --- | --- |
+| 检索、数据源 HTTP 映射、排序、综述证据 | 使用受控提供方的后端行为测试 |
+| SQLite 事务、迁移、取消、租约与恢复 | 持久化和生命周期测试，包含真实数据库及阻塞中的 I/O |
+| 用户交互、移动端布局与无障碍 | Community 共用浏览器测试 |
+| Hosted 身份验证、账户隔离、积分与 PostgreSQL | 基于固定 Community wheel 的 Hosted 测试 |
+| 安装包、CLI 启动与 MCP 传输 | 现有独立安装检查和干净 Docker 构建 |
+
+断言当前用例真正关心的结果：数据源请求映射、排序结果、越权被拒绝、数据仍然保留或用户上限得到执行。允许扩展的响应只检查相关字段。不保留提示词哈希、整张预设参数表、展示文案、私有函数位置，以及只验证测试替身自身的测试。文案或内部组织方式调整不应迫使测试同步修改。并发使用事件和可控时钟；超时用于防止挂死，不作为性能基准。浏览器测试优先使用角色、标签和可观察结果。
+
+测试按功能放在 `backend/tests/behavior/test_*.py`。修改前先找下表中的负责位置；共用样例放在 `fixtures/`，测试文件之间不互相导入。
+
+| 功能 | 修改用例的位置 |
+| --- | --- |
+| 提交、默认配置与检索语法 | `test_submission.py`、`test_query_syntax.py`；API、CLI、MCP 只验证参数传递和错误转换 |
+| 检索与模型 | `test_query_*`、`test_search_*`、`test_candidate_selection.py`、`test_ranking.py`；HTTP 映射与重试集中在 `test_source_http.py`、`test_model_http.py`、`test_http_retry.py` |
+| 综述内容 | `test_review_evidence.py`、`test_review_planning.py`、`test_review_generation.py`、`test_review_selection.py`、`test_review_output.py` |
+| 综述存储与请求 | `test_review_storage.py` 负责持久化和恢复；`test_review_api.py` 负责 HTTP、版本和凭据生命周期，不重复验证导出排版 |
+| 任务执行 | `test_run_*`、`test_worker.py`、`test_results.py`；数据库迁移仍在 `tests/migration` |
+| 共用界面 | `web/tests/browser`；Hosted 浏览器用例验证账户和服务模式如何接入这些组件 |
+
+默认值只在定义该行为的功能测试中验证。其他场景明确指定自己的配置、对照传入参数，或只检查与当前结果有关的字段。例如，并发排队用例自行设置槽位数量，部署默认容量变化不应改变这个场景。已有场景能够发现缺陷时，直接扩展该场景；机械修改不必为了增加数量而新增测试。
+
+开发时先运行受影响的模块：
+
+```sh
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_review*.py" -v -b
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_*.py" -k cancel -v -b
+npm --prefix web run test:browser -- reviews.spec.ts
+```
+
+CI 仍在 Linux 和 Windows 执行行为测试；仅检查源码的 lint、类型和依赖方向检查在 Linux 执行一次。浏览器失败轨迹保留七天。失败后先排查断言和测试环境，增加重试次数或跳过失败测试不算修复。产品行为有意改变时，同步调整对应测试和用户文档。
+
+仓库组织可参考 [LangChain 各库内的测试目录](https://github.com/langchain-ai/langchain/tree/master/libs/core/tests)和 [Dify 分开的后端单元、集成测试](https://github.com/langgenius/dify/tree/main/api/tests)。它们的 CI 会选择受影响的包或组件。本项目借鉴明确归属和局部运行，不照搬大型 CI 设施。[Vue 的公共行为测试指南](https://vuejs.org/guide/scaling-up/testing.html)和 [pytest 对不稳定测试的分析](https://docs.pytest.org/en/stable/explanation/flaky.html)说明了断言范围与隔离方法。
 
 ## 修改文档站
 
@@ -116,6 +155,8 @@ PaperSeek 是研究工具，说明限制是正确用法的一部分：
 不要删除已发布的 URL。移动页面后在原位置留下 noindex 占位页，模式见 `docs/user-manual.md`。存在失效内部链接时构建会失败。
 
 公共指南介绍稳定产品行为。生产密钥、特定服务器清单、测试长日志和一次性发布记录不属于公共文档。产物不提交到源码；本地构建可通过 `DOCS_OUT_DIR` 和 `DOCS_CACHE_DIR` 指定外部目录。
+
+凡是用户能感知的变化，都要同步更新对应的中英文操作指南或参考页：怎么使用、默认值和限制，以及失败或检查未完成意味着什么。安装包发布前，更新日志记在**尚未发布**下。测试组织方式属于本贡献指南，不放进用户操作流程。
 
 Pull Request 会自动构建文档站检查错误，合并后网站自动更新。请只修改 `docs/` 下的源文件。
 

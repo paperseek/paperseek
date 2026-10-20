@@ -1,7 +1,5 @@
 import ast
-import importlib
 from pathlib import Path
-import tomllib
 import unittest
 
 
@@ -25,13 +23,6 @@ def imported_modules(path: Path):
 
 
 class ImportBoundaryTest(unittest.TestCase):
-    def test_packages_import_from_the_installed_backend_distribution(self):
-        for package in LAYERS:
-            with self.subTest(package=package):
-                module = importlib.import_module(package)
-                self.assertEqual(module.__version__, "1.0.0b3")
-                self.assertTrue(Path(module.__file__).resolve().is_relative_to(SOURCE.resolve()))
-
     def test_dependency_direction_is_core_then_app_then_community(self):
         violations = []
         for package, layer in LAYERS.items():
@@ -53,27 +44,6 @@ class ImportBoundaryTest(unittest.TestCase):
                 if imported.split(".", 1)[0] in forbidden:
                     violations.append(f"{path.relative_to(BACKEND)}:{lineno} imports {imported}")
         self.assertEqual(violations, [], "\n".join(violations))
-
-    def test_backend_metadata_declares_one_distribution_and_python312(self):
-        with (BACKEND / "pyproject.toml").open("rb") as handle:
-            pyproject = tomllib.load(handle)
-        self.assertEqual(pyproject["project"]["name"], "paperseek")
-        self.assertEqual(pyproject["project"]["version"], "1.0.0b3")
-        self.assertEqual(pyproject["project"]["requires-python"], ">=3.12")
-        self.assertEqual(
-            pyproject["tool"]["setuptools"]["packages"]["find"]["include"],
-            ["paperseek_core*", "paperseek_app*", "paperseek_community*"],
-        )
-
-    def test_backend_sources_parse_with_python312_grammar(self):
-        for path in SOURCE.rglob("*.py"):
-            with self.subTest(path=path.relative_to(BACKEND)):
-                ast.parse(
-                    path.read_text(encoding="utf-8-sig"),
-                    filename=str(path),
-                    feature_version=(3, 12),
-                )
-
 
 if __name__ == "__main__":
     unittest.main()

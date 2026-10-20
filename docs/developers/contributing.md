@@ -59,7 +59,7 @@ For frontend iteration, run `npm --prefix web run dev` while the backend is avai
 ```sh
 uv run --directory backend --locked ruff check --config pyproject.toml src ../integrations/mcp/src
 uv run --directory backend --locked python tests/import_boundaries.py
-uv run --directory backend --locked python -m unittest discover -s tests/contract -p "*contract.py"
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_*.py"
 uv run --directory backend --locked python scripts/generate_openapi_types.py --check
 npm --prefix web run typecheck
 npm --prefix web run build
@@ -68,6 +68,45 @@ npm --prefix web run build
 Ruff checks production Python for syntax, unused names and selected correctness rules. Mypy currently checks the seven transport, credential and shared-settings modules listed in `backend/pyproject.toml`; it is not a whole-backend type check. Web TypeScript is checked in strict mode.
 
 Run checks appropriate to the changed behavior and consult CI for the complete release checks. Keep provider-backed experiments separate from deterministic tests. Never use a production database for migration or integration tests.
+
+### Test scope and maintenance
+
+Keep a regression at the lowest layer that can detect it. Before adding a test, find the existing behavior owner and extend its cases; do not replay the same workflow through every adapter.
+
+| Boundary | Primary check |
+| --- | --- |
+| Search, source HTTP mapping, ranking, review evidence | Backend behavior tests with controlled providers |
+| SQLite transactions, migrations, cancellation, leases and recovery | Persistence and lifecycle tests, including real database and blocked I/O |
+| User interactions, mobile layout and accessibility | Shared Community browser suite |
+| Hosted authentication, account isolation, credits and PostgreSQL | Hosted tests against the pinned Community wheel |
+| Packaging, CLI startup and MCP transports | Existing installed-product smoke tests and clean Docker builds |
+
+Assert the result that matters to the case: source request mapping, correct ordering, rejected unauthorized access, retained data or an enforced user limit. For extensible responses, check the relevant fields. Prompt hashes, complete preset tables, display wording, private function locations and tests that only exercise their own doubles do not belong in the suite. A change to wording or internal organization should not require updating tests. Use events and controlled clocks for concurrency; timeouts prevent hangs and are not performance benchmarks. Browser tests should use roles, labels and observable outcomes.
+
+Tests use feature names under `backend/tests/behavior/test_*.py`. Start with the owner below; fixtures live in `fixtures/`, and test modules must not import one another.
+
+| Feature | Where to change its cases |
+| --- | --- |
+| Submission, defaults and query syntax | `test_submission.py`, `test_query_syntax.py`; API/CLI/MCP only check forwarding and error translation |
+| Retrieval and models | `test_query_*`, `test_search_*`, `test_candidate_selection.py`, `test_ranking.py`; HTTP mapping and retries live in `test_source_http.py`, `test_model_http.py`, `test_http_retry.py` |
+| Review content | `test_review_evidence.py`, `test_review_planning.py`, `test_review_generation.py`, `test_review_selection.py`, `test_review_output.py` |
+| Saved reviews and requests | `test_review_storage.py` owns persistence/recovery; `test_review_api.py` owns HTTP, versioning and credential lifetime, without repeating export formatting |
+| Run execution | `test_run_*`, `test_worker.py`, `test_results.py`; database migrations remain under `tests/migration` |
+| Shared UI | `web/tests/browser`; Hosted browser cases cover account and service integration around these same components |
+
+Keep default-value assertions with the feature that defines them. Other scenarios should supply explicit configuration, compare forwarded inputs, or check only the fields relevant to their outcome. For example, a queue race supplies its own slot count; a change to the deployment default should not alter that race. Extend an existing scenario when it already catches the defect. Do not add a test for a mechanical change merely to increase the count.
+
+During development, run the affected module first:
+
+```sh
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_review*.py" -v -b
+uv run --directory backend --locked python -m unittest discover -s tests/behavior -p "test_*.py" -k cancel -v -b
+npm --prefix web run test:browser -- reviews.spec.ts
+```
+
+CI still runs the behavior suites on Linux and Windows, with source-only lint, type and dependency checks once on Linux. Browser failures retain traces for seven days. Diagnose a failing assertion or uncontrolled fixture before changing expectations; increasing retries or skipping a failing test is not a fix. An intentional behavior change must update its test and user documentation together.
+
+For repository examples, [LangChain keeps tests within each library](https://github.com/langchain-ai/langchain/tree/master/libs/core/tests), while [Dify separates backend unit and integration tests](https://github.com/langgenius/dify/tree/main/api/tests). Their CI selects affected packages or components. Adopt clear ownership and focused local runs without copying their large CI infrastructure. [Vue's public-behavior guidance](https://vuejs.org/guide/scaling-up/testing.html) and [pytest's analysis of flaky tests](https://docs.pytest.org/en/stable/explanation/flaky.html) explain assertion scope and isolation.
 
 ## Work on the docs
 
@@ -116,6 +155,8 @@ PaperSeek is a research tool, so limits are part of correct usage:
 Never delete a published URL. Move the page and leave a noindex stub in its place — see `docs/user-manual.md` for the pattern. The build fails on dead internal links.
 
 Public guides should explain stable product behavior. Production keys, host-specific checklists, test transcripts, and one-off release records do not belong in public docs. Keep generated output outside source control; local builds may use `DOCS_OUT_DIR` and `DOCS_CACHE_DIR`.
+
+For every user-visible change, update the corresponding English and Chinese task guide or reference: how to use it, defaults and limits, and what a failure or incomplete result means. Add a changelog entry under **Unreleased** until the package is published. Internal test organization belongs in this contributing guide, not in the user workflow.
 
 Pull requests build the site to catch errors, and the site updates after a merge. Edit the source pages under `docs/` only.
 
