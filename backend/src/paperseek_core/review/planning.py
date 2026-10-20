@@ -191,9 +191,10 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
         "Give each paragraph a specific analytical purpose and supporting papers; use a natural progression "
         "rather than forcing introduction-body-summary within every section. Connect comparable studies, "
         "explain differing results through goals and study contexts, and retain distinct minority contributions. "
-        "required_paper_ids lists every selected paper. Plan each one that serves the argument in a paragraph; "
-        "for each paper you leave out, add {\"paper_id\",\"reason\"} to excluded, with a short reason in the requested "
-        "language (for example off the research question, duplicates a stronger study, or only background). "
+        "required_paper_ids lists every paper the user selected for this review. Plan every paper that bears on "
+        "the topic, giving background, method and minority studies a fitting paragraph even when their role is small. "
+        "Leave a paper out only when it is off the research question or nearly duplicates another selected study; "
+        "for each one, add {\"paper_id\",\"reason\"} to excluded with a short reason in the requested language. "
         "Every selected paper appears either in a paragraph plan or in excluded, never both. "
         "Assign paper_ids at paragraph level only; the application derives each section's paper_ids from its paragraphs. "
         "Do not repeat a separate section-level paper list. Copy the exact supplied IDs, including numbering gaps. "
@@ -226,8 +227,10 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
         "每段都要有明确的分析目的和支撑论文；按自然的递进展开，"
         "不要在每节内部强行套用“引言—正文—总结”。把可比较的研究联系起来，"
         "用研究目标和研究情境解释不同结果，并保留有独特价值的少数贡献。"
-        "required_paper_ids 列出了全部入选论文。对论证有用的论文安排到段落计划中；不采用的论文，"
-        "在 excluded 中加入 {\"paper_id\",\"reason\"}，用中文简要说明原因（例如偏离研究问题、与证据更充分的研究重复、仅为背景）。"
+        "required_paper_ids 列出了用户为这篇综述选定的全部论文。与主题相关的论文都要安排到段落计划中，"
+        "背景类、方法类和少数派研究即使作用较小，也要放进合适的段落。"
+        "只有偏离研究问题、或与另一篇入选研究几乎重复的论文才可不采用；"
+        "对每篇不采用的论文，在 excluded 中加入 {\"paper_id\",\"reason\"}，用中文简要说明原因。"
         "每篇入选论文要么出现在段落计划中，要么出现在 excluded 中，不能两处都有。"
         "paper_ids 只在段落层面分配；应用程序会根据段落自动汇总每节的 paper_ids。"
         "不要另外重复节一级的论文列表。原样复制提供的编号，包括不连续的编号。"
@@ -310,13 +313,13 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
                 language,
                 "Each supplied paper is not yet used by the outline. For each, either assign it to the existing paragraph "
                 "whose argument it genuinely strengthens, or exclude it with a short reason in the requested language "
-                "(for example off the research question, duplicates a stronger study, or only background). "
+                "(for example off the research question, nearly duplicates another study, or no fitting paragraph has room). "
                 'Return a JSON object mapping each paper ID to {"target":"<target id or exclude>","reason":"..."}. '
                 f"A paragraph may hold at most {PLANNED_PAPERS_PER_PARAGRAPH} papers; available_slots shows its free room. "
                 "Thematic fit matters more than using every paper; avoid concentrating sources in a final summary. "
                 "Do not rewrite goals or add paragraphs or sections.",
                 "提供的每篇论文尚未被大纲使用。逐篇判断：要么分配到其论点确实能被它加强的现有段落，要么用中文简要说明原因并排除"
-                "（例如偏离研究问题、与证据更充分的研究重复、仅为背景）。"
+                "（例如偏离研究问题、与另一篇研究几乎重复、合适的段落已无名额）。"
                 '返回一个 JSON 对象，把每个论文编号映射为 {"target":"<目标编号或 exclude>","reason":"..."}。'
                 f"每段最多 {PLANNED_PAPERS_PER_PARAGRAPH} 篇，available_slots 是该段剩余的名额。"
                 "主题契合比用上每篇论文更重要；不要把文献集中到最后的总结中。不要改写目标，也不要增加段落或节。"),
