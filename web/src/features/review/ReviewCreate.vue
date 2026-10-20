@@ -96,6 +96,14 @@ const sizeOptions = computed<SelectOption<SizeChoice>[]>(() => {
   ];
 });
 const canContinue = computed(() => selected.size >= 2 && selected.size <= 100 && !loading.value);
+// Papers a review of this size can use well: about 2–4 per planned paragraph, within the 100-paper limit.
+const recommended = computed(() => {
+  if (form.preset !== "custom" && !paragraphCount.value) return { short: [8, 20], standard: [20, 45], detailed: [40, 80] }[form.preset];
+  const paragraphs = sectionCount.value * (paragraphCount.value ?? { short: 3, standard: 4, detailed: 6 }[lengthPreset.value]);
+  return [clamp(paragraphs * 2, 2, 100), clamp(paragraphs * 4, 2, 100)];
+});
+const suggesting = ref(false);
+const reasons = ref(new Map<string, string>());
 const connectionOk = computed(() => Boolean(connectionById(form.connection)));
 watch(() => workspaceSettings.connections, () => {
   if (workspaceSettings.loaded && !connectionById(form.connection)) form.connection = workspaceSettings.defaults?.review_llm || "";
@@ -124,6 +132,7 @@ async function choose(id: string, restore: string[] = []) {
     source.value = { id, title: detail.display_title || detail.question, count: detail.result_count ?? 0 };
     loadedFor.value = id;
     form.topic = detail.question;
+    reasons.value = new Map();
     step.value = 2;
     let next: string | undefined;
     do {
@@ -134,7 +143,6 @@ async function choose(id: string, restore: string[] = []) {
       cursor.value = page.next_cursor ?? null;
       next = cursor.value || undefined;
     } while (restore.length && selected.size < restore.length && next);
-    if (restore.length && selected.size >= 2) step.value = 3;
   } catch (e) {
     if (own === generation && !controller.signal.aborted) report(e);
   } finally {
@@ -160,7 +168,7 @@ async function loadPapers(more = false) {
   }
 }
 watch(query, () => {
-  if (!source.value || step.value !== 2) return;
+  if (!source.value || step.value !== 3) return;
   clearTimeout(timer);
   timer = setTimeout(() => void loadPapers(), 200);
 });
@@ -184,7 +192,39 @@ async function next() {
   if (step.value === 1 && source.value) {
     if (loadedFor.value !== source.value.id) await choose(source.value.id);
     else step.value = 2;
-  } else if (step.value === 2 && canContinue.value) step.value = 3;
+  } else if (step.value === 2 && form.topic.trim()) step.value = 3;
+}
+async function autoSelect() {
+  if (!source.value || suggesting.value || !form.topic.trim() || !connectionOk.value) return;
+  const id = source.value.id;
+  suggesting.value = true;
+  error.value = "";
+  try {
+    const [low, high] = recommended.value;
+    const { items } = await reviewApi.suggest({ source_run_id: id, topic: form.topic.trim(), language: form.language,
+      count: Math.round((low + high) / 2), connection_id: form.connection });
+    // Picks can come from any page of the search, so collect their records before selecting them.
+    const wanted = new Set(items.map((item) => item.uid));
+    const found = new Map(papers.value.filter((paper) => wanted.has(paper.uid)).map((paper) => [paper.uid, paper]));
+    let next: string | undefined;
+    while (found.size < wanted.size) {
+      const page = await api.resultPage(id, { cursor: next });
+      for (const paper of usable(page.results)) if (wanted.has(paper.uid)) found.set(paper.uid, paper);
+      next = page.next_cursor || undefined;
+      if (!next) break;
+    }
+    if (!alive || source.value?.id !== id) return;
+    selected.clear();
+    for (const item of items) {
+      const paper = found.get(item.uid);
+      if (paper && abstract(paper)) selected.set(item.uid, paper);
+    }
+    reasons.value = new Map(items.filter((item) => item.reason).map((item) => [item.uid, [item.theme, item.reason].filter(Boolean).join(" · ")]));
+  } catch (e) {
+    report(e);
+  } finally {
+    suggesting.value = false;
+  }
 }
 async function prepare() {
   if (!props.submissionEnabled || busy.value || !source.value || !canContinue.value || !form.topic.trim() || !connectionOk.value) return;
@@ -233,7 +273,7 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
       <div class="ch">
         <div><h2 id="new-review-title">{{ u("newReview") }}</h2><p>{{ u(step === 1 ? "newReviewStep1Desc" : step === 2 ? "newReviewStep2Desc" : "newReviewStep3Desc") }}</p></div>
         <ol class="steps-mini" :aria-label="u('steps')">
-          <template v-for="(label, index) in ['stepSearch', 'stepPapers', 'stepSetup'] as const" :key="label">
+          <template v-for="(label, index) in ['stepSearch', 'stepSetup', 'stepPapers'] as const" :key="label">
             <li v-if="index" class="ln" aria-hidden="true"></li>
             <li class="row" :class="{ on: step === index + 1 }" style="gap: 6px" :aria-current="step === index + 1 ? 'step' : undefined">
               <span v-if="step > index + 1" class="step-dot done"><Icon name="check" size="xs" /></span>
@@ -255,30 +295,6 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
         <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--muted); flex-wrap: nowrap">
           <span class="row sm" style="gap: 8px; min-width: 0; flex-wrap: nowrap"><Icon name="text-search" class="muted" /><span class="truncate medium">{{ source?.title }}</span><span class="muted" style="white-space: nowrap">· {{ u("papersShort", { n: source?.count ?? 0 }) }}</span></span>
           <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!!created" @click="step = 1">{{ u("change") }}</button>
-        </div>
-        <div class="field">
-          <div class="row" style="justify-content: space-between"><span class="label">{{ u("papers") }}</span><span class="row" style="gap: 2px"><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="loading || !!created" @click="selectWithAbstract">{{ u("selectWithAbstract") }}</button><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!selected.size || !!created" @click="selected.clear()">{{ u("clearSelection") }}</button></span></div>
-          <div class="ig"><Icon name="search" /><input v-model="query" type="search" :placeholder="u('searchPapers')" :aria-label="u('searchPapers')" /></div>
-          <div class="pick" style="max-height: 360px; overflow-y: auto; scrollbar-gutter: stable" :aria-busy="loading">
-            <div v-for="paper in papers" :key="paper.uid" class="paper-pick" :class="{ off: !abstract(paper) }">
-              <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="!!created || (!selected.has(paper.uid) && selected.size >= 100)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
-              <label v-else class="cb" style="margin-top: 2px; opacity: .5" :aria-label="u('noAbstractCannotSelect')"><input type="checkbox" disabled /><span class="box"></span></label>
-              <div class="stack" style="min-width: 0"><span class="t sm medium">{{ paper.title }}</span><span class="xs muted">{{ [paper.authors?.slice(0, 3).join(", "), paper.year, paper.score != null ? `${paper.score}/10` : u("unscored")].filter(Boolean).join(" · ") }}</span></div>
-              <button v-if="abstract(paper)" class="btn btn-ghost btn-sm" type="button" style="height: 24px; padding: 0 6px" :aria-expanded="openAbstracts.has(paper.uid)" @click="toggleAbstract(paper.uid)">{{ u("abstract") }}</button>
-              <span v-else class="xs muted" style="white-space: nowrap">{{ u("noAbstractShort") }}</span>
-              <p v-if="openAbstracts.has(paper.uid)" class="abs">{{ abstract(paper) }}</p>
-            </div>
-            <div v-if="loading && !papers.length" class="paper-pick"><span></span><span class="skeleton" style="height: 14px"></span><span></span></div>
-            <p v-else-if="!papers.length" class="sm muted" style="padding: 12px">{{ u("noMatches") }}</p>
-            <button v-if="cursor" class="pick-row" type="button" style="justify-content: center; border-top: 1px solid var(--border)" :disabled="loading" @click="loadPapers(true)"><Icon v-if="loading" name="loader" size="sm" /><span class="sm muted">{{ u("loadMore") }}</span></button>
-          </div>
-        </div>
-      </div>
-
-      <div v-else class="cc">
-        <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--muted); flex-wrap: nowrap">
-          <span class="row sm" style="gap: 8px; min-width: 0; flex-wrap: nowrap"><Icon name="file" class="muted" /><span class="medium" style="white-space: nowrap">{{ u("papersFrom", { n: selected.size }) }}</span><span class="muted truncate">· {{ u("fromSearch", { title: source?.title || "" }) }}</span></span>
-          <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!!created" @click="step = 2">{{ u("adjust") }}</button>
         </div>
         <fieldset class="stack" style="gap: 24px; border: 0; padding: 0; margin: 0; min-width: 0" :disabled="busy || !!created">
           <div class="field">
@@ -302,7 +318,7 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
             <div class="choices" role="radiogroup" aria-labelledby="length-label" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px">
               <label v-for="preset in ['short', 'standard', 'detailed'] as const" :key="preset" class="choice">
                 <input v-model="form.preset" type="radio" name="review-length" :value="preset" /><span class="dot"></span>
-                <span><span class="choice-title">{{ u(`len_${preset}`) }}</span><span class="choice-desc">{{ u("chapters", { n: { short: 1, standard: 3, detailed: 6 }[preset] }) }}</span></span>
+                <span><span class="choice-title">{{ u(`len_${preset}`) }}</span><span class="choice-desc">{{ u("chapters", { n: { short: 1, standard: 3, detailed: 6 }[preset] }) }} · {{ u("papersRange", { range: { short: "8–20", standard: "20–45", detailed: "40–80" }[preset] }) }}</span></span>
               </label>
               <label class="choice">
                 <input v-model="form.preset" type="radio" name="review-length" value="custom" /><span class="dot"></span>
@@ -332,6 +348,34 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
           </details>
           <slot name="service" />
         </fieldset>
+      </div>
+
+      <div v-else class="cc">
+        <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--muted); flex-wrap: nowrap">
+          <span class="row sm" style="gap: 8px; min-width: 0; flex-wrap: nowrap"><Icon name="file" class="muted" /><span class="medium" style="white-space: nowrap">{{ u(`len_${form.preset}`) }} · {{ u("chapters", { n: sectionCount }) }}</span><span class="muted truncate">· {{ form.topic }}</span></span>
+          <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!!created" @click="step = 2">{{ u("adjust") }}</button>
+        </div>
+        <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px">
+          <span class="stack" style="gap: 2px; min-width: 0; flex: 1 1 240px"><span class="sm medium">{{ u("recommendedPapers", { range: `${recommended[0]}–${recommended[1]}` }) }}</span><span class="xs muted">{{ u("autoSelectHint") }}</span></span>
+          <button class="btn btn-outline btn-sm" type="button" style="height: 28px; white-space: nowrap" :disabled="suggesting || loading || !!created || !connectionOk" :title="connectionOk ? undefined : u('needLlmToStart')" @click="autoSelect"><Icon :name="suggesting ? 'loader' : 'sparkles'" />{{ suggesting ? u("autoSelecting") : u("autoSelect") }}</button>
+        </div>
+        <div class="field">
+          <div class="row" style="justify-content: space-between"><span class="label">{{ u("papers") }}</span><span class="row" style="gap: 2px"><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="loading || !!created" @click="selectWithAbstract">{{ u("selectWithAbstract") }}</button><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!selected.size || !!created" @click="selected.clear()">{{ u("clearSelection") }}</button></span></div>
+          <div class="ig"><Icon name="search" /><input v-model="query" type="search" :placeholder="u('searchPapers')" :aria-label="u('searchPapers')" /></div>
+          <div class="pick" style="max-height: 360px; overflow-y: auto; scrollbar-gutter: stable" :aria-busy="loading">
+            <div v-for="paper in papers" :key="paper.uid" class="paper-pick" :class="{ off: !abstract(paper) }">
+              <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="!!created || (!selected.has(paper.uid) && selected.size >= 100)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
+              <label v-else class="cb" style="margin-top: 2px; opacity: .5" :aria-label="u('noAbstractCannotSelect')"><input type="checkbox" disabled /><span class="box"></span></label>
+              <div class="stack" style="min-width: 0"><span class="t sm medium">{{ paper.title }}</span><span class="xs muted">{{ [paper.authors?.slice(0, 3).join(", "), paper.year, paper.score != null ? `${paper.score}/10` : u("unscored")].filter(Boolean).join(" · ") }}</span><span v-if="selected.has(paper.uid) && reasons.get(paper.uid)" class="xs muted">{{ reasons.get(paper.uid) }}</span></div>
+              <button v-if="abstract(paper)" class="btn btn-ghost btn-sm" type="button" style="height: 24px; padding: 0 6px" :aria-expanded="openAbstracts.has(paper.uid)" @click="toggleAbstract(paper.uid)">{{ u("abstract") }}</button>
+              <span v-else class="xs muted" style="white-space: nowrap">{{ u("noAbstractShort") }}</span>
+              <p v-if="openAbstracts.has(paper.uid)" class="abs">{{ abstract(paper) }}</p>
+            </div>
+            <div v-if="loading && !papers.length" class="paper-pick"><span></span><span class="skeleton" style="height: 14px"></span><span></span></div>
+            <p v-else-if="!papers.length" class="sm muted" style="padding: 12px">{{ u("noMatches") }}</p>
+            <button v-if="cursor" class="pick-row" type="button" style="justify-content: center; border-top: 1px solid var(--border)" :disabled="loading" @click="loadPapers(true)"><Icon v-if="loading" name="loader" size="sm" /><span class="sm muted">{{ u("loadMore") }}</span></button>
+          </div>
+        </div>
         <p v-if="created && error" class="help">{{ u("draftSaved") }} <RouterLink class="link" :to="`/reviews/${created.id}`">{{ u("openReview") }}</RouterLink></p>
       </div>
 
@@ -341,8 +385,8 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
         <RouterLink v-if="step === 1" class="btn btn-ghost btn-sm" :to="listPaths.reviews">{{ u("cancel") }}</RouterLink>
         <button v-else class="btn btn-ghost btn-sm" type="button" :disabled="busy || !!created" @click="step = (step - 1) as 1 | 2">{{ u("previous") }}</button>
         <div class="row" style="gap: 12px">
-          <span v-if="step === 2" class="sm muted" aria-live="polite"><span class="medium" style="color: var(--foreground)">{{ u("selectedOf", { n: selected.size }) }}</span> · {{ u("atLeastTwo") }}</span>
-          <button v-if="step < 3" class="btn btn-sm" type="submit" :disabled="step === 1 ? !source || loading : !canContinue"><Icon v-if="loading && step === 1" name="loader" />{{ u("next") }}</button>
+          <span v-if="step === 3" class="sm muted" aria-live="polite"><span class="medium" style="color: var(--foreground)">{{ u("selectedOf", { n: selected.size }) }}</span> · {{ u("atLeastTwo") }}</span>
+          <button v-if="step < 3" class="btn btn-sm" type="submit" :disabled="step === 1 ? !source || loading : !form.topic.trim()"><Icon v-if="loading && step === 1" name="loader" />{{ u("next") }}</button>
           <template v-else>
             <slot name="cost" />
             <button class="btn btn-sm" type="submit" :disabled="!submissionEnabled || busy || !canContinue || !form.topic.trim() || !connectionOk" :title="connectionOk ? undefined : u('needLlmToStart')"><Icon v-if="busy" name="loader" />{{ busy ? u("starting") : u("generateOutline") }}</button>

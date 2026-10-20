@@ -171,7 +171,8 @@ export function withDocument(review: Json): Json {
   review.document = {
     draft: false, citation_style: "numeric",
     sections: review.content.outline.sections.map((section: Json) => ({ id: section.id, title: section.title, level: 1, validation: "supported", stale: false,
-      paragraphs: [{ spans: [{ text: "LLMs reach high recall " }, { citation }, { text: "." }], citation_warnings: [] }] })),
+      paragraphs: [{ spans: [{ text: "LLMs reach high recall " }, { citation }, { text: "." }], citation_warnings: [], unplaced: [{ ...citation, number: 2, label: "[2]" }] }],
+      omitted: [{ paper_id: review.content.papers[1].id, reason: "Not related.", questioned: true, check_reason: "Its abstract reports recall." }] })),
     references: [{ number: 1, text: "Chen L. Paper 1. 2021.", url: "https://example.test/1", doi: "10.1000/1" }],
   };
   return review;
@@ -348,6 +349,8 @@ export async function mockBackend(page: Page, state: MockState = createState()):
       state.reviews = [created];
       return respond(route, created, 201);
     }
+    if (path === "/reviews/paper-suggestions" && method === "POST")
+      return respond(route, { items: [{ uid: "uid-1", theme: "Recall", reason: "Largest validation study." }, { uid: "uid-6", theme: "Workload", reason: "Measures time saved." }] });
     if (parts[0] === "reviews" && parts[1]) {
       const item = state.reviews.find((r) => r.id === parts[1]);
       if (!item) return respond(route, error("review_not_found", 404), 404);

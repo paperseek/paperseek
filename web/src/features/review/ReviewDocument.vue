@@ -23,6 +23,9 @@ function status(validation: string) {
 function findings(id: string) {
   return props.review.content.sections?.find((s) => s.section_id === id)?.findings?.filter((f) => f.status !== "supported") || [];
 }
+function title(id: string) {
+  return props.review.content.papers.find((item) => item.id === id)?.title || id;
+}
 const paper = computed(() => props.review.content.papers.find((item) => item.id === popover.value?.citation.paper_id));
 const quotes = computed(() => props.review.content.cards?.flatMap((card) => card.evidence).filter((item) => popover.value?.citation.evidence_ids.includes(item.id)) || []);
 
@@ -108,8 +111,25 @@ onBeforeUnmount(() => {
             :aria-expanded="popover?.key === `${section.id}-${index}-${part}`"
             @click="openCitation($event, span.citation, `${section.id}-${index}-${part}`, section.id)"
           >{{ review.document?.citation_style === "harvard" ? span.citation.label : span.citation.number }}</button><template v-else>{{ span.text }}</template></template></p>
+          <p v-if="paragraph.unplaced?.length" class="xs muted">{{ u("alsoCited") }}<template v-for="(citation, part) in paragraph.unplaced" :key="part"><template v-if="part">、</template><button
+            class="cite"
+            :class="{ on: popover?.key === `${section.id}-${index}-u${part}` }"
+            type="button"
+            :aria-label="u('evidenceN', { n: citation.number })"
+            :aria-expanded="popover?.key === `${section.id}-${index}-u${part}`"
+            @click="openCitation($event, citation, `${section.id}-${index}-u${part}`, section.id)"
+          >{{ review.document?.citation_style === "harvard" ? citation.label : citation.number }}</button></template></p>
           <p v-for="warning in paragraph.citation_warnings" :key="warning" class="xs muted row" style="gap: 6px"><Icon name="warn" size="sm" />{{ warning }}</p>
         </template>
+        <details v-if="section.omitted?.length">
+          <summary class="xs muted row" style="cursor: pointer; gap: 6px"><Icon :name="section.omitted.some((item) => item.questioned) ? 'warn' : 'info'" size="sm" />{{ u("notCited", { n: section.omitted.length }) }}<Icon name="chevron-down" size="sm" /></summary>
+          <ul class="stack" style="gap: 6px; margin-top: 6px; padding-left: 20px">
+            <li v-for="item in section.omitted" :key="item.paper_id" class="xs muted">
+              <span class="medium" style="color: var(--foreground)">{{ title(item.paper_id) }}</span>{{ u("colon") }}{{ item.reason }}
+              <span v-if="item.questioned" class="row" style="gap: 4px; margin-top: 2px"><Icon name="warn" size="sm" />{{ u("reasonMayNotHold") }}{{ item.check_reason ? u("colon") + item.check_reason : "" }}</span>
+            </li>
+          </ul>
+        </details>
         <details v-if="findings(section.id).length" class="alert" style="display: block; padding: 10px 14px">
           <summary class="row" style="cursor: pointer; gap: 10px; flex-wrap: nowrap"><Icon name="warn" /><span class="sm medium grow">{{ t("reviewNeedsRevision") }}</span><Icon name="chevron-down" class="muted" /></summary>
           <ul class="stack" style="gap: 6px; margin-top: 8px; padding-left: 26px"><li v-for="(finding, index) in findings(section.id)" :key="index" class="sm muted">{{ u("paragraphN", { n: finding.paragraph + 1 }) }}: {{ finding.reason }}</li></ul>
