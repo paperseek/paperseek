@@ -317,6 +317,7 @@ export interface components {
         "title" : string;
       };
     "PaperExclusion": {
+        "check_incomplete"?: boolean;
         "check_reason"?: string;
         "paper_id" : string;
         "questioned"?: boolean;

@@ -11,11 +11,11 @@ import unicodedata
 
 from paperseek_core.models import FinalPaperResult
 from paperseek_core.review.models import (
-    EVIDENCE_PER_PAPER, EvidenceBatch, EvidenceCard, ReviewEvidence, ReviewOutline, ReviewPaper, SectionBody,
+    EVIDENCE_PER_PAPER, MAX_EVIDENCE_QUOTE, EvidenceBatch, EvidenceCard, ReviewEvidence, ReviewOutline, ReviewPaper, SectionBody,
 )
 
 
-PROMPT_VERSION = "abstract-review.v3"
+PROMPT_VERSION = "abstract-review.v4"
 PAPER_MENTION = re.compile(r"(?<![A-Za-z0-9_])p_\d+(?![A-Za-z0-9_])")
 _MISSING = {"", "n/a", "na", "none", "null", "no abstract", "no abstract available",
             "abstract not available", "how to cite", "暂无摘要", "无摘要", "摘要缺失"}
@@ -135,15 +135,15 @@ def _sentences(abstract: str, start: int, end: int) -> list[tuple[int, int]]:
     return trimmed
 
 
-def best_sentences(abstract: str, start: int, end: int, observation: str) -> tuple[int, int]:
-    """The one or two adjacent sentences of a long quote that best match its observation.
+def best_sentences(abstract: str, start: int, end: int, observation: str) -> tuple[int, int] | None:
+    """Shorten only when a continuous sentence range covers the observation's words.
 
-    Observations in another language share few words with the quote; then the opening
-    sentences are kept, which in an abstract usually carry the claim being quoted.
+    Cross-language observations and weak matches retain their located source range.
+    A shared number or an arbitrary opening sentence is not enough to select evidence.
     """
     sentences = _sentences(abstract, start, end)
     if len(sentences) <= 1:
-        return start, min(end, start + 2000)
+        return None
     wanted = {word for word, _, _ in _words(observation)}
     best = None
     for i in range(len(sentences)):
@@ -151,17 +151,14 @@ def best_sentences(abstract: str, start: int, end: int, observation: str) -> tup
             if j >= len(sentences):
                 continue
             left, right = sentences[i][0], sentences[j][1]
-            if right - left > 2000:
+            if right - left > MAX_EVIDENCE_QUOTE:
                 continue
             words = {word for word, _, _ in _words(abstract[left:right])}
             score = (len(words & wanted), -(right - left), -i)
             if best is None or score > best[0]:
                 best = (score, left, right)
-    if best is None or best[0][0] == 0:
-        left, right = sentences[0]
-        if len(sentences) > 1 and sentences[1][1] - left <= _LONG_QUOTE:
-            right = sentences[1][1]
-        return left, min(right, left + 2000)
+    if best is None or best[0][0] < max(2, len(wanted)):
+        return None
     return best[1], best[2]
 
 
@@ -181,7 +178,7 @@ def _keep_varied(evidence: list[ReviewEvidence]) -> list[ReviewEvidence]:
 
 
 def validate_cards(batch: EvidenceBatch, papers: list[ReviewPaper], signature: str,
-                   dropped: list[str] | None = None) -> list[EvidenceCard]:
+                   dropped: list[str] | None = None, *, allow_long_quote_fallback: bool = True) -> list[EvidenceCard]:
     """Keep every quote found in its abstract; a paper fails only when none of its quotes are.
 
     Quotes joined with an ellipsis are split into their separate spans. Unverifiable quotes are
@@ -204,8 +201,16 @@ def validate_cards(batch: EvidenceBatch, papers: list[ReviewPaper], signature: s
                 rejected.append(f"{paper.id}: {item.quote[:600]!r}")
                 continue
             for start, end in spans:
+                if end - start > MAX_EVIDENCE_QUOTE and not allow_long_quote_fallback:
+                    raise ValueError(f"Quote for {paper.id} exceeds {MAX_EVIDENCE_QUOTE} characters. "
+                                     "Return a shorter exact continuous abstract span supporting the observation.")
                 if end - start > _LONG_QUOTE:
-                    start, end = best_sentences(paper.abstract, start, end, item.text)
+                    located = best_sentences(paper.abstract, start, end, item.text)
+                    if located is not None:
+                        start, end = located
+                if end - start > MAX_EVIDENCE_QUOTE:
+                    rejected.append(f"{paper.id}: no reliable short supporting span for {item.text[:200]!r}")
+                    continue
                 # Evidence always keeps the abstract's own text, never the model's copy.
                 quote = paper.abstract[start:end]
                 key = "e_" + fingerprint([paper.id, paper.abstract_hash, quote])[:24]

@@ -122,11 +122,12 @@ onBeforeUnmount(() => {
           <p v-for="warning in paragraph.citation_warnings" :key="warning" class="xs muted row" style="gap: 6px"><Icon name="warn" size="sm" />{{ warning }}</p>
         </template>
         <details v-if="section.omitted?.length">
-          <summary class="xs muted row" style="cursor: pointer; gap: 6px"><Icon :name="section.omitted.some((item) => item.questioned) ? 'warn' : 'info'" size="sm" />{{ u("notCited", { n: section.omitted.length }) }}<Icon name="chevron-down" size="sm" /></summary>
+          <summary class="xs muted row" style="cursor: pointer; gap: 6px"><Icon :name="section.omitted.some((item) => item.questioned || item.check_incomplete) ? 'warn' : 'info'" size="sm" />{{ u("notCited", { n: section.omitted.length }) }}<Icon name="chevron-down" size="sm" /></summary>
           <ul class="stack" style="gap: 6px; margin-top: 6px; padding-left: 20px">
             <li v-for="item in section.omitted" :key="item.paper_id" class="xs muted">
               <span class="medium" style="color: var(--foreground)">{{ title(item.paper_id) }}</span>{{ u("colon") }}{{ item.reason }}
-              <span v-if="item.questioned" class="row" style="gap: 4px; margin-top: 2px"><Icon name="warn" size="sm" />{{ u("reasonMayNotHold") }}{{ item.check_reason ? u("colon") + item.check_reason : "" }}</span>
+              <span v-if="item.check_incomplete" class="row" style="gap: 4px; margin-top: 2px"><Icon name="warn" size="sm" />{{ u("omissionCheckIncomplete") }}</span>
+              <span v-else-if="item.questioned" class="row" style="gap: 4px; margin-top: 2px"><Icon name="warn" size="sm" />{{ u("reasonMayNotHold") }}{{ item.check_reason ? u("colon") + item.check_reason : "" }}</span>
             </li>
           </ul>
         </details>

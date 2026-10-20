@@ -19,6 +19,7 @@ from paperseek_core.review.evidence import (
     validate_mentions,
 )
 from paperseek_core.review.models import (
+    MAX_REVIEW_PAPERS,
     EvidenceCard,
     OutlineSection,
     PaperExclusion,
@@ -70,7 +71,7 @@ async def complete_section_sources(llm: LLMPort, cancellation: CancellationToken
         target = next(i for i, plan in enumerate(section.paragraphs) if paper_id in plan.paper_ids)
         targets.setdefault(target, []).append(paper_id)
     schema = create_model("ParagraphSourceRepair", __base__=ReviewModel,
-                          omitted=(list[PaperExclusion], Field(default_factory=list, max_length=100)),
+                          omitted=(list[PaperExclusion], Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)),
                           **{f"paragraph_{i + 1}": (ReviewParagraph, ...) for i in targets})
 
     def apply(value: BaseModel, *, require_coverage: bool = True) -> SectionBody:
@@ -471,8 +472,11 @@ async def write_section(
                 note(i, f"计划文献未被引用，也没有说明原因：{', '.join(left)}。可编辑或重写本节补充。",
                      f"Planned sources neither cited nor explained: {', '.join(left)}. Edit or rewrite this section to include them.")
     for item in body.omitted:
-        if item.questioned:
-            target = next((i for i, plan in enumerate(section.paragraphs) if item.paper_id in plan.paper_ids), 0)
+        target = next((i for i, plan in enumerate(section.paragraphs) if item.paper_id in plan.paper_ids), 0)
+        if item.check_incomplete:
+            note(min(target, len(body.paragraphs) - 1), f"未能完成 {item.paper_id} 的排除理由检查，请人工核对。",
+                 f"The automatic omission reason check for {item.paper_id} could not complete; review it manually.")
+        elif item.questioned:
             note(min(target, len(body.paragraphs) - 1), f"不引用 {item.paper_id} 的理由可能不成立：{item.check_reason}",
                  f"The reason for not citing {item.paper_id} may not hold: {item.check_reason}")
     for paragraph, messages in notes.items():
@@ -540,6 +544,10 @@ async def checked_support(llm: LLMPort, cancellation: CancellationToken, body: S
         return await check_support(llm, cancellation, body, cards, papers, language=language, section=section)
     except (ReviewOutputError, LLMRequestError) as exc:
         record(exc, "section")
+        # A missing omission verdict must not discard valid paragraph checks or rewrite the prose.
+        if (isinstance(exc, ReviewOutputError) and isinstance(exc.result, SupportCheck)
+                and sorted(item.paragraph for item in exc.result.findings) == list(range(len(body.paragraphs)))):
+            return exc.result.findings
     findings = []
     for i, paragraph in enumerate(body.paragraphs):
         try:
@@ -563,13 +571,18 @@ async def check_support(llm: LLMPort, cancellation: CancellationToken,
     index = evidence_index(cards)
     abstracts = {paper.id: paper.abstract for paper in papers or []}
     omitted = [item for item in body.omitted if item.paper_id in abstracts] if section else []
+    for item in body.omitted:
+        item.questioned, item.check_incomplete, item.check_reason = False, True, ""
     goals = {paper: plan.goal for plan in (section.paragraphs if section else []) for paper in plan.paper_ids}
 
     def validate(check: SupportCheck) -> None:
         if sorted(item.paragraph for item in check.findings) != list(range(len(body.paragraphs))):
             raise ValueError("Check each paragraph exactly once, using zero-based indices.")
-        if unknown := {item.paper_id for item in check.omissions} - {item.paper_id for item in omitted}:
-            raise ValueError(f"Check only the supplied omitted papers; unknown IDs: {sorted(unknown)}.")
+        if sorted(item.paper_id for item in check.omissions) != sorted(item.paper_id for item in omitted):
+            raise ValueError("Check each supplied omitted paper exactly once, with no extra IDs: "
+                             + ", ".join(item.paper_id for item in omitted))
+        if any(not item.reason.strip() for item in check.omissions):
+            raise ValueError("Give a nonempty reason for every omission verdict, including accepted ones.")
 
     check = await structured_call(
         llm, cancellation, "support_check",
@@ -597,7 +610,7 @@ async def check_support(llm: LLMPort, cancellation: CancellationToken,
         "A real citation alone does not mean its claims are supported. Do not add claims. "
         "Keep each reason concise, at most 500 characters. For supported paragraphs, a brief confirmation suffices. "
         "omitted_papers lists planned papers the section chose not to cite, with the writer's reason, the goal of the "
-        "paragraph it was planned for, and its abstract. Return one omissions entry for each. Mark it questioned ONLY "
+        "paragraph it was planned for, and its abstract. Return one omissions entry with a nonempty reason for each. Mark it questioned ONLY "
         "when the abstract plainly provides evidence for that paragraph goal AND the reason claims the paper is "
         "irrelevant, off-topic or lacks evidence. Accept reasons about duplication, a stronger or more direct study, "
         "a different population, setting or measure, a narrower scope, or the length limit, and accept whenever "
@@ -613,11 +626,12 @@ async def check_support(llm: LLMPort, cancellation: CancellationToken,
                         for i, paragraph in enumerate(body.paragraphs)],
          "omitted_papers": [{"paper_id": item.paper_id, "reason": item.reason, "planned_goal": goals.get(item.paper_id, ""),
                              "abstract": abstracts[item.paper_id]} for item in omitted]},
-        SupportCheck, validate=validate, language=language,
+        SupportCheck, max_tokens=min(24000, 4096 + len(omitted) * 80), validate=validate, language=language,
     )
     verdicts = {item.paper_id: item for item in check.omissions}
     for item in body.omitted:
         verdict = verdicts.get(item.paper_id)
+        item.check_incomplete = verdict is None
         item.questioned = bool(verdict and verdict.status == "questioned")
         item.check_reason = verdict.reason[:600] if item.questioned and verdict else ""
     return check.findings

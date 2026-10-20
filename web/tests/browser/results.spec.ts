@@ -42,6 +42,9 @@ test("filters and sort reload page one from the server and live in the URL", asy
 test("selection uses a tri-state checkbox and the floating bar exports and creates a review", async ({ page }) => {
   const state = await open(page, url);
   const all = page.getByRole("checkbox", { name: "全选已加载" });
+  await all.check({ force: true });
+  await page.getByRole("button", { name: "清空选择" }).click();
+  await expect(page.getByRole("region", { name: /已选择/ })).toHaveCount(0);
   await page.getByTestId("result-card").first().getByRole("checkbox").check({ force: true });
   await expect(all).toHaveAttribute("aria-checked", "mixed");
   const bar = page.getByRole("region", { name: "已选择 1 篇" });
@@ -56,11 +59,4 @@ test("selection uses a tri-state checkbox and the floating bar exports and creat
   await expect(page.getByTestId("result-card")).toHaveCount(6);
   await page.getByRole("button", { name: "用所选创建综述" }).click();
   await expect(page).toHaveURL(/\/reviews\/new\?source=.*paper=uid-1/);
-});
-
-test("clearing the selection hides the floating bar", async ({ page }) => {
-  await open(page, url);
-  await page.getByRole("checkbox", { name: "全选已加载" }).check({ force: true });
-  await page.getByRole("button", { name: "清空选择" }).click();
-  await expect(page.locator(".bulk")).toHaveCount(0);
 });

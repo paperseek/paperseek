@@ -3,6 +3,7 @@ import type { components } from "../../api/generated";
 import type { RunDetail, RunEvent } from "../../api/types";
 
 type Schema = components["schemas"];
+export const MAX_REVIEW_PAPERS = 256;
 export type Review = Schema["ReviewDetail"];
 export type Outline = Schema["ReviewOutline"];
 export type Section = Schema["WrittenSection"];

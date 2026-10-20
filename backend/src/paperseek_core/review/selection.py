@@ -6,12 +6,12 @@ from dataclasses import dataclass
 from pydantic import Field
 
 from paperseek_core.ports import CancellationToken, LLMPort
-from paperseek_core.review.models import _DraftModel
+from paperseek_core.review.models import MAX_REVIEW_PAPERS, _DraftModel
 from paperseek_core.review.structured import structured_call
 
-# Enough of each abstract to tell themes and designs apart while keeping 300 candidates in one call.
+# Enough of each abstract to tell themes and designs apart within one bounded candidate pool.
 _ABSTRACT_PREVIEW = 300
-MAX_CANDIDATES = 300
+MAX_CANDIDATES = MAX_REVIEW_PAPERS
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +68,6 @@ async def suggest_papers(llm: LLMPort, cancellation: CancellationToken, *, topic
         {"topic": topic, "count": count, "candidates": [
             {"id": key, "title": item.title, "year": item.year, "abstract": item.abstract[:_ABSTRACT_PREVIEW]}
             for key, item in ids.items()]},
-        _Selection, max_tokens=min(8000, 400 + count * 90), validate=validate, language=language,
+        _Selection, max_tokens=min(24000, 400 + count * 90), validate=validate, language=language,
     )
     return [Suggestion(ids[item.id].uid, item.theme, item.reason) for item in result.papers]

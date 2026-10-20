@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createState, ids, requestsTo, withDocument } from "./mock-backend";
+import { createState, ids, paper, requestsTo, withDocument } from "./mock-backend";
 import { open } from "./workspace-helpers";
 
 test("new review goes search → setup → papers and starts the outline with a saved connection", async ({ page }) => {
@@ -21,13 +21,13 @@ test("new review goes search → setup → papers and starts the outline with a 
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page.locator("[aria-current=step]")).toContainText("选择文献");
-  await expect(page.getByText("建议选 60–100 篇")).toBeVisible();
+  await expect(page.getByText("建议选 60–120 篇")).toBeVisible();
   const noAbstract = page.locator(".paper-pick.off");
   await expect(noAbstract).toContainText("无摘要");
   await expect(noAbstract.getByRole("checkbox")).toBeDisabled();
   await expect(page.getByRole("button", { name: "生成大纲" })).toBeDisabled();
   await page.getByRole("button", { name: "选择全部有摘要的" }).click();
-  await expect(page.getByText("已选 3 / 100 篇")).toBeVisible();
+  await expect(page.locator(".paper-pick input:checked")).toHaveCount(3);
   await page.getByRole("button", { name: "生成大纲" }).click();
   await expect(page).toHaveURL(new RegExp(`/reviews/${ids.review}\\?tab=outline`));
   const body = requestsTo(state, "POST", "/reviews")[0].body;
@@ -41,21 +41,41 @@ test("selection from results lands on the setup step and keeps the papers", asyn
   await open(page, `/reviews/new?source=${ids.done}&paper=uid-1&paper=uid-2`);
   await expect(page.locator("[aria-current=step]")).toContainText("写作设置");
   await page.getByRole("button", { name: "下一步" }).click();
-  await expect(page.getByText("已选 2 / 100 篇")).toBeVisible();
+  await expect(page.locator(".paper-pick input:checked")).toHaveCount(2);
 });
 
-test("auto-select picks papers by topic from every page and shows why", async ({ page }) => {
+test("auto-select explains its candidate limit and shows why papers were picked", async ({ page }) => {
   const state = await open(page, `/reviews/new?source=${ids.done}`);
   await page.getByRole("radiogroup", { name: "篇幅" }).getByRole("radio", { name: /简短/ }).check({ force: true });
   await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "按主题自动挑选" }).click();
-  await expect(page.getByText("已选 2 / 100 篇")).toBeVisible();
+  await expect(page.getByText(/前 256 篇有有效摘要的文献/)).toBeVisible();
   await expect(page.getByText("Recall · Largest validation study.")).toBeVisible();
   expect(requestsTo(state, "POST", "/reviews/paper-suggestions")[0].body).toMatchObject({
     source_run_id: ids.done, topic: "LLM screening for systematic reviews", count: 14, connection_id: ids.llm });
   await page.getByRole("button", { name: "生成大纲" }).click();
   await expect(page).toHaveURL(/tab=outline/);
   expect(requestsTo(state, "POST", "/reviews")[0].body.paper_uids).toEqual(["uid-1", "uid-6"]);
+});
+
+test("manual selection accepts 256 papers including later ranks and stops at the limit", async ({ page }) => {
+  const state = createState();
+  state.results[ids.done] = Array.from({ length: 257 }, (_, i) => paper(i + 1));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, `/reviews/new?source=${ids.done}`, state);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "加载更多" }).click();
+  await page.locator(".paper-pick").last().locator("label.cb").click();
+  await page.getByRole("button", { name: "选择全部有摘要的" }).click();
+  await expect(page.getByText("已选 256 / 256 篇")).toBeVisible();
+  await expect(page.locator(".paper-pick").nth(255).getByRole("checkbox")).toBeDisabled();
+  await expect(page.locator(".paper-pick").last().getByRole("checkbox")).toBeChecked();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "生成大纲" }).click();
+  await expect(page).toHaveURL(/tab=outline/);
+  const picked = requestsTo(state, "POST", "/reviews")[0].body.paper_uids;
+  expect(picked).toHaveLength(256);
+  expect(picked).toContain("uid-257");
 });
 
 test("paragraph count and length offer presets and custom values in the output language's unit", async ({ page }) => {
@@ -117,7 +137,21 @@ test("draft shows the table of contents and an evidence popover; evidence tab sw
   await page.getByRole("button", { name: "生成大纲" }).click();
   await expect(page).toHaveURL(/tab=outline/);
   withDocument(state.reviews[0]);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route(url => url.pathname === `/api/v1/reviews/${ids.review}`, async route => {
+    await pending;
+    await route.fallback();
+  });
   await page.goto(`/reviews/${ids.review}?tab=document`);
+  const loading = page.getByTestId("review-loading");
+  await expect(loading).toBeVisible();
+  await expect(page.getByRole("button", { name: "生成大纲", exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  release();
+  await expect(loading).toHaveCount(0);
+  await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.getByRole("navigation", { name: "大纲" })).toContainText("Screening performance");
   await page.getByRole("button", { name: "证据 [1]" }).first().click();
   const popover = page.getByRole("dialog", { name: "证据 [1]" });
@@ -128,6 +162,13 @@ test("draft shows the table of contents and an evidence popover; evidence tab sw
   await expect(first.getByText("未对应到具体论断的引用：")).toContainText("2");
   await first.getByText("未引用的计划文献 · 1 篇").click();
   await expect(first.getByText("理由可能不成立：Its abstract reports recall.")).toBeVisible();
+  state.reviews[0].document.sections[0].omitted[0] = {
+    ...state.reviews[0].document.sections[0].omitted[0], questioned: false, check_incomplete: true, check_reason: "",
+  };
+  await page.reload();
+  await first.getByText("未引用的计划文献 · 1 篇").click();
+  await expect(first.getByText("排除理由检查未完成，请人工核对。")).toBeVisible();
+  await expect(first.getByText(/理由可能不成立/)).toBeHidden();
   await page.getByRole("tab", { name: "引用证据" }).click();
   await page.getByRole("radio", { name: "论文引用关系" }).check({ force: true });
   await expect(page.getByTestId("citation-graph")).toBeVisible();

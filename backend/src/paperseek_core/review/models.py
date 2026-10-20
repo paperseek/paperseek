@@ -27,10 +27,14 @@ class ReviewPaper(ReviewModel):
     has_abstract: bool
 
 
+MAX_REVIEW_PAPERS = 256
+MAX_EVIDENCE_QUOTE = 2000
+
+
 class EvidenceDraft(ReviewModel):
     category: Literal["question", "method", "finding", "scope"]
     text: str = Field(min_length=1, max_length=600)
-    quote: str = Field(min_length=1, max_length=2000)
+    quote: str = Field(min_length=1, max_length=MAX_EVIDENCE_QUOTE)
 
 
 class _DraftModel(ReviewModel):
@@ -41,7 +45,7 @@ class _DraftModel(ReviewModel):
 class EvidenceItemDraft(_DraftModel):
     category: Literal["question", "method", "finding", "scope"]
     text: str = Field(min_length=1, max_length=600)
-    # An over-long quote is trimmed to its best sentences against the abstract, not rejected.
+    # Overlong model quotes can be repaired before a grounded span is saved.
     quote: str = Field(min_length=1, max_length=60000)
 
 
@@ -75,7 +79,7 @@ class EvidenceBatch(_DraftModel):
 
 class ParagraphPlan(ReviewModel):
     goal: str = Field(min_length=1, max_length=1200)
-    paper_ids: list[str] = Field(min_length=1, max_length=100)
+    paper_ids: list[str] = Field(min_length=1, max_length=MAX_REVIEW_PAPERS)
 
 
 # Most papers a generated paragraph plan may carry; a user's own outline is not limited by it.
@@ -88,6 +92,7 @@ class PaperExclusion(ReviewModel):
     reason: str = Field(min_length=1, max_length=400)
     # Set by the evidence check when the reason looks doubtful for this paper's evidence.
     questioned: bool = False
+    check_incomplete: bool = False
     check_reason: str = Field(default="", max_length=600)
 
 
@@ -98,7 +103,7 @@ class OutlineSection(ReviewModel):
     kind: Literal["theme", "overview", "conclusion"] = "theme"
     goal: str = Field(min_length=1, max_length=1500)
     comparisons: list[str] = Field(default_factory=list, max_length=8)
-    paper_ids: list[str] = Field(min_length=1, max_length=100)
+    paper_ids: list[str] = Field(min_length=1, max_length=MAX_REVIEW_PAPERS)
     paragraphs: list[ParagraphPlan] = Field(default_factory=list, max_length=12)
 
     @field_validator("id")
@@ -113,7 +118,7 @@ class ReviewOutline(ReviewModel):
     focus: str = Field(default="", max_length=2000)
     sections: list[OutlineSection] = Field(min_length=1, max_length=14)
     # Selected papers the outline leaves out on purpose, each with its reason.
-    excluded: list[PaperExclusion] = Field(default_factory=list, max_length=100)
+    excluded: list[PaperExclusion] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
 
     @model_validator(mode="after")
     def hierarchy(self) -> ReviewOutline:
@@ -148,7 +153,7 @@ class ReviewParagraph(ReviewModel):
 class SectionBody(ReviewModel):
     paragraphs: list[ReviewParagraph] = Field(min_length=1, max_length=40)
     # Planned papers this section does not cite, each with the writer's reason.
-    omitted: list[PaperExclusion] = Field(default_factory=list, max_length=100)
+    omitted: list[PaperExclusion] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
 
 
 class SupportFinding(ReviewModel):
@@ -165,7 +170,7 @@ class OmissionCheck(ReviewModel):
 
 class SupportCheck(ReviewModel):
     findings: list[SupportFinding] = Field(min_length=1, max_length=40)
-    omissions: list[OmissionCheck] = Field(default_factory=list, max_length=100)
+    omissions: list[OmissionCheck] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
 
 
 class ConsistencyFinding(ReviewModel):

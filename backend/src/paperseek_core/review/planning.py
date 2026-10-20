@@ -16,6 +16,7 @@ from paperseek_core.review.evidence import (
 from paperseek_core.review.models import (
     EvidenceBatch,
     EvidenceCard,
+    MAX_REVIEW_PAPERS,
     PLANNED_PAPERS_PER_PARAGRAPH,
     OutlineSection,
     PaperExclusion,
@@ -30,7 +31,7 @@ from paperseek_core.review.structured import ReviewOutputError, structured_call
 
 class _PlannedSection(OutlineSection):
     # Generated paragraphs are the source of truth; the UI still edits the full outline.
-    paper_ids: list[str] = Field(default_factory=list, max_length=100)
+    paper_ids: list[str] = Field(default_factory=list, max_length=MAX_REVIEW_PAPERS)
     # Models sometimes list a section's left-out papers inside it; they belong to the outline's list.
     excluded: SkipJsonSchema[list[PaperExclusion]] = Field(default_factory=list, exclude=True)
 
@@ -128,7 +129,7 @@ async def _extract_batch(llm: LLMPort, cancellation: CancellationToken,
             "最吻合的一到两句，绝不整段照抄摘要；宜为一句或一个短分句。相互分隔的观察放入不同的 evidence 条目，绝不拼接不连续的片段。"),
         {"language": language, "papers": [{"id": p.id, "title": p.title, "abstract": p.abstract} for p in papers]},
         EvidenceBatch, max_tokens=6500, language=language,
-        validate=lambda value: validate_cards(value, papers, signature),
+        validate=lambda value: validate_cards(value, papers, signature, allow_long_quote_fallback=False),
     )
 
 
@@ -251,7 +252,8 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
              "title": metadata[card.paper_id].title if card.paper_id in metadata else "",
              "year": metadata[card.paper_id].year if card.paper_id in metadata else None} for card in cards]},
         # Large corpora occasionally need a second repair, e.g. after an extra section.
-        schema, max_tokens=min(14000, 2000 + count * 1600), validate=validate, language=language, attempts=3,
+        schema, max_tokens=min(14000, max(2000 + count * 1600, 1000 + len(cards) * 60)),
+        validate=validate, language=language, attempts=3,
     )
     empty = {f"{section.id}:{i + 1}": (section, paragraph)
              for section in plan.sections for i, paragraph in enumerate(section.paragraphs) if not paragraph.paper_ids}
@@ -284,6 +286,7 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
         for section in plan.sections:
             section.paper_ids = list(dict.fromkeys(paper for paragraph in section.paragraphs for paper in paragraph.paper_ids))
     assigned = {paper for section in plan.sections for paper in section.paper_ids}
+    plan.excluded = [item for item in plan.excluded if item.paper_id not in assigned]
     excluded = {item.paper_id for item in plan.excluded}
     missing = [card for card in cards if card.evidence and card.paper_id not in assigned | excluded]
     if missing:

@@ -10,7 +10,7 @@ import { useUi } from "../../locales/ui";
 import { connectionById, connectionOptions, loadSettings, workspaceSettings } from "../settings/store";
 import SourceRunPicker from "../workspace/SourceRunPicker.vue";
 import { invalidateHistory, listPaths, setHeader } from "../workspace/state";
-import { reviewApi, type JobRequest, type Review } from "./api";
+import { MAX_REVIEW_PAPERS, reviewApi, type JobRequest, type Review } from "./api";
 
 type Paper = PaperResult & { uid: string };
 // A deployment may block starting, e.g. when its usage allowance is exhausted.
@@ -95,12 +95,12 @@ const sizeOptions = computed<SelectOption<SizeChoice>[]>(() => {
     { value: "custom", label: u("len_custom"), desc: `${bounds.min}–${bounds.max} ${sizeUnit.value}` },
   ];
 });
-const canContinue = computed(() => selected.size >= 2 && selected.size <= 100 && !loading.value);
-// Papers a review of this size can use well: about 2–4 per planned paragraph, within the 100-paper limit.
+const canContinue = computed(() => selected.size >= 2 && selected.size <= MAX_REVIEW_PAPERS && !loading.value);
+// Papers a review of this size can use well: about 2–4 per planned paragraph, within the corpus limit.
 const recommended = computed(() => {
   if (form.preset !== "custom" && !paragraphCount.value) return { short: [8, 20], standard: [20, 45], detailed: [40, 80] }[form.preset];
   const paragraphs = sectionCount.value * (paragraphCount.value ?? { short: 3, standard: 4, detailed: 6 }[lengthPreset.value]);
-  return [clamp(paragraphs * 2, 2, 100), clamp(paragraphs * 4, 2, 100)];
+  return [clamp(paragraphs * 2, 2, MAX_REVIEW_PAPERS), clamp(paragraphs * 4, 2, MAX_REVIEW_PAPERS)];
 });
 const suggesting = ref(false);
 const reasons = ref(new Map<string, string>());
@@ -177,10 +177,10 @@ function pickSearch(id: string, item: HistoryItem) {
 }
 function toggle(paper: Paper) {
   if (selected.has(paper.uid)) selected.delete(paper.uid);
-  else if (selected.size < 100) selected.set(paper.uid, paper);
+  else if (selected.size < MAX_REVIEW_PAPERS) selected.set(paper.uid, paper);
 }
 function selectWithAbstract() {
-  for (const paper of papers.value) if (abstract(paper) && selected.size < 100) selected.set(paper.uid, paper);
+  for (const paper of papers.value) if (abstract(paper) && selected.size < MAX_REVIEW_PAPERS) selected.set(paper.uid, paper);
 }
 function toggleAbstract(uid: string) {
   const next = new Set(openAbstracts.value);
@@ -364,7 +364,7 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
           <div class="ig"><Icon name="search" /><input v-model="query" type="search" :placeholder="u('searchPapers')" :aria-label="u('searchPapers')" /></div>
           <div class="pick" style="max-height: 360px; overflow-y: auto; scrollbar-gutter: stable" :aria-busy="loading">
             <div v-for="paper in papers" :key="paper.uid" class="paper-pick" :class="{ off: !abstract(paper) }">
-              <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="!!created || (!selected.has(paper.uid) && selected.size >= 100)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
+              <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="!!created || (!selected.has(paper.uid) && selected.size >= MAX_REVIEW_PAPERS)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
               <label v-else class="cb" style="margin-top: 2px; opacity: .5" :aria-label="u('noAbstractCannotSelect')"><input type="checkbox" disabled /><span class="box"></span></label>
               <div class="stack" style="min-width: 0"><span class="t sm medium">{{ paper.title }}</span><span class="xs muted">{{ [paper.authors?.slice(0, 3).join(", "), paper.year, paper.score != null ? `${paper.score}/10` : u("unscored")].filter(Boolean).join(" · ") }}</span><span v-if="selected.has(paper.uid) && reasons.get(paper.uid)" class="xs muted">{{ reasons.get(paper.uid) }}</span></div>
               <button v-if="abstract(paper)" class="btn btn-ghost btn-sm" type="button" style="height: 24px; padding: 0 6px" :aria-expanded="openAbstracts.has(paper.uid)" @click="toggleAbstract(paper.uid)">{{ u("abstract") }}</button>

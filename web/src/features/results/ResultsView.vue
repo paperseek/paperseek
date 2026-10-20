@@ -8,6 +8,7 @@ import UiMenu from "../../components/UiMenu.vue";
 import UiSelect, { type SelectOption } from "../../components/UiSelect.vue";
 import { useLocale } from "../../locales";
 import { useUi } from "../../locales/ui";
+import { MAX_REVIEW_PAPERS } from "../review/api";
 import RunSettingsDialog from "../search/RunSettingsDialog.vue";
 import RunToolbar from "../search/RunToolbar.vue";
 import { useSearchConfiguration } from "../search/use-search-configuration";
@@ -75,7 +76,7 @@ const hiddenSelected = computed(() => {
 const loadedSelected = computed(() => results.value.filter((paper) => selectedIds.value.has(paperId(paper))).length);
 const allLoaded = computed(() => results.value.length > 0 && loadedSelected.value === results.value.length);
 const completed = computed(() => ["completed", "completed_with_warnings"].includes(run.value?.status || ""));
-const canReview = computed(() => completed.value && selectedUids.value.length >= 2 && selectedUids.value.length <= 100);
+const canReview = computed(() => completed.value && selectedUids.value.length >= 2 && selectedUids.value.length <= MAX_REVIEW_PAPERS);
 
 const scoreOptions = computed<SelectOption<string>[]>(() => [
   { value: "all", label: u("scoreAll") },
