@@ -682,6 +682,48 @@ class ReviewPlanningTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(outline.sections[0].paper_ids), 10)
         self.assertEqual({item.paper_id for item in outline.excluded}, {"p_011", "p_012"})
 
+    async def test_a_placement_that_still_overfills_a_paragraph_leaves_the_extra_papers_out(self):
+        papers, cards = self.corpus(12)
+        original = self.llm.chat_json
+        attempts = []
+
+        async def crowded(messages, **kwargs):
+            if "TASK: outline_assign\n" in messages[0]["content"]:
+                attempts.append(1)
+                self.assertIn("Leave reason empty for a placement", messages[0]["content"])
+                return json.dumps({"p_011": {"target": "theme:1", "reason": ""},
+                                   "p_012": {"target": "exclude", "reason": "Background only."}})
+            result = json.loads(await original(messages, **kwargs))
+            result["excluded"] = []
+            return json.dumps(result)
+
+        self.llm.chat_json = crowded
+        outline = await self.outline_for(papers, cards, 1)
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(len(outline.sections[0].paragraphs[0].paper_ids), 10)
+        self.assertEqual({item.paper_id: item.reason for item in outline.excluded},
+                         {"p_011": "No fitting paragraph had room (at most 10 papers each).", "p_012": "Background only."})
+
+    async def test_exclusions_listed_inside_a_section_join_the_outline_list(self):
+        papers, cards = self.corpus(12)
+        original = self.llm.chat_json
+        prompts = []
+
+        async def nested(messages, **kwargs):
+            if "TASK: outline\n" in messages[0]["content"]:
+                prompts.append(messages[0]["content"])
+                result = json.loads(await original(messages, **kwargs))
+                result["sections"][0]["excluded"] = result.pop("excluded")
+                return json.dumps(result)
+            return await original(messages, **kwargs)
+
+        self.llm.chat_json = nested
+        outline = await self.outline_for(papers, cards, 1)
+        self.assertEqual(len(prompts), 1)
+        self.assertNotIn('"excluded"', json.dumps(outline.sections[0].model_dump()))
+        self.assertEqual({item.paper_id for item in outline.excluded}, {"p_011", "p_012"})
+        self.assertEqual(self.llm.calls["outline_assign"], 0)
+
     async def test_an_overloaded_paragraph_plan_is_asked_for_again(self):
         papers, cards = self.corpus(12)
         original = self.llm.chat_json

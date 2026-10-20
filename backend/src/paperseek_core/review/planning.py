@@ -5,6 +5,7 @@ import json
 from typing import Literal
 
 from pydantic import BaseModel, Field, create_model, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from paperseek_core.errors import LLMRequestError
 from paperseek_core.ports import CancellationToken, LLMPort
@@ -30,6 +31,8 @@ from paperseek_core.review.structured import ReviewOutputError, structured_call
 class _PlannedSection(OutlineSection):
     # Generated paragraphs are the source of truth; the UI still edits the full outline.
     paper_ids: list[str] = Field(default_factory=list, max_length=100)
+    # Models sometimes list a section's left-out papers inside it; they belong to the outline's list.
+    excluded: SkipJsonSchema[list[PaperExclusion]] = Field(default_factory=list, exclude=True)
 
     @model_validator(mode="after")
     def collect_papers(self) -> _PlannedSection:
@@ -152,6 +155,7 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
                 plan.paper_ids = [paper for paper in plan.paper_ids if paper in available]
             section.paper_ids = list(dict.fromkeys(paper for plan in section.paragraphs for paper in plan.paper_ids))
         planned = {paper for section in value.sections for paper in section.paper_ids}
+        value.excluded = [*value.excluded, *(item for section in value.sections for item in getattr(section, "excluded", []))]
         # An exclusion of a paper that is also planned, or not usable at all, is simply dropped.
         value.excluded = [item for item in {item.paper_id: item for item in value.excluded}.values()
                           if item.paper_id in available and item.paper_id not in planned]
@@ -169,7 +173,7 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
         '"parent_id":"","kind":"theme","goal":"what this section establishes",'
         '"comparisons":["concrete relationship to examine"],'
         '"paragraphs":[{"goal":"paragraph argument, comparison and its role in the progression",'
-        '"paper_ids":["p_001","p_002"]}]}]}. '
+        '"paper_ids":["p_001","p_002"]}]}],"excluded":[{"paper_id":"p_009","reason":"..."}]}. '
         "First compare the evidence records across papers, grouping related concepts, findings and study conditions. "
         "Select the most substantive contributions as the narrative spine; make their distinctive value explicit. "
         "Develop distinct themes that answer the research question; merge overlapping topics. A theme must have "
@@ -208,7 +212,7 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
         '"parent_id":"","kind":"theme","goal":"本节要确立的内容",'
         '"comparisons":["需要考察的具体关系"],'
         '"paragraphs":[{"goal":"本段的论点、比较及其在整体推进中的作用",'
-        '"paper_ids":["p_001","p_002"]}]}]}。'
+        '"paper_ids":["p_001","p_002"]}]}],"excluded":[{"paper_id":"p_009","reason":"..."}]}。'
         "先在论文之间比较证据记录，把相关的概念、发现和研究条件归组。"
         "选取最有实质意义的贡献作为叙述主线，并明确说明它们各自独特的价值。"
         "形成能够回答研究问题、彼此不同的主题，合并相互重叠的话题。每个主题都要有实质性的组织思想，不能只是一个关键词或一篇论文。"
@@ -290,7 +294,7 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
         assignment_schema = create_model("MissingPaperPlacements", __base__=ReviewModel,
                                          **{card.paper_id: (choice, ...) for card in missing})
 
-        def validate_placement(value: BaseModel) -> None:
+        def validate_placement(value: BaseModel, *, capacity: bool = True) -> None:
             added: dict[str, int] = {}
             unexplained = []
             for paper_id, placement in value.model_dump().items():
@@ -300,7 +304,7 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
                     continue
                 added[placement["target"]] = added.get(placement["target"], 0) + 1
             issues = []
-            if full := sorted(key for key, count in added.items() if count > room[key]):
+            if capacity and (full := sorted(key for key, count in added.items() if count > room[key])):
                 issues.append(f"These paragraphs would exceed {PLANNED_PAPERS_PER_PARAGRAPH} papers: {full}. "
                               "Place the extra papers elsewhere or exclude them with a reason.")
             if unexplained:
@@ -308,19 +312,21 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
             if issues:
                 raise ValueError(" ".join(issues))
 
-        placements = await structured_call(
+        call = structured_call(
             llm, cancellation, "outline_assign", _say(
                 language,
                 "Each supplied paper is not yet used by the outline. For each, either assign it to the existing paragraph "
                 "whose argument it genuinely strengthens, or exclude it with a short reason in the requested language "
                 "(for example off the research question, nearly duplicates another study, or no fitting paragraph has room). "
                 'Return a JSON object mapping each paper ID to {"target":"<target id or exclude>","reason":"..."}. '
+                "Leave reason empty for a placement; an exclusion reason is one short sentence. "
                 f"A paragraph may hold at most {PLANNED_PAPERS_PER_PARAGRAPH} papers; available_slots shows its free room. "
                 "Thematic fit matters more than using every paper; avoid concentrating sources in a final summary. "
                 "Do not rewrite goals or add paragraphs or sections.",
                 "提供的每篇论文尚未被大纲使用。逐篇判断：要么分配到其论点确实能被它加强的现有段落，要么用中文简要说明原因并排除"
                 "（例如偏离研究问题、与另一篇研究几乎重复、合适的段落已无名额）。"
                 '返回一个 JSON 对象，把每个论文编号映射为 {"target":"<目标编号或 exclude>","reason":"..."}。'
+                "分配到段落时 reason 留空；排除时用一句话简要说明。"
                 f"每段最多 {PLANNED_PAPERS_PER_PARAGRAPH} 篇，available_slots 是该段剩余的名额。"
                 "主题契合比用上每篇论文更重要；不要把文献集中到最后的总结中。不要改写目标，也不要增加段落或节。"),
             {"topic": topic, "focus": plan.focus,
@@ -329,13 +335,33 @@ async def prepare_outline(llm: LLMPort, cancellation: CancellationToken, *, topi
              "targets": [{"id": key, "section": section.title, "goal": paragraph.goal,
                           "paper_ids": paragraph.paper_ids, "available_slots": room[key]}
                          for key, (section, paragraph) in targets.items()]},
-            assignment_schema, max_tokens=max(1500, 120 * len(missing)), validate=validate_placement, language=language,
+            assignment_schema, max_tokens=min(14000, max(2000, 100 * len(missing))), validate=validate_placement,
+            language=language,
         )
+        try:
+            placements = await call
+        except ReviewOutputError as exc:
+            # A placement that still overfills a paragraph after its repair is otherwise sound:
+            # the extra papers go to the roomiest paragraph of the same section, or are left out.
+            if exc.result is None:
+                raise
+            try:
+                validate_placement(exc.result, capacity=False)
+            except ValueError:
+                raise exc from None
+            placements = exc.result
+        full = _say(language, f"No fitting paragraph had room (at most {PLANNED_PAPERS_PER_PARAGRAPH} papers each).",
+                    f"合适的段落已满（每段最多 {PLANNED_PAPERS_PER_PARAGRAPH} 篇）。")
         for paper_id, placement in placements.model_dump().items():
-            if placement["target"] == "exclude":
-                plan.excluded.append(PaperExclusion(paper_id=paper_id, reason=placement["reason"]))
-            else:
-                targets[placement["target"]][1].paper_ids.append(paper_id)
+            if placement["target"] != "exclude":
+                section, paragraph = targets[placement["target"]]
+                if len(paragraph.paper_ids) >= PLANNED_PAPERS_PER_PARAGRAPH:
+                    paragraph = min(section.paragraphs, key=lambda item: len(item.paper_ids))
+                if len(paragraph.paper_ids) < PLANNED_PAPERS_PER_PARAGRAPH:
+                    paragraph.paper_ids.append(paper_id)
+                    continue
+                placement["reason"] = full
+            plan.excluded.append(PaperExclusion(paper_id=paper_id, reason=placement["reason"]))
         for section in plan.sections:
             section.paper_ids = list(dict.fromkeys(paper for paragraph in section.paragraphs for paper in paragraph.paper_ids))
     validate_outline(plan, cards)
