@@ -2,7 +2,7 @@ name: paperseek
 
 services:
   paperseek:
-    image: ghcr.io/paperseek/paperseek:${PAPERSEEK_VERSION:-1.0.0-beta3}
+    image: ghcr.io/paperseek/paperseek:${PAPERSEEK_VERSION:-1.0.0-beta4}
     command: ["serve", "--database", "/var/lib/paperseek/paperseek.db", "--host", "0.0.0.0", "--port", "8765"]
     ports:
       - "${PAPERSEEK_HOST:-127.0.0.1}:${PAPERSEEK_PORT:-8765}:8765"

@@ -64,7 +64,7 @@ class RunStatus(str, Enum):
 
 class RunVersions(AppModel):
     workflow_version: str = "m2.research-workflow.v2"
-    engine_version: str = "1.0.0b3"
+    engine_version: str = "1.0.0b4"
     prompt_version: str = "m2.search-history.v2"
     config_schema_version: int = 1
     artifact_schema_version: int = 1

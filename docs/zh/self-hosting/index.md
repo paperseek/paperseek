@@ -9,7 +9,7 @@
 需要 **Python 3.12 或更新版本**。发行包自带已构建的网页，只有开发前端时才需要 Node.js。
 
 ```sh
-python -m pip install "paperseek==1.0.0b3"
+python -m pip install "paperseek==1.0.0b4"
 paperseek serve
 ```
 
@@ -34,12 +34,12 @@ paperseek serve
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta3 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta4 docker compose up -d
 ```
 
-PowerShell 中将 `cp` 换成 `Copy-Item`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta3"; docker compose up -d`。启动前编辑 `.env`，填写需要的默认配置。
+PowerShell 中将 `cp` 换成 `Copy-Item`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta4"; docker compose up -d`。启动前编辑 `.env`，填写需要的默认配置。
 
-Compose 默认只发布 **127.0.0.1:8765**；`PAPERSEEK_PORT` 修改宿主机端口，容器内部固定为 8765。服务端口为 **8765**，数据存入 `paperseek-data` 命名卷。以上命令显式固定为 `1.0.0-beta3`，随附的 Compose 与 `.env.example` 也使用此默认版本。预发布不会更新 `latest`；升级时请明确调整 `PAPERSEEK_VERSION`。
+Compose 默认只发布 **127.0.0.1:8765**；`PAPERSEEK_PORT` 修改宿主机端口，容器内部固定为 8765。服务端口为 **8765**，数据存入 `paperseek-data` 命名卷。以上命令显式固定为 `1.0.0-beta4`，随附的 Compose 与 `.env.example` 也使用此默认版本。预发布不会更新 `latest`；升级时请明确调整 `PAPERSEEK_VERSION`。
 
 ```sh
 docker compose logs -f paperseek

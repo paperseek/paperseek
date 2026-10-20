@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paperseek"
-version = "1.0.0b3"
+version = "1.0.0b4"
 description = "PaperSeek Community backend"
 readme = "README.md"
 requires-python = ">=3.12"

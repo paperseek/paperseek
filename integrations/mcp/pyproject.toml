@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paperseek-mcp"
-version = "1.0.0b3"
+version = "1.0.0b4"
 description = "Model Context Protocol integration for PaperSeek"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -28,7 +28,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp==2.0.0",
-    "paperseek==1.0.0b3",
+    "paperseek==1.0.0b4",
 ]
 
 [project.urls]

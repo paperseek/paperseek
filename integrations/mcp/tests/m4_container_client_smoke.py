@@ -42,7 +42,7 @@ async def _expect_rejected(url: str, headers: dict[str, str], label: str) -> Non
             async with streamable_http_client(url, http_client=client) as streams:
                 async with ClientSession(
                     *streams,
-                    client_info=Implementation(name="paperseek-container-gate", version="1.0.0b3"),
+                    client_info=Implementation(name="paperseek-container-gate", version="1.0.0b4"),
                 ) as session:
                     await session.initialize()
     except Exception:
@@ -80,12 +80,12 @@ async def run(url: str, token: str, origin: str, host: str, run_id: str | None) 
         async with streamable_http_client(url, http_client=client) as streams:
             async with ClientSession(
                 *streams,
-                client_info=Implementation(name="paperseek-container-gate", version="1.0.0b3"),
+                client_info=Implementation(name="paperseek-container-gate", version="1.0.0b4"),
             ) as session:
                 initialized = await session.initialize()
                 if initialized.server_info.name != "paperseek":
                     raise AssertionError(initialized.server_info)
-                if initialized.server_info.version != "1.0.0b3":
+                if initialized.server_info.version != "1.0.0b4":
                     raise AssertionError(initialized.server_info)
                 tools = await session.list_tools()
                 names = [tool.name for tool in tools.tools]

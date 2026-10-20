@@ -9,7 +9,7 @@
   <p>开源文献检索、初步文献计量与基于摘要的文献综述。</p>
   <p>
     <a href="LICENSE"><img alt="Apache 2.0 许可" src="https://img.shields.io/badge/license-Apache%202.0-171717?style=flat-square"></a>
-    <img alt="版本 1.0.0-beta3" src="https://img.shields.io/badge/version-1.0.0--beta3-171717?style=flat-square">
+    <img alt="版本 1.0.0-beta4" src="https://img.shields.io/badge/version-1.0.0--beta4-171717?style=flat-square">
     <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-171717?style=flat-square">
     <img alt="Vue 3" src="https://img.shields.io/badge/frontend-Vue%203-171717?style=flat-square">
     <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek"><img alt="在魔搭体验" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.paperseek.app%2Fbadges%2Fmodelscope.json&style=flat-square"></a>
@@ -28,7 +28,7 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 ## 目录
 
 - [为什么使用 PaperSeek](#为什么使用-paperseek)
-- [1.0 的变化](#10-的变化)
+- [1.0.0-beta 的变化](#100-beta-的变化)
 - [工作流程](#工作流程)
 - [数据源](#数据源)
 - [快速开始](#快速开始)
@@ -53,44 +53,19 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 
 **自然衔接下一步。** 筛选、选择和导出文献，重新打开历史，或将一组摘要证据整理为实验性综述项目。
 
-## 1.0 的变化
+## 1.0.0-beta 的变化
 
-1.0 系列围绕持久化任务和共享核心重建了 PaperSeek。1.0 之前的版本见[完整更新日志](https://docs.paperseek.app/zh/changelog)。
+1.0 系列围绕持久化任务和共享核心完整重构了 PaperSeek。1.0 之前的版本见[完整更新日志](https://docs.paperseek.app/zh/changelog)。
 
-### 1.0.0-beta3
+- **统一工作区**：文献检索、文献计量、文献综述位于可折叠侧栏，各自保留历史；模型、数据源和通用偏好集中在设置页。
+- **持久任务**：数据库管理的任务支持恢复、取消和结果保存；最多同时运行 4 个检索和综述任务（`PAPERSEEK_MAX_CONCURRENT_RUNS`）。
+- **检索紧扣问题**：零结果检索最多再尝试两次，每次都先与你的问题核对；打分和排序理由并行生成，分别显示进度。
+- **数据源更稳**：节流在所有运行中的任务之间共享，能正确识别限流，并可让模型或指定数据源通过你自己的网络代理。
+- **初步文献计量**：基于实际获取的完整去重候选集，提供分布、关键词共现、文献耦合与导出。
+- **可核查的综述**：先设定范围，再选择最多 256 篇文献或按主题自动挑选；大纲和正文没有用上的文献会说明理由。引用可追溯到摘要证据，支持 Markdown、Word、BibTeX 导出。
+- **同一核心**：社区版、在线版、CLI、版本化 `/api/v1` 接口和同版本匹配的 `paperseek-mcp` 共用同一套实现。
 
-- **零结果检索**：最多再尝试两次，每次都先与你的问题核对；仍然没有结果时会说明原因，不会删掉必需条件。
-- **数据源**：节流在所有运行中的任务之间共享；PubMed 限流会被正确识别为限流；Web of Science 可以重新选择。
-- **网络代理**：在“设置 › 数据源”中可让大模型请求、按网络地址限速的数据源或其他数据源通过你自己的代理发送。
-- **多任务同时运行**：最多同时运行 4 个检索和综述任务（`PAPERSEEK_MAX_CONCURRENT_RUNS`）。
-
-可从更早的 1.0 测试版原地升级。详见[更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta3)和[升级步骤](https://docs.paperseek.app/zh/self-hosting/upgrade#from-an-earlier-1-0-beta)。
-
-### 1.0.0-beta2
-
-- **文献综述**：少数论文缺少可用证据时不再整体失败，这些论文会被排除并标出，其余部分继续。
-- **检索排序**：保留模型已给出的评分，只为缺少评分的文献重新请求；较长的“排序理由”不再被截断。
-- **历史记录**：排队中和运行中的检索会显示在历史里，刷新页面后依然可见。
-- **Docker Compose**：默认只对本机开放；如需从其他设备访问，设置 `PAPERSEEK_HOST=0.0.0.0`。
-
-详见[更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta2)。
-
-### 1.0.0-beta1
-
-**一次包含不兼容变更的完整架构重构。** 运行时、前端、持久化和集成统一为按职责划分、支持持久任务执行的模块化应用。
-
-- 文献检索、文献计量、文献综述位于可折叠侧栏，各自保留历史；模型、数据源和通用偏好集中在设置页。
-- 对实际获取的完整去重候选集做初步计量：年份与来源分布、关键词共现、文献耦合、数据覆盖率与独立导出；LLM 仍只评分原子集。
-- 分离检索核心、应用服务与部署适配，社区版、在线版、CLI、HTTP 和 MCP 共用业务实现。
-- 数据库管理的本地任务，支持 worker 租约、检查点恢复、取消、历史与结果产物。
-- 版本化 `/api/v1` 接口与自动生成的前端类型。
-- 检索式历史反馈、有边界的候选选择及多种初排序方式。
-- 可编辑大纲、分节写作、版本和引用导出的实验性综述。
-- 独立且同版本匹配的 `paperseek-mcp`，以及 Agent 使用 Skill。
-
-架构变化详见[完整更新日志](https://docs.paperseek.app/zh/changelog#v1-0-0-beta)。从 0.2 升级需要 Python 3.12+，请先阅读[迁移指南](https://docs.paperseek.app/zh/self-hosting/upgrade)：用户数据有明确迁移路径，旧内部导入、前端接口及废弃命令／配置不再保留。
-
-新功能说明见[工作区与历史](https://docs.paperseek.app/zh/guide/workspace)及[文献计量](https://docs.paperseek.app/zh/guide/bibliometrics)。
+更早的 1.0 测试版可原地升级，无需迁移。从 0.2 升级需要 Python 3.12+，请先阅读[迁移指南](https://docs.paperseek.app/zh/self-hosting/upgrade)：用户数据有明确迁移路径，旧内部导入、前端接口及废弃命令／配置不再保留。各测试版的详细变化见[更新日志](https://docs.paperseek.app/zh/changelog)。
 
 ## 工作流程
 
@@ -131,7 +106,7 @@ OpenAlex 与 Serper 支持多 Key 轮询。元数据覆盖与领域筛选能力�
 需要 **Python 3.12+**，发行包自带已构建的网页。
 
 ```sh
-python -m pip install "paperseek==1.0.0b3"
+python -m pip install "paperseek==1.0.0b4"
 paperseek serve
 ```
 
@@ -143,10 +118,10 @@ paperseek serve
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta3 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta4 docker compose up -d
 ```
 
-启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta3"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta3`。
+启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta4"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta4`。
 
 ### ModelScope 创空间
 
@@ -232,7 +207,7 @@ paperseek search "How does open-source funding affect maintenance?" --source ope
 ### Model Context Protocol
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b3"
+python -m pip install "paperseek-mcp==1.0.0b4"
 paperseek-mcp --transport stdio
 ```
 

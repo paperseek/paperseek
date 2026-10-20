@@ -55,7 +55,7 @@ Restricting a field can exclude interdisciplinary work. Start without it unless 
 
 Records can lack abstracts, years, citation counts, or open PDF links. Missing metadata is not a quality judgment.
 
-Version 1.0.0-beta3 has no separate cross-source abstract-filling or citation-count enrichment switch. Choose informative abstracts for review writing.
+Version 1.0.0-beta4 has no separate cross-source abstract-filling or citation-count enrichment switch. Choose informative abstracts for review writing.
 
 ## Multiple keys
 

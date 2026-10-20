@@ -4,19 +4,32 @@ outline: 2
 
 # Changelog
 
-Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta3.
+Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta4.
 
-## Unreleased
+## 1.0.0-beta4 {#v1-0-0-beta4}
 
-These changes are under development and are not included in the published 1.0.0-beta3 package.
+Reviews start from your scope, can pick papers by topic, and say which papers they leave out and why. Ranking runs in parallel with separate progress for scores and reasons. It upgrades earlier 1.0 betas in place, without a migration.
 
-- Review setup now comes before paper selection. Choose chapter count, paragraphs per chapter, and paragraph length in the output language's unit.
-- **Auto-select by topic** considers the first 256 papers with usable abstracts in search-rank order and explains its choices. Manual selection accepts up to 256 papers from the whole search.
-- Each generated paragraph plan uses at most 10 papers. Papers the outline leaves out are listed with a reason, and the writer may skip a planned paper only with a reason, which the evidence check reviews.
-- Citations a paragraph cannot place beside a specific claim are listed under it, also in Markdown and Word exports. Internal evidence IDs no longer appear in the text, and one failed section no longer stops the other sections.
+### Reviews
+
+- Setup now comes before paper selection. Choose chapter count, paragraphs per chapter, and paragraph length in the output language's unit; each length suggests how many papers to select.
+- **Auto-select by topic** considers the first 256 papers with usable abstracts in search-rank order, picks papers that cover distinct themes, and gives a reason for each. It creates nothing and does not count as a writing task.
+- A review can use up to 256 papers, selected manually from the whole search.
+- Each generated paragraph plan uses at most 10 papers. Papers the outline leaves out are listed with a reason; add one to a chapter to bring it back.
+- While writing, a planned paper may be skipped only with a reason. The evidence check reviews each reason, marks doubtful ones, and marks a reason it could not check for manual review.
+- Citations a paragraph cannot place beside a specific claim are listed under it, also in Markdown and Word exports. Internal evidence IDs no longer appear in the text.
+- One failed section no longer stops the other sections; a retry writes only what is missing or needs revision.
+- Evidence quotations keep the abstract's wording and language and are shortened only when a shorter supporting passage can be found reliably.
+
+### Search ranking
+
+- Scoring and the "Why it ranks" explanations run in parallel batches, with separate progress for each part.
+- With your own key, the provider may receive several requests at once; its rate limits still apply.
+
+### Upgrade notes
+
+- From an earlier 1.0 beta, install 1.0.0b4 with pip or set `PAPERSEEK_VERSION=1.0.0-beta4` for Docker; your data needs no migration. See [upgrading from an earlier 1.0 beta](self-hosting/upgrade.md#from-an-earlier-1-0-beta).
 - Reviews that have no written sections yet extract evidence again the next time you generate the outline. Reviews with written sections keep their evidence.
-- Outline exclusions stay consistent with assigned papers. Evidence quotations preserve supporting source passages across languages, and incomplete omission checks are clearly marked.
-- Ranking and review evidence extraction can process batches in parallel. With your own key, the provider may receive several requests at once; its rate limits still apply.
 
 See [Literature reviews](guide/reviews.md) for the workflow and limits.
 
