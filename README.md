@@ -33,7 +33,7 @@ Run the Community edition on your own machine or server, or use [PaperSeek onlin
 ## Contents
 
 - [Why PaperSeek](#why-paperseek)
-- [What’s new in 1.0](#whats-new-in-10)
+- [What’s new in 1.0.0-beta](#whats-new-in-100-beta)
 - [How it works](#how-it-works)
 - [Data sources](#data-sources)
 - [Quick start](#quick-start)
@@ -58,51 +58,19 @@ Run the Community edition on your own machine or server, or use [PaperSeek onlin
 
 **Keep the next step close.** Filter and select papers, export complete results, reopen history, or turn a selected evidence set into an experimental review project.
 
-## What’s new in 1.0
+## What’s new in 1.0.0-beta
 
-The 1.0 line rebuilds PaperSeek around durable tasks and a shared core. Releases before 1.0 are in the [full changelog](https://docs.paperseek.app/changelog).
+The 1.0 line is a complete architectural refactor around durable tasks and a shared core. Releases before 1.0 are in the [full changelog](https://docs.paperseek.app/changelog).
 
-### 1.0.0-beta4
+- **One workspace:** Search, Bibliometrics, and Reviews in a collapsible sidebar, each with its own history; models, sources, and preferences in Settings.
+- **Durable tasks:** database-backed runs with recovery, cancellation, and saved results; up to four searches and reviews run side by side (`PAPERSEEK_MAX_CONCURRENT_RUNS`).
+- **Search that holds your question:** empty searches get up to two more queries checked against your question; scoring and “Why it ranks” run in parallel with separate progress.
+- **Reliable data sources:** pacing is shared across every running task, rate limits are recognized, and an optional network proxy covers models or selected sources.
+- **Preliminary bibliometrics** over the full retrieved, deduplicated corpus: distributions, keyword co-occurrence, bibliographic coupling, and exports.
+- **Reviews you can check:** set the scope first, select up to 256 papers or auto-select them by topic, and see which papers the outline or draft leaves out and why. Citations link to their abstract evidence, and exports cover Markdown, Word, and BibTeX.
+- **One core everywhere:** Community, PaperSeek online, CLI, versioned `/api/v1`, and a version-matched `paperseek-mcp` share the same implementation.
 
-- **Reviews start from your scope:** set chapters and length first, then select papers, with a suggested count for each length and **Auto-select by topic**.
-- **Reviews explain what they leave out:** papers the outline or the writer does not use are listed with a reason, and the evidence check marks doubtful reasons.
-- **Clearer citations:** citations that cannot be placed beside a claim are listed under the paragraph, and one failed section no longer stops the rest.
-- **Faster ranking:** scores and explanations run in parallel, with separate progress.
-
-It upgrades earlier 1.0 betas in place. See the [changelog](https://docs.paperseek.app/changelog#v1-0-0-beta4) and the [upgrade steps](https://docs.paperseek.app/self-hosting/upgrade#from-an-earlier-1-0-beta).
-
-### 1.0.0-beta3
-
-- **Empty searches** get up to two more queries, each checked against your question first; if nothing turns up, the search tells you why instead of dropping required conditions.
-- **Data sources** are paced across every running task, PubMed rate limits are recognized as rate limits, and Web of Science is selectable again.
-- **Network proxy** in Settings › Data sources sends model requests, sources that limit by network address, or other sources through your own proxy.
-- **Several tasks at once:** up to four searches and reviews run side by side (`PAPERSEEK_MAX_CONCURRENT_RUNS`).
-
-It upgrades earlier 1.0 betas in place. See the [changelog](https://docs.paperseek.app/changelog#v1-0-0-beta3) and the [upgrade steps](https://docs.paperseek.app/self-hosting/upgrade#from-an-earlier-1-0-beta).
-
-### 1.0.0-beta2
-
-- **Reviews** no longer fail because a few papers lack usable evidence: those papers are left out and marked, and the review continues.
-- **Search ranking** keeps the scores a model did give and asks again only for the missing papers; long “Why it ranks” explanations are no longer cut off.
-- **History** shows queued and running searches, also after you reload the page.
-- **Docker Compose** publishes PaperSeek on this machine only by default; set `PAPERSEEK_HOST=0.0.0.0` to reach it from other devices.
-
-See the [changelog](https://docs.paperseek.app/changelog#v1-0-0-beta2).
-
-### 1.0.0-beta1
-
-**A complete architectural refactor with breaking changes.** The runtime, frontend, persistence, and integrations now form a modular application with durable task execution.
-
-- Search, Bibliometrics, and Reviews in a collapsible sidebar, each with its own history; models, sources, and preferences in Settings.
-- Preliminary bibliometrics over the full retrieved deduplicated candidate corpus: distributions, keyword co-occurrence, bibliographic coupling, field coverage, and independent exports. LLM scoring remains a subset.
-- Separate research core, application services, and deployment adapters, shared across Community, PaperSeek online, CLI, HTTP, and MCP.
-- Database-backed local runs with worker leases, checkpoint recovery, cancellation, saved history, and result artifacts.
-- Versioned `/api/v1` endpoints and generated frontend types.
-- Query-history feedback, bounded candidate selection, and multiple preliminary-ranking paths.
-- Experimental reviews with editable outlines, section writing, versions, and cited exports.
-- Independent, version-matched `paperseek-mcp` packaging and an agent usage skill.
-
-Upgrading from 0.2 requires Python 3.12+ and the [migration guide](https://docs.paperseek.app/self-hosting/upgrade): user data has a migration path, while old internal imports, frontend endpoints, and retired commands/configuration are not retained. See the [changelog](https://docs.paperseek.app/changelog#v1-0-0-beta), [workspace and history](https://docs.paperseek.app/guide/workspace), and [bibliometrics](https://docs.paperseek.app/guide/bibliometrics).
+Earlier 1.0 betas upgrade in place without a migration. Upgrading from 0.2 requires Python 3.12+ and the [migration guide](https://docs.paperseek.app/self-hosting/upgrade): user data has a migration path, while old internal imports, frontend endpoints, and retired commands/configuration are not retained. See the [changelog](https://docs.paperseek.app/changelog) for each beta.
 
 ## How it works
 
