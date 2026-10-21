@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api, ApiError } from "../../api/client";
-import type { HistoryItem, PaperResult } from "../../api/types";
+import type { HistoryItem } from "../../api/types";
+import AppDialog from "../../components/AppDialog.vue";
 import Icon from "../../components/Icon.vue";
 import UiSelect, { type SelectOption } from "../../components/UiSelect.vue";
 import { useLocale } from "../../locales";
@@ -10,58 +11,40 @@ import { useUi } from "../../locales/ui";
 import { connectionById, connectionOptions, loadSettings, workspaceSettings } from "../settings/store";
 import SourceRunPicker from "../workspace/SourceRunPicker.vue";
 import { invalidateHistory, listPaths, setHeader } from "../workspace/state";
-import { MAX_REVIEW_PAPERS, reviewApi, type JobRequest, type Review } from "./api";
+import { MAX_REVIEW_PAPERS, reviewApi, type JobRequest } from "./api";
+import { abstract, cancelReviewSelection, initializeReviewDraft, resetReviewDraft, reviewDraft, selectReviewPapers, usable, type DraftPaper as Paper, type SizeChoice } from "./review-draft";
 
-type Paper = PaperResult & { uid: string };
 // A deployment may block starting, e.g. when its usage allowance is exhausted.
 const props = withDefaults(defineProps<{ submissionEnabled?: boolean }>(), { submissionEnabled: true });
 const route = useRoute();
 const router = useRouter();
 const { t, runMessage, language } = useLocale();
 const u = useUi();
-const step = ref<1 | 2 | 3>(1);
-const source = ref<{ id: string; title: string; count: number } | null>(null);
-const papers = ref<Paper[]>([]);
-const selected = reactive(new Map<string, Paper>());
-const cursor = ref<string | null>(null);
-const query = ref("");
+initializeReviewDraft(language.value);
+const { step, source, papers, cursor, query, busy, error, created, loadedFor, moreOpen, suggesting, reasons } = toRefs(reviewDraft);
+const { form, selected } = reviewDraft;
 const loading = ref(false);
-const busy = ref(false);
-const error = ref("");
 const openAbstracts = ref(new Set<string>());
-type SizeChoice = "auto" | "brief" | "rich" | "custom";
-const form = reactive({
-  topic: "", language: language.value as "zh" | "en", preset: "standard" as "short" | "standard" | "detailed" | "custom", custom: 4,
-  paragraphs: "auto" as SizeChoice, paragraphsCustom: 4, size: "auto" as SizeChoice, sizeCustom: language.value === "zh" ? 300 : 150, connection: "",
-});
-const created = ref<Review | null>(null);
-const loadedFor = ref("");
+const discardOpen = ref(false);
 let controller: AbortController | null = null;
 let generation = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
-let createKey = "";
-let createSignature = "";
-let jobKey = "";
-let jobSignature = "";
 let alive = true;
 
 watchEffect(() => setHeader(u("newReview"), { label: u("reviews"), to: listPaths.reviews }));
 onMounted(async () => {
+  const revision = reviewDraft.revision;
   await loadSettings();
-  if (!form.connection) form.connection = workspaceSettings.defaults?.review_llm || "";
+  if (alive && revision === reviewDraft.revision && !form.connection) form.connection = workspaceSettings.defaults?.review_llm || "";
 });
 onBeforeUnmount(() => {
   alive = false;
   generation++;
   controller?.abort();
   clearTimeout(timer);
+  if (created.value && !busy.value) resetReviewDraft();
 });
 
-function abstract(paper: PaperResult) {
-  const text = (new DOMParser().parseFromString(paper.abstract || "", "text/html").body.textContent || "").replace(/\s+/g, " ").trim();
-  return /^(?:n\/?a|none|null|no abstract(?: available)?|abstract not available|how to cite|暂无摘要|无摘要|摘要缺失)?[ .。:：]*$/i.test(text) ? "" : text;
-}
-const usable = (items: PaperResult[] = []) => items.filter((paper): paper is Paper => Boolean(paper.uid));
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, Math.round(value || low)));
 const sectionCount = computed(() => (form.preset === "custom" ? clamp(form.custom, 1, 14) : { short: 1, standard: 3, detailed: 6 }[form.preset]));
 const lengthPreset = computed(() => (sectionCount.value <= 1 ? "short" : sectionCount.value <= 3 ? "standard" : "detailed") as "short" | "standard" | "detailed");
@@ -75,8 +58,7 @@ const paragraphLength = computed(() => {
 watch(() => form.language, (next, previous) => {
   // Keep a custom length comparable when the unit switches between characters and words.
   if (next !== previous) form.sizeCustom = clamp(next === "en" ? form.sizeCustom / 2 : form.sizeCustom * 2, sizeBounds.value.min, sizeBounds.value.max);
-});
-const moreOpen = ref(false);
+}, { flush: "sync" });
 const moreChanged = computed(() => Number(form.paragraphs !== "auto") + Number(form.size !== "auto"));
 const paragraphOptions = computed<SelectOption<SizeChoice>[]>(() => [
   { value: "auto", label: u("len_auto"), hint: u("recommended"), desc: u("autoParagraphs", { range: { short: "2–3", standard: "3–5", detailed: "5–7" }[lengthPreset.value] }) },
@@ -95,15 +77,17 @@ const sizeOptions = computed<SelectOption<SizeChoice>[]>(() => {
     { value: "custom", label: u("len_custom"), desc: `${bounds.min}–${bounds.max} ${sizeUnit.value}` },
   ];
 });
-const canContinue = computed(() => selected.size >= 2 && selected.size <= MAX_REVIEW_PAPERS && !loading.value);
+const canContinue = computed(() => selected.size >= 2 && selected.size <= MAX_REVIEW_PAPERS && !loading.value && !suggesting.value);
+// Keep selected records from later pages visible when returning to this draft.
+const visiblePapers = computed(() => query.value.trim() ? papers.value : [
+  ...papers.value, ...[...selected.values()].filter(paper => !papers.value.some(item => item.uid === paper.uid)),
+]);
 // Papers a review of this size can use well: about 2–4 per planned paragraph, within the corpus limit.
 const recommended = computed(() => {
   if (form.preset !== "custom" && !paragraphCount.value) return { short: [8, 20], standard: [20, 45], detailed: [40, 80] }[form.preset];
   const paragraphs = sectionCount.value * (paragraphCount.value ?? { short: 3, standard: 4, detailed: 6 }[lengthPreset.value]);
   return [clamp(paragraphs * 2, 2, MAX_REVIEW_PAPERS), clamp(paragraphs * 4, 2, MAX_REVIEW_PAPERS)];
 });
-const suggesting = ref(false);
-const reasons = ref(new Map<string, string>());
 const connectionOk = computed(() => Boolean(connectionById(form.connection)));
 watch(() => workspaceSettings.connections, () => {
   if (workspaceSettings.loaded && !connectionById(form.connection)) form.connection = workspaceSettings.defaults?.review_llm || "";
@@ -116,10 +100,13 @@ function report(e: unknown) {
 }
 
 async function choose(id: string, restore: string[] = []) {
+  cancelReviewSelection();
+  const revision = ++reviewDraft.revision;
   const own = ++generation;
   controller?.abort();
   controller = new AbortController();
   loading.value = true;
+  loadedFor.value = "";
   error.value = "";
   papers.value = [];
   selected.clear();
@@ -127,30 +114,32 @@ async function choose(id: string, restore: string[] = []) {
   query.value = "";
   try {
     const detail = await api.run(id, controller.signal);
-    if (own !== generation) return;
+    if (own !== generation || revision !== reviewDraft.revision) return;
     if (!["completed", "completed_with_warnings"].includes(detail.status)) throw new ApiError(422, "review_source_not_completed");
     source.value = { id, title: detail.display_title || detail.question, count: detail.result_count ?? 0 };
-    loadedFor.value = id;
     form.topic = detail.question;
     reasons.value = new Map();
     step.value = 2;
     let next: string | undefined;
     do {
       const page = await api.resultPage(id, { cursor: next }, controller.signal);
-      if (own !== generation) return;
+      if (own !== generation || revision !== reviewDraft.revision) return;
       papers.value.push(...usable(page.results));
       for (const paper of usable(page.results)) if (restore.includes(paper.uid) && abstract(paper)) selected.set(paper.uid, paper);
       cursor.value = page.next_cursor ?? null;
       next = cursor.value || undefined;
     } while (restore.length && selected.size < restore.length && next);
+    loadedFor.value = id;
+    if (route.query.source === id) await router.replace("/reviews/new");
   } catch (e) {
-    if (own === generation && !controller.signal.aborted) report(e);
+    if (own === generation && revision === reviewDraft.revision && !controller.signal.aborted) report(e);
   } finally {
     if (own === generation) loading.value = false;
   }
 }
 async function loadPapers(more = false) {
   if (!source.value) return;
+  const revision = reviewDraft.revision;
   const own = ++generation;
   controller?.abort();
   controller = new AbortController();
@@ -158,11 +147,11 @@ async function loadPapers(more = false) {
   error.value = "";
   try {
     const page = await api.resultPage(source.value.id, { query: query.value.trim(), cursor: more ? cursor.value || undefined : undefined }, controller.signal);
-    if (own !== generation) return;
+    if (own !== generation || revision !== reviewDraft.revision) return;
     papers.value = more ? [...papers.value, ...usable(page.results)] : usable(page.results);
     cursor.value = page.next_cursor ?? null;
   } catch (e) {
-    if (own === generation && !controller.signal.aborted) report(e);
+    if (own === generation && revision === reviewDraft.revision && !controller.signal.aborted) report(e);
   } finally {
     if (own === generation) loading.value = false;
   }
@@ -173,6 +162,7 @@ watch(query, () => {
   timer = setTimeout(() => void loadPapers(), 200);
 });
 function pickSearch(id: string, item: HistoryItem) {
+  if (source.value?.id !== id) cancelReviewSelection();
   source.value = { id, title: item.display_title || item.question, count: item.result_count };
 }
 function toggle(paper: Paper) {
@@ -196,38 +186,23 @@ async function next() {
 }
 async function autoSelect() {
   if (!source.value || suggesting.value || !form.topic.trim() || !connectionOk.value) return;
-  const id = source.value.id;
-  suggesting.value = true;
-  error.value = "";
-  try {
-    const [low, high] = recommended.value;
-    const { items } = await reviewApi.suggest({ source_run_id: id, topic: form.topic.trim(), language: form.language,
-      count: Math.round((low + high) / 2), connection_id: form.connection });
-    // Picks can come from any page of the search, so collect their records before selecting them.
-    const wanted = new Set(items.map((item) => item.uid));
-    const found = new Map(papers.value.filter((paper) => wanted.has(paper.uid)).map((paper) => [paper.uid, paper]));
-    let next: string | undefined;
-    while (found.size < wanted.size) {
-      const page = await api.resultPage(id, { cursor: next });
-      for (const paper of usable(page.results)) if (wanted.has(paper.uid)) found.set(paper.uid, paper);
-      next = page.next_cursor || undefined;
-      if (!next) break;
-    }
-    if (!alive || source.value?.id !== id) return;
-    selected.clear();
-    for (const item of items) {
-      const paper = found.get(item.uid);
-      if (paper && abstract(paper)) selected.set(item.uid, paper);
-    }
-    reasons.value = new Map(items.filter((item) => item.reason).map((item) => [item.uid, [item.theme, item.reason].filter(Boolean).join(" · ")]));
-  } catch (e) {
-    report(e);
-  } finally {
-    suggesting.value = false;
-  }
+  const [low, high] = recommended.value;
+  await selectReviewPapers(Math.round((low + high) / 2));
+}
+async function discard() {
+  generation++;
+  controller?.abort();
+  clearTimeout(timer);
+  loading.value = false;
+  resetReviewDraft();
+  initializeReviewDraft(language.value);
+  form.connection = workspaceSettings.defaults?.review_llm || "";
+  discardOpen.value = false;
+  await router.replace("/reviews/new");
 }
 async function prepare() {
   if (!props.submissionEnabled || busy.value || !source.value || !canContinue.value || !form.topic.trim() || !connectionOk.value) return;
+  const revision = reviewDraft.revision;
   busy.value = true;
   error.value = "";
   try {
@@ -240,31 +215,47 @@ async function prepare() {
         ...(paragraphLength.value ? { paragraph_length: paragraphLength.value } : {}),
       };
       const signature = JSON.stringify(data);
-      if (signature !== createSignature) {
-        createSignature = signature;
-        createKey = crypto.randomUUID();
+      if (signature !== reviewDraft.createSignature) {
+        reviewDraft.createSignature = signature;
+        reviewDraft.createKey = crypto.randomUUID();
       }
-      created.value = await reviewApi.create(data, createKey);
+      const result = await reviewApi.create(data, reviewDraft.createKey);
+      if (revision !== reviewDraft.revision) return;
+      created.value = result;
       invalidateHistory("reviews");
     }
     if (!alive) return;
     const job: JobRequest = { action: "prepare_outline", expected_version: created.value.version, connection_id: form.connection };
     const signature = JSON.stringify(job);
-    if (signature !== jobSignature) {
-      jobSignature = signature;
-      jobKey = crypto.randomUUID();
+    if (signature !== reviewDraft.jobSignature) {
+      reviewDraft.jobSignature = signature;
+      reviewDraft.jobKey = crypto.randomUUID();
     }
-    await reviewApi.submit(created.value.id, job, jobKey);
-    if (alive) await router.replace({ path: `/reviews/${created.value.id}`, query: { tab: "outline" } });
+    const id = created.value.id;
+    await reviewApi.submit(id, job, reviewDraft.jobKey);
+    if (revision !== reviewDraft.revision) return;
+    resetReviewDraft();
+    invalidateHistory("reviews");
+    if (alive) await router.replace({ path: `/reviews/${id}`, query: { tab: "outline" } });
   } catch (e) {
-    report(e);
+    if (revision === reviewDraft.revision) report(e);
   } finally {
-    busy.value = false;
+    if (revision === reviewDraft.revision) {
+      busy.value = false;
+      // Once saved, the review belongs to server history rather than the temporary workspace.
+      if (!alive && created.value) resetReviewDraft();
+    }
   }
 }
 
 const initialPapers = [route.query.paper].flat().filter((uid): uid is string => typeof uid === "string");
-if (typeof route.query.source === "string") void choose(route.query.source, initialPapers);
+if (typeof route.query.source === "string" && !busy.value) {
+  if (source.value && (source.value.id !== route.query.source || initialPapers.length)) {
+    resetReviewDraft();
+    initializeReviewDraft(language.value);
+  }
+  if (loadedFor.value !== route.query.source || initialPapers.length) void choose(route.query.source, initialPapers);
+} else if (source.value && !loadedFor.value && !busy.value) void choose(source.value.id);
 </script>
 
 <template>
@@ -283,6 +274,11 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
         </ol>
       </div>
 
+      <div v-if="source && !created" class="row" style="justify-content: space-between; gap: 12px; margin-bottom: 16px">
+        <p class="help">{{ u("reviewDraftHint") }}</p>
+        <button class="btn btn-ghost btn-sm" type="button" :disabled="busy" @click="discardOpen = true">{{ u("discardReviewDraft") }}</button>
+      </div>
+
       <div v-if="step === 1" class="cc">
         <div class="field">
           <span class="label">{{ u("sourceSearch") }}</span>
@@ -294,9 +290,9 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
       <div v-else-if="step === 2" class="cc">
         <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--muted); flex-wrap: nowrap">
           <span class="row sm" style="gap: 8px; min-width: 0; flex-wrap: nowrap"><Icon name="text-search" class="muted" /><span class="truncate medium">{{ source?.title }}</span><span class="muted" style="white-space: nowrap">· {{ u("papersShort", { n: source?.count ?? 0 }) }}</span></span>
-          <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!!created" @click="step = 1">{{ u("change") }}</button>
+          <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="busy || suggesting || !!created" @click="step = 1">{{ u("change") }}</button>
         </div>
-        <fieldset class="stack" style="gap: 24px; border: 0; padding: 0; margin: 0; min-width: 0" :disabled="busy || !!created">
+        <fieldset class="stack" style="gap: 24px; border: 0; padding: 0; margin: 0; min-width: 0" :disabled="busy || suggesting || !!created">
           <div class="field">
             <label class="label" for="review-topic">{{ u("topic") }}</label>
             <textarea id="review-topic" v-model="form.topic" class="input textarea" rows="3" maxlength="2000" required :placeholder="u('topicPh')"></textarea>
@@ -353,26 +349,27 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
       <div v-else class="cc">
         <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--muted); flex-wrap: nowrap">
           <span class="row sm" style="gap: 8px; min-width: 0; flex-wrap: nowrap"><Icon name="file" class="muted" /><span class="medium" style="white-space: nowrap">{{ u(`len_${form.preset}`) }} · {{ u("chapters", { n: sectionCount }) }}</span><span class="muted truncate">· {{ form.topic }}</span></span>
-          <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!!created" @click="step = 2">{{ u("adjust") }}</button>
+          <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="busy || suggesting || !!created" @click="step = 2">{{ u("adjust") }}</button>
         </div>
         <div class="row" style="justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px">
           <span class="stack" style="gap: 2px; min-width: 0; flex: 1 1 240px"><span class="sm medium">{{ u("recommendedPapers", { range: `${recommended[0]}–${recommended[1]}` }) }}</span><span class="xs muted">{{ u("autoSelectHint") }}</span></span>
-          <button class="btn btn-outline btn-sm" type="button" style="height: 28px; white-space: nowrap" :disabled="suggesting || loading || !!created || !connectionOk" :title="connectionOk ? undefined : u('needLlmToStart')" @click="autoSelect"><Icon :name="suggesting ? 'loader' : 'sparkles'" />{{ suggesting ? u("autoSelecting") : u("autoSelect") }}</button>
+          <button class="btn btn-outline btn-sm" type="button" style="height: 28px; white-space: nowrap" :disabled="suggesting || busy || loading || !!created || !connectionOk" :title="connectionOk ? undefined : u('needLlmToStart')" @click="autoSelect"><Icon :name="suggesting ? 'loader' : 'sparkles'" />{{ suggesting ? u("autoSelecting") : u("autoSelect") }}</button>
+          <button v-if="suggesting" class="btn btn-ghost btn-sm" type="button" @click="cancelReviewSelection">{{ u("cancelSelection") }}</button>
         </div>
         <div class="field">
-          <div class="row" style="justify-content: space-between"><span class="label">{{ u("papers") }}</span><span class="row" style="gap: 2px"><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="loading || !!created" @click="selectWithAbstract">{{ u("selectWithAbstract") }}</button><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!selected.size || !!created" @click="selected.clear()">{{ u("clearSelection") }}</button></span></div>
+          <div class="row" style="justify-content: space-between"><span class="label">{{ u("papers") }}</span><span class="row" style="gap: 2px"><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="loading || suggesting || busy || !!created" @click="selectWithAbstract">{{ u("selectWithAbstract") }}</button><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!selected.size || suggesting || busy || !!created" @click="selected.clear()">{{ u("clearSelection") }}</button></span></div>
           <div class="ig"><Icon name="search" /><input v-model="query" type="search" :placeholder="u('searchPapers')" :aria-label="u('searchPapers')" /></div>
           <div class="pick" style="max-height: 360px; overflow-y: auto; scrollbar-gutter: stable" :aria-busy="loading">
-            <div v-for="paper in papers" :key="paper.uid" class="paper-pick" :class="{ off: !abstract(paper) }">
-              <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="!!created || (!selected.has(paper.uid) && selected.size >= MAX_REVIEW_PAPERS)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
+            <div v-for="paper in visiblePapers" :key="paper.uid" class="paper-pick" :class="{ off: !abstract(paper) }">
+              <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="busy || suggesting || !!created || (!selected.has(paper.uid) && selected.size >= MAX_REVIEW_PAPERS)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
               <label v-else class="cb" style="margin-top: 2px; opacity: .5" :aria-label="u('noAbstractCannotSelect')"><input type="checkbox" disabled /><span class="box"></span></label>
               <div class="stack" style="min-width: 0"><span class="t sm medium">{{ paper.title }}</span><span class="xs muted">{{ [paper.authors?.slice(0, 3).join(", "), paper.year, paper.score != null ? `${paper.score}/10` : u("unscored")].filter(Boolean).join(" · ") }}</span><span v-if="selected.has(paper.uid) && reasons.get(paper.uid)" class="xs muted">{{ reasons.get(paper.uid) }}</span></div>
               <button v-if="abstract(paper)" class="btn btn-ghost btn-sm" type="button" style="height: 24px; padding: 0 6px" :aria-expanded="openAbstracts.has(paper.uid)" @click="toggleAbstract(paper.uid)">{{ u("abstract") }}</button>
               <span v-else class="xs muted" style="white-space: nowrap">{{ u("noAbstractShort") }}</span>
               <p v-if="openAbstracts.has(paper.uid)" class="abs">{{ abstract(paper) }}</p>
             </div>
-            <div v-if="loading && !papers.length" class="paper-pick"><span></span><span class="skeleton" style="height: 14px"></span><span></span></div>
-            <p v-else-if="!papers.length" class="sm muted" style="padding: 12px">{{ u("noMatches") }}</p>
+            <div v-if="loading && !visiblePapers.length" class="paper-pick"><span></span><span class="skeleton" style="height: 14px"></span><span></span></div>
+            <p v-else-if="!visiblePapers.length" class="sm muted" style="padding: 12px">{{ u("noMatches") }}</p>
             <button v-if="cursor" class="pick-row" type="button" style="justify-content: center; border-top: 1px solid var(--border)" :disabled="loading" @click="loadPapers(true)"><Icon v-if="loading" name="loader" size="sm" /><span class="sm muted">{{ u("loadMore") }}</span></button>
           </div>
         </div>
@@ -383,7 +380,7 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
 
       <div class="cf">
         <RouterLink v-if="step === 1" class="btn btn-ghost btn-sm" :to="listPaths.reviews">{{ u("cancel") }}</RouterLink>
-        <button v-else class="btn btn-ghost btn-sm" type="button" :disabled="busy || !!created" @click="step = (step - 1) as 1 | 2">{{ u("previous") }}</button>
+        <button v-else class="btn btn-ghost btn-sm" type="button" :disabled="busy || suggesting || !!created" @click="step = (step - 1) as 1 | 2">{{ u("previous") }}</button>
         <div class="row" style="gap: 12px">
           <span v-if="step === 3" class="sm muted" aria-live="polite"><span class="medium" style="color: var(--foreground)">{{ u("selectedOf", { n: selected.size }) }}</span> · {{ u("atLeastTwo") }}</span>
           <button v-if="step < 3" class="btn btn-sm" type="submit" :disabled="step === 1 ? !source || loading : !form.topic.trim()"><Icon v-if="loading && step === 1" name="loader" />{{ u("next") }}</button>
@@ -394,5 +391,11 @@ if (typeof route.query.source === "string") void choose(route.query.source, init
         </div>
       </div>
     </form>
+    <AppDialog v-if="discardOpen" :title="u('discardReviewDraft')" :description="u('discardReviewDraftHint')" @close="discardOpen = false">
+      <template #footer>
+        <button class="btn btn-outline btn-sm" type="button" @click="discardOpen = false">{{ u("cancel") }}</button>
+        <button class="btn btn-sm" type="button" @click="discard">{{ u("discardReviewDraft") }}</button>
+      </template>
+    </AppDialog>
   </main>
 </template>

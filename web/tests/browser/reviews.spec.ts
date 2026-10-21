@@ -2,6 +2,101 @@ import { expect, test } from "@playwright/test";
 import { createState, ids, paper, requestsTo, withDocument } from "./mock-backend";
 import { open } from "./workspace-helpers";
 
+test("auto-selection finishes away from the review and restores its draft without another request", async ({ page }) => {
+  const state = await open(page, `/reviews/new?source=${ids.done}`);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/reviews/paper-suggestions", async route => { await pending; await route.fallback(); });
+  await page.getByLabel("综述主题").fill("Persistent review topic");
+  await page.getByRole("radiogroup", { name: "篇幅" }).getByRole("radio", { name: /简短/ }).check({ force: true });
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "按主题自动挑选" }).click();
+  await expect(page.locator(".sb-scroll")).toContainText("挑选中");
+  await page.getByRole("navigation", { name: "模块" }).getByRole("link", { name: "文献检索" }).click();
+  release();
+  await expect.poll(() => requestsTo(state, "POST", "/reviews/paper-suggestions").length).toBe(1);
+  await page.getByRole("navigation", { name: "模块" }).getByRole("link", { name: /文献综述/ }).click();
+  await expect(page.locator(".sb-scroll")).toContainText("待确认");
+  await page.locator(".sb-scroll").getByRole("link", { name: /Persistent review topic/ }).click();
+  await expect(page.getByText("Recall · Largest validation study.")).toBeVisible();
+  await expect(page.locator(".paper-pick input:checked")).toHaveCount(2);
+  await page.getByRole("button", { name: "调整", exact: true }).click();
+  await expect(page.getByLabel("综述主题")).toHaveValue("Persistent review topic");
+  await expect(page.getByRole("radiogroup", { name: "篇幅" }).getByRole("radio", { name: /简短/ })).toBeChecked();
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "生成大纲" }).click();
+  await expect(page).toHaveURL(/tab=outline/);
+  expect(requestsTo(state, "POST", "/reviews/paper-suggestions")).toHaveLength(1);
+  expect(requestsTo(state, "POST", "/reviews")[0].body.paper_uids).toEqual(["uid-1", "uid-6"]);
+});
+
+test("pending selection can be reopened, stopped and retried; discarding ignores a late result", async ({ page }) => {
+  await open(page, `/reviews/new?source=${ids.done}&paper=uid-2`);
+  let release!: () => void;
+  let requests = 0;
+  let delivered = 0;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/reviews/paper-suggestions", async route => {
+    requests++;
+    await pending;
+    await route.fulfill({ json: { items: [{ uid: "uid-1", reason: "Late reason", theme: "" }] } });
+    delivered++;
+  });
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "按主题自动挑选" }).click();
+  await expect.poll(() => requests).toBe(1);
+  const nav = page.getByRole("navigation", { name: "模块" });
+  await nav.getByRole("link", { name: "文献检索" }).click();
+  await nav.getByRole("link", { name: /文献综述/ }).click();
+  await expect(page.getByRole("button", { name: "正在挑选…" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "生成大纲" })).toBeDisabled();
+  await page.getByRole("button", { name: "停止等待" }).click();
+  await expect(page.locator(".paper-pick input:checked")).toHaveCount(1);
+  await page.getByRole("button", { name: "按主题自动挑选" }).click();
+  await expect.poll(() => requests).toBe(2);
+  await page.getByRole("button", { name: "丢弃草稿" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "丢弃草稿" }).click();
+  release();
+  await expect.poll(() => delivered).toBe(2);
+  await expect(page.locator("[aria-current=step]")).toContainText("选择检索");
+  await expect(page.locator(".sb-scroll")).not.toContainText("挑选中");
+  await expect(page.getByText("Late reason")).toHaveCount(0);
+});
+
+test("failed selection remains retryable and manual picks survive module navigation", async ({ page }) => {
+  await open(page, `/reviews/new?source=${ids.done}&paper=uid-2`);
+  let attempts = 0;
+  await page.route("**/reviews/paper-suggestions", route => ++attempts === 1
+    ? route.fulfill({ status: 503, json: { error: { code: "reviewError" } } }) : route.fallback());
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "按主题自动挑选" }).click();
+  await expect(page.locator(".sb-scroll")).toContainText("挑选失败");
+  await expect(page.locator(".paper-pick input:checked")).toHaveCount(1);
+  await page.getByRole("button", { name: "按主题自动挑选" }).click();
+  await expect(page.getByText("Recall · Largest validation study.")).toBeVisible();
+  await page.locator(".paper-pick").filter({ hasText: "Paper 1 on screening" }).locator("label.cb").click();
+  const nav = page.getByRole("navigation", { name: "模块" });
+  await nav.getByRole("link", { name: "文献计量" }).click();
+  await nav.getByRole("link", { name: /文献综述/ }).click();
+  await expect(page.locator(".paper-pick input:checked")).toHaveCount(1);
+  await expect(page.getByText("Workload · Measures time saved.")).toBeVisible();
+  expect(attempts).toBe(2);
+});
+
+test("a saved review with a failed outline stays in history without blocking a new draft", async ({ page }) => {
+  const state = await open(page, `/reviews/new?source=${ids.done}&paper=uid-1&paper=uid-2`);
+  await page.route(`**/reviews/${ids.review}/jobs`, route => route.fulfill({ status: 503, json: { error: { code: "reviewError" } } }));
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "生成大纲" }).click();
+  await expect(page.getByRole("link", { name: "打开综述" })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "模块" });
+  await nav.getByRole("link", { name: "文献检索" }).click();
+  await nav.getByRole("link", { name: /文献综述/ }).click();
+  await expect(page.locator("[aria-current=step]")).toContainText("选择检索");
+  await expect(page.locator(`.sb-scroll a[href='/reviews/${ids.review}']`)).toBeVisible();
+  expect(requestsTo(state, "POST", "/reviews")).toHaveLength(1);
+});
+
 test("new review goes search → setup → papers and starts the outline with a saved connection", async ({ page }) => {
   const state = await open(page, "/reviews/new");
   await expect(page.getByRole("radio", { name: /Tiny search/ })).toHaveAttribute("aria-disabled", "true");

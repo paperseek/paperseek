@@ -27,7 +27,7 @@ export const reviewApi = {
   outline: (id: string, data: Schema["OutlineSave"]) => json<Review>(`${root}/${id}/outline`, send("PUT", data)),
   section: (id: string, part: string, data: Schema["SectionSave"]) => json<Review>(`${root}/${id}/sections/${part}`, send("PUT", data)),
   versions: (id: string, part: string) => json<Schema["ReviewVersions"]>(`${root}/${id}/versions/${part}`),
-  suggest: (data: Schema["PaperSuggestionRequest"]) => json<Schema["PaperSuggestions"]>(`${root}/paper-suggestions`, send("POST", data)),
+  suggest: (data: Schema["PaperSuggestionRequest"], signal?: AbortSignal) => json<Schema["PaperSuggestions"]>(`${root}/paper-suggestions`, { ...send("POST", data), signal }),
   submit: (id: string, data: JobRequest, key: string) => json<RunDetail>(`${root}/${id}/jobs`, send("POST", data, key)),
   cancel: (id: string, job: string) => json<RunDetail>(`${root}/${id}/jobs/${job}/cancel`, { method: "POST" }),
   events: (id: string, job: string, after: number, onEvent: (event: RunEvent) => void, signal: AbortSignal) =>

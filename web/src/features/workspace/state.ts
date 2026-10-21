@@ -1,6 +1,7 @@
 import { reactive } from "vue";
 import type { RouteLocationNormalizedLoaded } from "vue-router";
 import { resetSearchDraft } from "../search/search-draft";
+import { resetReviewDraft } from "../review/review-draft";
 import { clearRun } from "../../state/run";
 import { clearResultViews } from "../results/view-state";
 
@@ -41,6 +42,7 @@ export function resetWorkspace() {
   clearResultViews();
   clearRun();
   resetSearchDraft();
+  resetReviewDraft();
   for (const module of Object.keys(modulePaths) as WorkspaceModule[])
     invalidateHistory(module);
   Object.assign(settingsReturn, { path: "/search", scroll: 0 });

@@ -6,37 +6,6 @@
   font-family: var(--vp-font-family-base);
 }
 
-/* Quiet navigation, with the product action distinct from documentation links. */
-.ps-docs-layout .VPNavBar { background: var(--vp-c-bg); }
-.ps-docs-layout .VPNavBarTitle .title { border-bottom: 0; }
-.ps-docs-layout .VPNavBar .divider { display: none; }
-.ps-docs-layout .VPNavBarMenu { align-items: center; gap: 4px; }
-.ps-docs-layout .VPNavBarMenuLink {
-  border-radius: 9px;
-  padding: 0 12px;
-  line-height: 36px;
-  font-size: 14px !important;
-  font-weight: 450;
-}
-.ps-docs-layout .VPNavBarMenuLink:hover,
-.ps-docs-layout .VPNavBarMenuLink.active { background: var(--vp-c-bg-soft); }
-.ps-docs-layout .VPNavBarMenuLink.active { font-weight: 550; }
-.ps-docs-layout .VPNavBarMenuLink[href='https://paperseek.app/'] {
-  margin-left: 16px;
-  border-radius: 999px;
-  padding: 0 18px;
-  background: var(--ps-foreground);
-  color: var(--ps-inverse);
-  font-weight: 550;
-  line-height: 38px;
-}
-.ps-docs-layout .VPNavBarMenuLink[href='https://paperseek.app/']:hover { opacity: .85; }
-.ps-docs-layout .VPNavBarSearch .DocSearch-Button {
-  border-color: transparent;
-  border-radius: 9px;
-  background: var(--vp-c-bg-soft);
-}
-
 /* Three visible levels: section, subsection, then pages on an indented rail. */
 .ps-docs-layout .VPSidebar .group + .group { margin-top: 26px; border-top: 0; padding-top: 0; }
 .ps-docs-layout .VPSidebar .VPSidebarItem.level-0 { padding-bottom: 0; }
@@ -149,22 +118,7 @@
 }
 @media (min-width: 1440px) {
   .ps-docs-layout .VPSidebar { width: max(var(--vp-sidebar-width), calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width))); }
-  .ps-docs-layout .VPNavBar.has-sidebar .container > .title { width: max(var(--vp-sidebar-width), calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width))); }
-  .ps-docs-layout .VPNavBar.has-sidebar .content { padding-left: max(var(--vp-sidebar-width), calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width))); padding-right: max(32px, calc((100vw - var(--vp-layout-max-width)) / 2 + 32px)); }
   .ps-docs-layout .VPContent.has-sidebar { padding-left: max(var(--vp-sidebar-width), calc((100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width))); padding-right: max(0px, calc((100vw - var(--vp-layout-max-width)) / 2)); }
-}
-@media (max-width: 1279px) and (min-width: 768px) {
-  .ps-docs-layout .VPNavBarSearch { flex-grow: 0; padding-left: 16px; margin-right: auto; }
-  .ps-docs-layout .VPNavBarSearch .DocSearch-Button { padding: 0 8px; background: transparent; }
-  .ps-docs-layout .VPNavBarSearch .DocSearch-Button-Placeholder,
-  .ps-docs-layout .VPNavBarSearch .DocSearch-Button-Keys { display: none; }
-  .ps-docs-layout .VPNavBarMenu { gap: 0; }
-  .ps-docs-layout .VPNavBarMenuLink { padding: 0 9px; font-size: 13px !important; }
-  .ps-docs-layout .VPNavBarMenuLink[href='https://paperseek.app/'] { margin-left: 8px; padding: 0 14px; }
-}
-@media (max-width: 959px) and (min-width: 768px) {
-  .ps-docs-layout .VPNavBarTitle .logo { height: 18px; }
-  .ps-docs-layout .VPNavBarSearch { padding-left: 0; }
 }
 @media (max-width: 767px) {
   .ps-docs-layout .VPDoc { padding: 36px 24px 72px; }

@@ -9,6 +9,7 @@ import '@fontsource-variable/noto-sans-sc'
 import './style.css'
 import './features/features.css'
 import './docs.css'
+import './nav.css'
 
 export default {
   extends: DefaultTheme,

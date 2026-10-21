@@ -32,6 +32,8 @@ Tick papers yourself, or choose **Auto-select by topic**: the writing model cons
 
 Only papers with abstracts can be selected. More papers do not automatically mean better evidence. Records without meaningful research content may not contribute to the draft.
 
+You can switch modules while auto-selection runs. Return to Reviews and open the **Selecting / Ready to confirm** draft in the sidebar to recover the settings, selected papers, and reasons. This tab keeps one pending draft; refreshing, closing the page, or signing out clears it. **Stop waiting** ignores any later selection result but may not stop computation already running at the model provider. **Discard draft** clears the draft.
+
 ## 4. Check the outline
 
 Review the themes, chapter structure, paragraph plans, and assigned papers. Look for omitted perspectives and a scope broader than the evidence supports.
