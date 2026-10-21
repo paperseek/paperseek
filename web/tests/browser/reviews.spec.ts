@@ -83,6 +83,20 @@ test("failed selection remains retryable and manual picks survive module navigat
   expect(attempts).toBe(2);
 });
 
+test("a saved review with a failed outline stays in history without blocking a new draft", async ({ page }) => {
+  const state = await open(page, `/reviews/new?source=${ids.done}&paper=uid-1&paper=uid-2`);
+  await page.route(`**/reviews/${ids.review}/jobs`, route => route.fulfill({ status: 503, json: { error: { code: "reviewError" } } }));
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "生成大纲" }).click();
+  await expect(page.getByRole("link", { name: "打开综述" })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "模块" });
+  await nav.getByRole("link", { name: "文献检索" }).click();
+  await nav.getByRole("link", { name: /文献综述/ }).click();
+  await expect(page.locator("[aria-current=step]")).toContainText("选择检索");
+  await expect(page.locator(`.sb-scroll a[href='/reviews/${ids.review}']`)).toBeVisible();
+  expect(requestsTo(state, "POST", "/reviews")).toHaveLength(1);
+});
+
 test("new review goes search → setup → papers and starts the outline with a saved connection", async ({ page }) => {
   const state = await open(page, "/reviews/new");
   await expect(page.getByRole("radio", { name: /Tiny search/ })).toHaveAttribute("aria-disabled", "true");

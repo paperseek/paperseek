@@ -42,6 +42,7 @@ onBeforeUnmount(() => {
   generation++;
   controller?.abort();
   clearTimeout(timer);
+  if (created.value && !busy.value) resetReviewDraft();
 });
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, Math.round(value || low)));
@@ -239,7 +240,11 @@ async function prepare() {
   } catch (e) {
     if (revision === reviewDraft.revision) report(e);
   } finally {
-    if (revision === reviewDraft.revision) busy.value = false;
+    if (revision === reviewDraft.revision) {
+      busy.value = false;
+      // Once saved, the review belongs to server history rather than the temporary workspace.
+      if (!alive && created.value) resetReviewDraft();
+    }
   }
 }
 
