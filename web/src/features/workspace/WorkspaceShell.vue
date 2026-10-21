@@ -126,6 +126,7 @@ watch(() => pageHeader.title, (title) => {
         </h1>
         <div class="tools">
           <slot name="tools" />
+          <a class="btn btn-ghost btn-icon" href="https://github.com/paperseek/paperseek" target="_blank" rel="noopener noreferrer" :aria-label="u('githubRepository')" :title="u('githubRepository')"><Icon name="github" /></a>
           <UiMenu :label="u('language')" trigger-class="btn btn-ghost btn-sm" align="end" :min-width="160">
             <template #trigger><Icon name="languages" />{{ language === "zh" ? "中文" : "English" }}</template>
             <button v-for="option in ['zh', 'en'] as const" :key="option" class="opt" role="menuitemradio" data-menu-item :aria-checked="language === option" @click="setLanguage(option)">

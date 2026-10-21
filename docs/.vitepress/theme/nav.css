@@ -1,0 +1,61 @@
+/* One navigation design and geometry for the homepage and documentation. */
+.ps-site-layout .VPNavBar {
+  --vp-layout-max-width: 1440px;
+  font-family: 'Geist Variable', 'Noto Sans SC Variable', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+.ps-site-layout .VPNavBar .wrapper { background: var(--vp-c-bg); }
+.ps-site-layout .VPNavBarTitle .title { font-size: 18px; font-weight: 650; gap: 5px; }
+.ps-site-layout .VPNavBarTitle .logo { width: auto; height: 22px; }
+.ps-site-layout .VPNavBarMenuGroup .button { font-size: 14px; }
+@media (min-width: 960px) {
+  .ps-site-layout .VPNavBar.has-sidebar .wrapper { padding: 0 32px; }
+  .ps-site-layout .VPNavBar.has-sidebar .container { max-width: calc(var(--vp-layout-max-width) - 64px); }
+  .ps-site-layout .VPNavBar.has-sidebar .container > .title { position: static; width: auto; padding: 0; height: calc(var(--vp-nav-height) - 1px); }
+  .ps-site-layout .VPNavBar.has-sidebar .content { padding: 0; }
+}
+
+/* Quiet navigation, with the product action distinct from documentation links. */
+.ps-site-layout .VPNavBar { background: var(--vp-c-bg); }
+.ps-site-layout .VPNavBarTitle .title { border-bottom: 0; }
+.ps-site-layout .VPNavBar .divider { display: none; }
+.ps-site-layout .VPNavBarMenu { align-items: center; gap: 4px; }
+.ps-site-layout .VPNavBarMenuLink {
+  border-radius: 9px;
+  padding: 0 12px;
+  line-height: 36px;
+  font-size: 14px !important;
+  font-weight: 450;
+}
+.ps-site-layout .VPNavBarMenuLink:hover,
+.ps-site-layout .VPNavBarMenuLink.active { background: var(--vp-c-bg-soft); }
+.ps-site-layout .VPNavBarMenuLink.active { font-weight: 550; }
+.ps-site-layout .VPNavBarMenuLink[href='https://paperseek.app/'] {
+  margin-left: 16px;
+  border-radius: 999px;
+  padding: 0 18px;
+  background: var(--ps-foreground);
+  color: var(--ps-inverse);
+  font-weight: 550;
+  line-height: 38px;
+}
+.ps-site-layout .VPNavBarMenuLink[href='https://paperseek.app/']:hover { opacity: .85; }
+.ps-site-layout .VPNavBarSearch .DocSearch-Button {
+  border-color: transparent;
+  border-radius: 9px;
+  background: var(--vp-c-bg-soft);
+}
+
+@media (max-width: 1279px) and (min-width: 768px) {
+  .ps-site-layout .VPNavBarSearch { flex-grow: 0; padding-left: 16px; margin-right: auto; }
+  .ps-site-layout .VPNavBarSearch .DocSearch-Button { padding: 0 8px; background: transparent; }
+  .ps-site-layout .VPNavBarSearch .DocSearch-Button-Placeholder,
+  .ps-site-layout .VPNavBarSearch .DocSearch-Button-Keys { display: none; }
+  .ps-site-layout .VPNavBarMenu { gap: 0; }
+  .ps-site-layout .VPNavBarMenuLink { padding: 0 9px; font-size: 13px !important; }
+  .ps-site-layout .VPNavBarMenuLink[href='https://paperseek.app/'] { margin-left: 8px; padding: 0 14px; }
+}
+@media (max-width: 959px) and (min-width: 768px) {
+  .ps-site-layout .VPNavBarTitle .logo { height: 18px; }
+  .ps-site-layout .VPNavBarSearch { padding-left: 0; }
+}

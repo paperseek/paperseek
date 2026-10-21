@@ -61,6 +61,10 @@ for (const width of [390, 1440]) {
   test(`pages fit without horizontal scrolling at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await open(page, "/search");
+    const github = page.getByRole("link", { name: "GitHub 社区仓库" });
+    await expect(github).toHaveAttribute("href", "https://github.com/paperseek/paperseek");
+    await expect(github).toHaveAttribute("target", "_blank");
+    expect((await github.boundingBox())!.x).toBeLessThan((await page.getByRole("button", { name: "界面语言" }).boundingBox())!.x);
     expect(await noHorizontalOverflow(page)).toBe(true);
     await page.goto(`/runs/${ids.done}/results`);
     await expect(page.getByTestId("result-card").first()).toBeVisible();

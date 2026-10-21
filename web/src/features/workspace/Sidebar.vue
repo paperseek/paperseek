@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import Icon, { type IconName } from "../../components/Icon.vue";
 import { useUi } from "../../locales/ui";
 import { runState } from "../../state/run";
+import { reviewDraft } from "../review/review-draft";
 import { currentModule, invalidateHistory, listPaths, modulePaths, type WorkspaceModule } from "./state";
 import { useHistory } from "./use-history";
 import type { HistoryRecord } from "./history-api";
@@ -49,6 +50,12 @@ const activeRun = computed(() => {
   return record;
 });
 const records = computed(() => (activeRun.value ? [activeRun.value, ...page.value.items] : page.value.items));
+const draftTitle = computed(() => reviewDraft.form.topic || reviewDraft.source?.title || "");
+const showDraft = computed(() => module.value === "reviews" && reviewDraft.source && !reviewDraft.created
+  && draftTitle.value.toLocaleLowerCase().includes(page.value.query.toLocaleLowerCase()));
+const draftStatus = computed(() => u(reviewDraft.suggesting ? "reviewSelectionRunning"
+  : reviewDraft.selection === "failed" ? "reviewSelectionFailed"
+  : reviewDraft.selected.size ? "reviewSelectionReady" : "reviewSelectionDraft"));
 
 function status(record: HistoryRecord): string {
   if (module.value === "search" && runState.run?.id === record.id) return runState.run.status;
@@ -124,6 +131,10 @@ function current(record: HistoryRecord): boolean {
           />
         </div>
       </div>
+      <RouterLink v-if="showDraft" class="sb-btn" :class="{ active: route.path === '/reviews/new' }"
+        to="/reviews/new" :title="draftTitle" :aria-current="route.path === '/reviews/new' ? 'page' : undefined" @click="emit('navigate')">
+        <Icon :name="reviewDraft.suggesting ? 'loader' : 'file'" /><span>{{ draftTitle }}</span><span class="sb-badge muted">{{ draftStatus }}</span>
+      </RouterLink>
       <RouterLink
         v-for="record in records"
         :key="record.id"
@@ -136,7 +147,7 @@ function current(record: HistoryRecord): boolean {
         ><Icon :name="icon(record)" /><span>{{ record.title }}</span><span class="sb-badge" :class="{ muted: badge(record).muted }">{{ badge(record).text }}</span></RouterLink
       >
       <p v-if="page.error" class="sb-empty" role="alert">{{ u("loadError") }} · <button type="button" class="link" @click="load()">{{ u("retry") }}</button></p>
-      <p v-else-if="!records.length && !page.loading" class="sb-empty">{{ u(page.query ? "noMatches" : "noRecords") }}</p>
+      <p v-else-if="!showDraft && !records.length && !page.loading" class="sb-empty">{{ u(page.query ? "noMatches" : "noRecords") }}</p>
       <template v-if="page.loading && !records.length">
         <span v-for="index in 3" :key="index" class="skeleton" style="height: 20px; margin: 6px 8px"></span>
       </template>

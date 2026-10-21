@@ -8,5 +8,5 @@ const isDoc = computed(() => !page.value.isNotFound && (!frontmatter.value.layou
 </script>
 
 <template>
-  <DefaultTheme.Layout :class="{ 'ps-docs-layout': isDoc }" />
+  <DefaultTheme.Layout class="ps-site-layout" :class="{ 'ps-docs-layout': isDoc }" />
 </template>

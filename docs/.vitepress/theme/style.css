@@ -48,14 +48,8 @@ body { font-feature-settings: 'ss01'; }
 ::selection { background: #d5e4dd; color: #171717; }
 a, button { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--vp-c-text-1); outline-offset: 4px; }
-.VPNavBarTitle .title { font-size: 18px; font-weight: 650; gap: 5px; }
-.VPNavBarTitle .logo { width: auto; height: 22px; }
 .ps-dark-only, .dark .ps-light-only { display: none; }
 .dark .ps-dark-only { display: inline; }
-.VPNavBar { border-bottom: 1px solid var(--vp-c-divider); }
-.VPNavBarSearch .DocSearch-Button { border: 1px solid var(--vp-c-divider); border-radius: 7px; }
-.VPNavBarMenuLink, .VPNavBarMenuGroup .button { font-size: 13px !important; }
-.VPNavBarMenuLink:last-child { font-weight: 600; }
 .VPSidebar { background: var(--vp-c-bg) !important; }
 .VPSidebar .group + .group { border-top: 0; padding-top: 12px; }
 .VPSidebar .VPSidebarItem.level-0 { padding-bottom: 8px; }
