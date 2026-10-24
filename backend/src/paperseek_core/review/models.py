@@ -28,6 +28,8 @@ class ReviewPaper(ReviewModel):
 
 
 MAX_REVIEW_PAPERS = 256
+PARAGRAPH_MAX_CHARS = 6000
+PARAGRAPH_MAX_EVIDENCE = 100
 MAX_EVIDENCE_QUOTE = 2000
 
 
@@ -146,8 +148,8 @@ class ReviewOutline(ReviewModel):
 
 
 class ReviewParagraph(ReviewModel):
-    text: str = Field(min_length=1, max_length=6000)
-    evidence_ids: list[str] = Field(min_length=1, max_length=100)
+    text: str = Field(min_length=1, max_length=PARAGRAPH_MAX_CHARS)
+    evidence_ids: list[str] = Field(min_length=1, max_length=PARAGRAPH_MAX_EVIDENCE)
 
 
 class SectionBody(ReviewModel):

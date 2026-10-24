@@ -30,14 +30,30 @@ class ReviewOutputError(ValueError):
 def _clean_json(output: str) -> str:
     """Deterministic cleanup before spending a model call: fences, surrounding prose and missing closing brackets."""
     stripped = output.strip()
-    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.S)
-    if fence:
-        return _closed(fence.group(1))
-    if not stripped.startswith("{"):
-        start, end = stripped.find("{"), stripped.rfind("}")
-        if 0 <= start < end:
-            return _closed(stripped[start:end + 1])
-    return _closed(stripped)
+    # Take the whole fenced content (the closing fence may be missing too) before any repair, so a
+    # reply short of its final brackets is not cut back to its last complete object.
+    fence = re.search(r"```(?:json)?[ \t]*\n?(.*?)(?:```|$)", stripped, re.S)
+    if fence and "{" in fence.group(1):
+        stripped = fence.group(1).strip()
+    start = stripped.find("{")
+    if start < 0:
+        return stripped
+    whole = stripped[start:]
+    end = whole.rfind("}")
+    # The full text first; trailing prose after the last "}" second.
+    for candidate in (whole, whole[:end + 1]) if end >= 0 else (whole,):
+        closed = _closed(candidate)
+        if _parses(closed):
+            return closed
+    return whole[:end + 1] if end >= 0 else whole
+
+
+def _parses(text: str) -> bool:
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return True
 
 
 def _closed(text: str) -> str:

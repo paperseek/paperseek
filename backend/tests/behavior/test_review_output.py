@@ -78,6 +78,15 @@ class ReviewOutputTests(ReviewCase):
         # A reply cut off inside a string is not completed by guesswork.
         self.assertEqual(close_brackets('{"paragraphs":[{"text":"cut'), '{"paragraphs":[{"text":"cut')
 
+    async def test_a_fenced_reply_missing_its_final_brackets_keeps_every_paragraph(self):
+        class Fenced:
+            async def chat_json(inner, messages, **kwargs):
+                return ('```json' + chr(10) + '{"paragraphs":[{"text":"First","evidence_ids":["e_1"]},'
+                        '{"text":"Second","evidence_ids":["e_2"]' + chr(10) + '```')
+
+        body = await structured_call(Fenced(), CancellationScope(), "section", "", {}, SectionBody)
+        self.assertEqual([paragraph.text for paragraph in body.paragraphs], ["First", "Second"])
+
     async def test_broken_json_is_reformatted_without_regenerating_content(self):
         calls = []
         valid = json.dumps({"paragraphs": [{"text": 'He said "yes".', "evidence_ids": ["e_1"]}]})
