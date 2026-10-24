@@ -13,6 +13,7 @@ from paperseek_app.review.citations import author_year_labels
 from paperseek_app.review.exports import export_review
 from paperseek_app.review.models import ReviewContent, ReviewDetail
 from paperseek_app.review.rendering import render_review
+from paperseek_core.json_repair import close_brackets
 from paperseek_core.models import FinalPaperResult
 from paperseek_core.review.evidence import snapshot, validate_cards, validate_mentions
 from paperseek_core.review.models import (
@@ -60,6 +61,31 @@ class ReviewOutputTests(ReviewCase):
         self.assertEqual(caught.exception.task, "section_edit")
         self.assertIn("paragraphs.0.text", caught.exception.reason)
         self.assertNotIn("private-input-value", caught.exception.reason)
+
+    async def test_a_reply_missing_its_final_brackets_is_closed_without_another_model_call(self):
+        class Unclosed:
+            calls = 0
+
+            async def chat_json(inner, messages, **kwargs):
+                inner.calls += 1
+                # Intern-S2 sometimes ends a complete reply without its last "}".
+                return '{"paragraphs":[{"text":"A brace } inside the text","evidence_ids":["e_known"]}]'
+
+        llm = Unclosed()
+        body = await structured_call(llm, CancellationScope(), "section", "", {}, SectionBody)
+        self.assertEqual(body.paragraphs[0].text, "A brace } inside the text")
+        self.assertEqual(llm.calls, 1)
+        # A reply cut off inside a string is not completed by guesswork.
+        self.assertEqual(close_brackets('{"paragraphs":[{"text":"cut'), '{"paragraphs":[{"text":"cut')
+
+    async def test_a_fenced_reply_missing_its_final_brackets_keeps_every_paragraph(self):
+        class Fenced:
+            async def chat_json(inner, messages, **kwargs):
+                return ('```json' + chr(10) + '{"paragraphs":[{"text":"First","evidence_ids":["e_1"]},'
+                        '{"text":"Second","evidence_ids":["e_2"]' + chr(10) + '```')
+
+        body = await structured_call(Fenced(), CancellationScope(), "section", "", {}, SectionBody)
+        self.assertEqual([paragraph.text for paragraph in body.paragraphs], ["First", "Second"])
 
     async def test_broken_json_is_reformatted_without_regenerating_content(self):
         calls = []
