@@ -9,6 +9,7 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError
 
 from paperseek_core.errors import LLMRequestError
+from paperseek_core.json_repair import close_brackets
 from paperseek_core.ports import CancellationToken, LLMPort
 from paperseek_core.review.prompts import FORMATTER, SYSTEM, SYSTEM_ZH, _say
 
@@ -27,16 +28,30 @@ class ReviewOutputError(ValueError):
 
 
 def _clean_json(output: str) -> str:
-    """Deterministic cleanup before spending a model call: fences and surrounding prose."""
+    """Deterministic cleanup before spending a model call: fences, surrounding prose and missing closing brackets."""
     stripped = output.strip()
     fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.S)
     if fence:
-        return fence.group(1)
+        return _closed(fence.group(1))
     if not stripped.startswith("{"):
         start, end = stripped.find("{"), stripped.rfind("}")
         if 0 <= start < end:
-            return stripped[start:end + 1]
-    return stripped
+            return _closed(stripped[start:end + 1])
+    return _closed(stripped)
+
+
+def _closed(text: str) -> str:
+    # Some models end a complete reply without its final brackets; adding them avoids a repair call.
+    try:
+        json.loads(text)
+        return text
+    except json.JSONDecodeError:
+        closed = close_brackets(text)
+        try:
+            json.loads(closed)
+        except json.JSONDecodeError:
+            return text
+        return closed
 
 
 def _syntax_only(exc: ValidationError) -> bool:

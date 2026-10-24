@@ -317,19 +317,23 @@ async def write_section(
     # revise the other paragraphs; issues that remain are reported to the user at the end.
     accepted: set[str] = set()
 
+    merged: list[int] = []
+
     def validate(value: SectionBody) -> SectionBody:
         # Real evidence IDs, attributed mentions and the approved paragraph count are required.
         # Inline placement and language are requested, but cannot fail an otherwise grounded draft.
         # Length and source-count limits are guidance, enforced afterwards by a focused condense pass.
+        if planned and len(value.paragraphs) > len(section.paragraphs):
+            merged.append(len(value.paragraphs))
+            merge_extra_paragraphs(value, len(section.paragraphs), language)
         validate_body(value, cards, section.paper_ids)
         validate_mentions(value, cards, language=language, exempt=accepted)
         if planned and len(value.paragraphs) != len(section.paragraphs):
             raise ValueError(f"Follow the approved plan: write {len(section.paragraphs)} prose paragraphs.")
         reconcile_omissions(value, section, cards)
         return value
-    body_schema = create_model("PlannedSectionBody", __base__=SectionBody,
-        paragraphs=(list[ReviewParagraph], Field(min_length=len(section.paragraphs), max_length=len(section.paragraphs)))) \
-        if planned else SectionBody
+    # The paragraph count is checked in validate, after extra paragraphs are merged, not by the schema.
+    body_schema = SectionBody
     notes: dict[int, list[str]] = {}
 
     def note(paragraph: int, zh: str, en: str) -> None:
@@ -348,6 +352,13 @@ async def write_section(
         draft = salvage(exc.result, cards, section, planned, note)
         if draft is None:
             raise
+        if planned and len(draft.paragraphs) < len(section.paragraphs):
+            # Fewer paragraphs than planned: keep the grounded draft, skip the steps that assume one
+            # paragraph per planned paragraph, and flag it for review.
+            note(0, f"本节写成了 {len(draft.paragraphs)} 段，少于大纲规划的 {len(section.paragraphs)} 段，请核对或重写本节。",
+                 f"This section has {len(draft.paragraphs)} paragraphs instead of the {len(section.paragraphs)} planned; "
+                 "check it or rewrite the section.")
+            planned = False
         try:
             validate(draft)
         except CitationStyleError:
@@ -356,6 +367,9 @@ async def write_section(
             # Mentions without evidence stay visible: the rendered text marks them for checking.
             accepted.update(paragraph.text for paragraph in draft.paragraphs)
         body = reconcile_omissions(draft, section, cards)
+    if merged:
+        note(len(section.paragraphs) - 1, f"模型写成了 {merged[0]} 段，多出的段落已并入本段，请核对篇幅与衔接。",
+             f"The model wrote {merged[0]} paragraphs; the extra ones were merged into this paragraph. Check its length and flow.")
     weak_phrases = ("遗憾的是", "仅为", "仍明显落后", "效果有限", "作用有限", "效应有限", "微乎其微",
                     "unfortunately", "merely", "still lags behind", "limited effectiveness")
     editing_focus = [{"paragraph": i, "expressions_to_reframe": matches}
@@ -492,19 +506,28 @@ async def write_section(
 _NUMBERED_MARKER = re.compile(r"\s*\[\d+(?:\s*[,–-]\s*\d+)*\]")
 
 
+def merge_extra_paragraphs(body: SectionBody, count: int, language: str) -> None:
+    """Fold paragraphs beyond the planned count into the last planned one, keeping their evidence."""
+    last, extra = body.paragraphs[count - 1], body.paragraphs[count:]
+    joiner = "" if language == "zh" else " "
+    last.text = joiner.join([last.text.rstrip(), *(paragraph.text.strip() for paragraph in extra)])
+    last.evidence_ids = list(dict.fromkeys([*last.evidence_ids, *(key for p in extra for key in p.evidence_ids)]))
+    del body.paragraphs[count:]
+
+
 def salvage(body: SectionBody, cards: list[EvidenceCard], section: OutlineSection, planned: bool,
             note: Callable[[int, str, str], None]) -> SectionBody | None:
     """Clean a draft whose citations failed validation, rather than failing the whole job.
 
     Unknown evidence IDs are dropped, evidence IDs and numbered markers written into the prose
-    are removed, and each change is noted on its paragraph. A draft is unusable only when a
-    paragraph keeps no real evidence or the approved paragraph count is not met.
+    are removed, and each change is noted on its paragraph. Paragraphs beyond the approved count
+    are merged into the last planned one. A draft is unusable only when a paragraph keeps no real evidence.
     """
     index = evidence_index(cards)
     allowed = {key for key, item in index.items() if item.paper_id in section.paper_ids}
     result = body.model_copy(deep=True)
-    if planned and len(result.paragraphs) != len(section.paragraphs):
-        return None
+    if planned and len(result.paragraphs) > len(section.paragraphs):
+        merge_extra_paragraphs(result, len(section.paragraphs), "")
     for i, paragraph in enumerate(result.paragraphs):
         valid = list(dict.fromkeys(key for key in paragraph.evidence_ids if key in allowed))
         if not valid:

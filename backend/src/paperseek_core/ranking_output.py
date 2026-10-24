@@ -9,6 +9,7 @@ import re
 from typing import Any, Callable
 
 from paperseek_core.document_identity import document_identity, document_key
+from paperseek_core.json_repair import loads_closing_brackets
 from paperseek_core.models import PaperRecord, RankingScore
 
 _REASON_PAIR = re.compile(r'\[\s*"?(\d+)"?\s*,\s*"((?:[^"\\]|\\.)*)"\s*\]')
@@ -62,14 +63,14 @@ class RankingOutputCodec:
             lines = text.split("\n")
             text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
         try:
-            value = json.loads(text)
+            value = loads_closing_brackets(text)
             return value if isinstance(value, dict) else {}
         except json.JSONDecodeError:
             match = re.search(r"\{.*\}", text, re.DOTALL)
             if not match:
                 return {}
             try:
-                value = json.loads(match.group(0))
+                value = loads_closing_brackets(match.group(0))
                 return value if isinstance(value, dict) else {}
             except json.JSONDecodeError:
                 return {}

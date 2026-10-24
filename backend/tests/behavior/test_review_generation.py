@@ -169,6 +169,46 @@ class ReviewGenerationTests(ReviewCase):
         self.assertNotIn("未在正文中标注", findings[0].reason)
         self.assertIn("英文", findings[0].reason)
 
+    async def test_extra_paragraphs_are_merged_into_the_last_planned_one_without_a_retry(self):
+        outline = await self.outline(1)
+        original = self.llm.chat_json
+
+        async def one_too_many(messages, **kwargs):
+            result = json.loads(await original(messages, **kwargs))
+            if "TASK: section" + chr(10) in messages[0]["content"]:
+                extra = dict(result["paragraphs"][0], text="A further point on the same settings (p_002).",
+                             evidence_ids=[self.cards[1].evidence[0].id])
+                result["paragraphs"].append(extra)
+            return json.dumps(result)
+
+        self.llm.chat_json = one_too_many
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="en",
+            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers)
+        self.assertEqual(self.llm.calls["section"], 1)
+        self.assertEqual(len(body.paragraphs), 1)
+        self.assertIn(self.cards[1].evidence[0].id, body.paragraphs[0].evidence_ids)
+        self.assertEqual(findings[0].status, "needs_revision")
+        self.assertIn("extra ones were merged", findings[0].reason)
+
+    async def test_fewer_paragraphs_than_planned_keep_the_draft_and_mark_it(self):
+        outline = await self.outline(1)
+        outline.sections[0].paragraphs.append(outline.sections[0].paragraphs[0].model_copy(deep=True))
+        original = self.llm.chat_json
+
+        async def one_too_few(messages, **kwargs):
+            result = json.loads(await original(messages, **kwargs))
+            if any(f"TASK: {task}" + chr(10) in messages[0]["content"] for task in ("section", "section_edit", "section_repair")):
+                result["paragraphs"] = result["paragraphs"][:1]
+            return json.dumps(result)
+
+        self.llm.chat_json = one_too_few
+        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="en",
+            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers)
+        self.assertEqual(self.llm.calls["section"], 3)
+        self.assertEqual(len(body.paragraphs), 1)
+        self.assertEqual(findings[0].status, "needs_revision")
+        self.assertIn("instead of the 2 planned", findings[0].reason)
+
     async def test_approved_plan_reaches_writer_and_edited_prose_is_fact_checked(self):
         outline = await self.outline(1)
         outline.sections[0].paragraphs.append(outline.sections[0].paragraphs[0].model_copy(deep=True))
