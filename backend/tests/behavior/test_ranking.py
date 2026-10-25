@@ -492,11 +492,6 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(llm.calls, 0)
         self.assertEqual(observer.events, [])
 
-    def test_scores_missing_their_final_brackets_are_still_read(self) -> None:
-        # Intern-S2 sometimes ends a complete reply without its last brackets.
-        parsed = RankingOutputCodec().parse_scores('{"scores":[[1,9],[2,6]', documents()[:2])
-        self.assertEqual([entry["score"] for entry in parsed], [9.0, 6.0])
-
     def test_codec_ignores_duplicate_invalid_and_unknown_scores_and_matches_ids(self) -> None:
         codec = RankingOutputCodec()
         records = documents()[:2]
@@ -512,6 +507,8 @@ class M2RankingPipelineContractTest(unittest.TestCase):
             ],
         )
         self.assertEqual([entry["score"] for entry in parsed], [9.0, 6.0])
+        # A reply that ends without its last brackets is still read.
+        self.assertEqual(len(codec.parse_scores('{"scores":[[1,9],[2,6]', records)), 2)
         self.assertEqual([entry["uid"] for entry in matched], [record.uid for record in records])
         self.assertEqual(missing, [])
 

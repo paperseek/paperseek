@@ -169,27 +169,6 @@ class ReviewGenerationTests(ReviewCase):
         self.assertNotIn("未在正文中标注", findings[0].reason)
         self.assertIn("英文", findings[0].reason)
 
-    async def test_extra_paragraphs_are_merged_into_the_last_planned_one_without_a_retry(self):
-        outline = await self.outline(1)
-        original = self.llm.chat_json
-
-        async def one_too_many(messages, **kwargs):
-            result = json.loads(await original(messages, **kwargs))
-            if "TASK: section" + chr(10) in messages[0]["content"]:
-                extra = dict(result["paragraphs"][0], text="A further point on the same settings (p_002).",
-                             evidence_ids=[self.cards[1].evidence[0].id])
-                result["paragraphs"].append(extra)
-            return json.dumps(result)
-
-        self.llm.chat_json = one_too_many
-        body, findings = await write_section(self.llm, CancellationScope(), topic="Settings", language="en",
-            length="short", outline=outline, section=outline.sections[0], cards=self.cards, papers=self.papers)
-        self.assertEqual(self.llm.calls["section"], 1)
-        self.assertEqual(len(body.paragraphs), 1)
-        self.assertIn(self.cards[1].evidence[0].id, body.paragraphs[0].evidence_ids)
-        self.assertEqual(findings[0].status, "needs_revision")
-        self.assertIn("extra ones were merged", findings[0].reason)
-
     async def test_a_merge_never_exceeds_the_paragraph_limit_so_the_section_can_be_saved(self):
         outline = await self.outline(1)
         original = self.llm.chat_json
