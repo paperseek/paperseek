@@ -23,6 +23,7 @@ from paperseek_core.review.models import (
 )
 from paperseek_core.review.structured import (
     ReviewOutputError,
+    _clean_json,
     structured_call,
 )
 
@@ -60,6 +61,39 @@ class ReviewOutputTests(ReviewCase):
         self.assertEqual(caught.exception.task, "section_edit")
         self.assertIn("paragraphs.0.text", caught.exception.reason)
         self.assertNotIn("private-input-value", caught.exception.reason)
+
+    async def test_a_reply_missing_only_its_final_brackets_is_closed_in_one_call(self):
+        # Intern-S2 sometimes ends a complete reply without its last "}]}", bare or in a code fence.
+        unclosed = '{"paragraphs":[{"text":"A } inside","evidence_ids":["e_1"]},{"text":"Second","evidence_ids":["e_2"]'
+        for reply in (unclosed, "```json" + chr(10) + unclosed + chr(10) + "```"):
+            calls = []
+
+            class Unclosed:
+                async def chat_json(inner, messages, **kwargs):
+                    calls.append(messages)
+                    return reply
+
+            with self.subTest(reply=reply[:8]):
+                body = await structured_call(Unclosed(), CancellationScope(), "section", "", {}, SectionBody)
+                self.assertEqual([paragraph.text for paragraph in body.paragraphs], ["A } inside", "Second"])
+                self.assertEqual(len(calls), 1)
+
+    async def test_a_reply_cut_off_inside_a_later_paragraph_is_repaired_not_shortened(self):
+        complete = '{"paragraphs":[{"text":"First","evidence_ids":["e_1"]},{"text":"Second","evidence_ids":["e_2"]}]}'
+        calls = []
+
+        class CutOff:
+            async def chat_json(inner, messages, **kwargs):
+                calls.append(messages[0]["content"])
+                if messages[0]["content"].startswith("You are a strict JSON formatter"):
+                    return complete
+                return '{"paragraphs":[{"text":"First","evidence_ids":["e_1"]},{"text":"Second is cut mid'
+
+        body = await structured_call(CutOff(), CancellationScope(), "section", "", {}, SectionBody)
+        self.assertEqual([paragraph.text for paragraph in body.paragraphs], ["First", "Second"])
+        self.assertEqual(len(calls), 2)
+        # Explanatory text after a complete object is still removed without another call.
+        self.assertEqual(_clean_json(complete + " Hope this helps."), complete)
 
     async def test_broken_json_is_reformatted_without_regenerating_content(self):
         calls = []

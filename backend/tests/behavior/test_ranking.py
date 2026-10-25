@@ -507,6 +507,8 @@ class M2RankingPipelineContractTest(unittest.TestCase):
             ],
         )
         self.assertEqual([entry["score"] for entry in parsed], [9.0, 6.0])
+        # A reply that ends without its last brackets is still read.
+        self.assertEqual(len(codec.parse_scores('{"scores":[[1,9],[2,6]', records)), 2)
         self.assertEqual([entry["uid"] for entry in matched], [record.uid for record in records])
         self.assertEqual(missing, [])
 
