@@ -39,13 +39,16 @@ def _clean_json(output: str) -> str:
     if start < 0:
         return stripped
     whole = stripped[start:]
+    # Missing closing brackets are added to the full text only.
+    closed = _closed(whole)
+    if _parses(closed):
+        return closed
+    # Text after the last "}" is dropped only when what precedes it is already complete JSON:
+    # a reply cut off mid-string must not be shortened to its earlier objects and accepted.
     end = whole.rfind("}")
-    # The full text first; trailing prose after the last "}" second.
-    for candidate in (whole, whole[:end + 1]) if end >= 0 else (whole,):
-        closed = _closed(candidate)
-        if _parses(closed):
-            return closed
-    return whole[:end + 1] if end >= 0 else whole
+    if end >= 0 and _parses(whole[:end + 1]):
+        return whole[:end + 1]
+    return whole
 
 
 def _parses(text: str) -> bool:
