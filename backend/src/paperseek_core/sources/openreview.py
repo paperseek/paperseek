@@ -42,7 +42,7 @@ class OpenReviewClient:
                   "limit": self.PAGE_SIZE, "offset": offset}
         response, _ = await self.transport.request(
             self.name, "GET", self.SEARCH_URL, params=params, headers={"Accept": "application/json"},
-            timeout=20, query=term, attempts=2, min_interval=1.0,
+            timeout=20, query=term, attempts=2,
         )
         if response.status_code >= 400:
             raise SourceError(self.name, f"OpenReview search returned HTTP {response.status_code}.",

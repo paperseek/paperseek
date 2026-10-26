@@ -28,7 +28,7 @@ from paperseek_core.sources.contracts import SourceError
 from paperseek_core.sources.rate_limit import PACED_SOURCES
 
 PROXY_SCOPES = ("models", "ip_limited_sources", "other_sources")
-_ADDRESS_LIMITED = frozenset({"arxiv", "crossref", "paperhub", "nssd", "yiigle"})
+_ADDRESS_LIMITED = frozenset({"arxiv", "crossref", "paperhub", "nssd", "yiigle", "openreview", "showjcr"})
 _ADDRESS_LIMITED_WITHOUT_KEY = frozenset({"pubmed", "openalex"})
 _CREDENTIAL_PARAMS = frozenset({"api_key", "apikey"})
 _CREDENTIAL_HEADERS = ("x-api-key", "x-apikey", "authorization")

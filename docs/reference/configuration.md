@@ -59,7 +59,7 @@ Choose what goes through the proxy:
 | Scope | Covers | When it helps |
 | --- | --- | --- |
 | `models` | Language, embedding, rerank and decision models | The model provider cannot be reached directly. Local and LAN addresses always connect directly. |
-| `ip_limited_sources` | arXiv, Crossref, PaperHub, NSSD, Chinese Medical Journals, and PubMed or OpenAlex without a key | These sources count requests per network address. A different exit helps when your address is shared with others or has been throttled. |
+| `ip_limited_sources` | arXiv, Crossref, PaperHub, OpenReview, NSSD, Chinese Medical Journals, the ShowJCR table download, and PubMed or OpenAlex without a key | These sources count requests per network address. A different exit helps when your address is shared with others or has been throttled. |
 | `other_sources` | Semantic Scholar, Web of Science, Google Scholar, Wanfang Data, and sources with a key | These sources count usage per key or in a shared pool, so a proxy does not raise the limit. It only helps when they cannot be reached directly. |
 
 Traffic outside the chosen scope follows the system proxy settings (`HTTPS_PROXY`, `NO_PROXY`). With several proxies, requests take them in turn, including retries. Request intervals, cooldowns and `Retry-After` still apply across the whole pool, so a pool never sends faster than a single address would.

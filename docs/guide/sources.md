@@ -61,7 +61,7 @@ Rate limits and malformed API responses are reported as source problems, not zer
 
 ## Network proxy
 
-If your network cannot reach a source or model provider directly, or a source has throttled your network address, set up a proxy in **Settings › General › Network proxy**. You choose which requests go through it: model requests, sources that limit by network address (arXiv, Crossref, PaperHub, NSSD, Chinese Medical Journals, and PubMed or OpenAlex without a key), and other sources. A proxy does not raise a key's quota. See [Network proxy](../reference/configuration.md#network-proxy) for the details and the matching environment variables.
+If your network cannot reach a source or model provider directly, or a source has throttled your network address, set up a proxy in **Settings › General › Network proxy**. You choose which requests go through it: model requests, sources that limit by network address (arXiv, Crossref, PaperHub, OpenReview, NSSD, Chinese Medical Journals, the ShowJCR table download, and PubMed or OpenAlex without a key), and other sources. A proxy does not raise a key's quota. See [Network proxy](../reference/configuration.md#network-proxy) for the details and the matching environment variables.
 
 ## Fields and categories
 

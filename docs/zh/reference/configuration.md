@@ -59,7 +59,7 @@ $env:PAPERSEEK_PROXY_SCOPE = "ip_limited_sources"
 | 范围 | 包括 | 什么时候有用 |
 | --- | --- | --- |
 | `models` | 大模型、嵌入、重排和决策模型 | 无法直接访问模型服务时。本机和局域网地址始终直连。 |
-| `ip_limited_sources` | arXiv、Crossref、PaperHub、国家哲学社会科学学术期刊数据库、中华医学期刊库，以及未填写密钥的 PubMed 和 OpenAlex | 这些数据源按网络地址计算请求次数。网络地址与他人共用或已被限速时，换一个出口会有帮助。 |
+| `ip_limited_sources` | arXiv、Crossref、PaperHub、OpenReview、国家哲学社会科学学术期刊数据库、中华医学期刊库、ShowJCR 分区表下载，以及未填写密钥的 PubMed 和 OpenAlex | 这些数据源按网络地址计算请求次数。网络地址与他人共用或已被限速时，换一个出口会有帮助。 |
 | `other_sources` | Semantic Scholar、Web of Science、Google Scholar、万方数据，以及已填写密钥的数据源 | 这些数据源按密钥或共享额度计算，代理不会增加额度，只在无法直接访问时需要。 |
 
 未选中的请求按系统代理设置（`HTTPS_PROXY`、`NO_PROXY`）发送。填写多个代理时，请求（包括重试）会轮流使用它们。请求间隔、冷却时间和 `Retry-After` 对整个代理池统一生效，代理池发送请求的速度不会超过单个地址。

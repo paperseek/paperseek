@@ -81,7 +81,9 @@ class JournalTableStore:
         for platform in platforms or list(PLATFORMS):
             name, year = SHOWJCR_FILES[platform]
             try:
-                response = await client.get(showjcr_url(platform), timeout=120, follow_redirects=True)
+                # Named as a source so the data-source proxy scope applies, as for PaperHub's GitHub files.
+                response = await client.get(showjcr_url(platform), timeout=120, follow_redirects=True,
+                                            extensions={"paperseek_source": "showjcr"})
                 response.raise_for_status()
             except httpx.HTTPError as exc:
                 raise JournalTableError("journal_table_download") from exc
