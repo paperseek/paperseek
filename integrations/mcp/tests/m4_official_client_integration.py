@@ -272,7 +272,7 @@ class InstalledMCPGate:
         if [tool["name"] for tool in schemas] != EXPECTED_TOOLS:
             raise AssertionError(schemas)
         sources = _payload(await session.call_tool("list_sources"))["sources"]
-        if len(sources) != 8:
+        if len(sources) != 11:
             raise AssertionError(sources)
         capability = _payload(
             await session.call_tool("get_source_capabilities", {"source": "openalex"})
