@@ -53,7 +53,7 @@ OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 是不同协�
 
 ## 5. 阅读结果
 
-打开**检索结果**，查看摘要与相关性理由，导出 CSV 或 JSON。社区版将历史保存在本地。
+打开**检索结果**，查看摘要与相关性理由，导出 CSV、JSON、BibTeX 或 RIS。社区版将历史保存在本地。
 
 通过侧栏的**检索历史**重新打开某次运行，或点击标题旁的**全部**进入完整列表。有引用数据时查看**引用证据**，也可以勾选文献开始一篇[实验性综述](../guide/reviews.md)。从侧栏打开[文献计量](../guide/bibliometrics.md)，可分析完整召回的候选集。
 

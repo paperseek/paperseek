@@ -76,7 +76,7 @@ Open history, inspect a saved run, export its results, and make a small new sear
    Add `"paperseek-mcp==1.0.0b4"` to the same command if you use the MCP adapter. With Docker, set `PAPERSEEK_VERSION` to `1.0.0-beta4` in `.env`, then run `docker compose pull` and `docker compose up -d`.
 3. Start the service and check `paperseek version`.
 
-After the upgrade, up to four searches and reviews run at the same time; set `PAPERSEEK_MAX_CONCURRENT_RUNS` to change that. If your network needs a proxy to reach models or data sources, set it up in **Settings › Data sources › Network proxy** or with the variables in [Network proxy](../reference/configuration.md#network-proxy).
+After the upgrade, up to four searches and reviews run at the same time; set `PAPERSEEK_MAX_CONCURRENT_RUNS` to change that. If your network needs a proxy to reach models or data sources, set it up in **Settings › General › Network proxy** or with the variables in [Network proxy](../reference/configuration.md#network-proxy).
 
 Reviews that have no written sections yet extract evidence again the next time you generate the outline, which uses your writing model once more. Reviews with written sections keep their evidence.
 

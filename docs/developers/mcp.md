@@ -39,7 +39,7 @@ The MCP process reads the same `PAPERSEEK_*` environment variables as the CLI. V
 | `get_search_results` | Read paginated results |
 | `get_citation_graph` | Read the citation graph |
 | `cancel_search` | Request cancellation |
-| `export_results` | Export complete JSON or CSV results |
+| `export_results` | Export complete results as JSON, CSV, BibTeX, or RIS |
 
 A connection is not the lifetime of a search. Keep the returned `run_id`, then use it to check status and retrieve results. Follow the returned pagination cursor instead of assuming the first page is complete.
 
@@ -48,7 +48,7 @@ A connection is not the lifetime of a search. Keep the returned `run_id`, then u
 1. Inspect `list_sources` and `get_source_capabilities` for source and filter IDs.
 2. Call `start_search` with your question, source, and budget (`fast`, `medium`, `high`, or `max`). It immediately returns `run_id` and `status`. Reuse a nonempty `idempotency_key` and the same arguments when retrying a submission.
 3. Poll `get_search_status` every few seconds. Terminal statuses are `completed`, `completed_with_warnings`, `failed`, and `cancelled`. An empty event page does not indicate completion.
-4. Read `get_search_results` until `next_cursor` is `null`. Event and result pages accept 1–200 items. Use `export_results` for the full JSON or CSV export.
+4. Read `get_search_results` until `next_cursor` is `null`. Event and result pages accept 1–200 items. Use `export_results` for the full JSON, CSV, BibTeX, or RIS export.
 
 Keep the MCP process running while its worker executes a search. Closing a connection does not request cancellation; use `cancel_search`. Local runs remain in the selected database and can be read after restarting with the same database. The default is `~/.paperseek/paperseek.db`; set `--database` or `PAPERSEEK_DATABASE` to change it.
 

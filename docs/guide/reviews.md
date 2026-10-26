@@ -30,6 +30,8 @@ The length sets a suggested number of papers: about **8â€“20** for Short, **20â€
 
 Tick papers yourself, or choose **Auto-select by topic**: the writing model considers the first **256 papers with usable abstracts in search-rank order**, picks papers that cover distinct themes, methods, and study populations, and gives a reason for each. You can still add or remove papers, including manually adding papers ranked beyond that range. Auto-select does not count as a writing task and uses no credits with PaperSeek Service.
 
+Each paper shows its CCF class, CAS tier and JCR quartile, and its conference acceptance, when the search labelled them. **Journal** next to the search box narrows the list to a tier or class; **Select all with abstracts** then selects only the papers listed.
+
 Only papers with abstracts can be selected. More papers do not automatically mean better evidence. Records without meaningful research content may not contribute to the draft.
 
 You can switch modules while auto-selection runs. Return to Reviews and open the **Selecting / Ready to confirm** draft in the sidebar to recover the settings, selected papers, and reasons. This tab keeps one pending draft; refreshing, closing the page, or signing out clears it. **Stop waiting** ignores any later selection result but may not stop computation already running at the model provider. **Discard draft** clears the draft.

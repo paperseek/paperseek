@@ -12,10 +12,27 @@
 | [Semantic Scholar](https://www.semanticscholar.org/) | Key 可选 | 必须配置 Key | 论文与学术图谱元数据 |
 | [PubMed](https://pubmed.ncbi.nlm.nih.gov/) | NCBI Key 可选 | 必须配置 Key | 生物医学与生命科学 |
 | Google Scholar / [Serper](https://serper.dev/) | 必须配置 Serper Key | 必须配置 Key | 通过受支持 API 检索 Scholar |
-| PaperHub 计算机顶会 | 无需 Key | 无需 Key | PaperHub 提供的顶会集合 |
+| PaperHub 计算机顶会 | 无需 Key | 无需 Key | PaperHub 提供的顶会集合，并补充 OpenReview 上已录用的论文 |
 | [Web of Science Starter](https://developer.clarivate.com/apis/wos-starter) | 需要 Clarivate Key | 必须配置 Key | 受支持的 WoS 集合 |
+| [万方数据](https://www.wanfangdata.com.cn/) | 需要万方 AppKey | 必须自备 Key | 中文期刊论文、学位论文和会议论文 |
+| [国家哲学社会科学学术期刊数据库](https://www.ncpssd.cn/) | 无需 Key | 暂不提供 | 中文哲学社会科学期刊 |
+| [中华医学期刊库](https://www.yiigle.com/) | 无需 Key | 暂不提供 | 中华医学会系列期刊的题录和摘要 |
 
-PaperSeek 服务的数据源访问由 PaperSeek 管理。社区版按上表允许匿名访问或使用可选密钥；在线版 BYOK 是单独的访问策略，在设置中填写并保存数据源密钥；除 arXiv、Crossref、PaperHub 等无需密钥的数据源外，其余数据源（包括 OpenAlex、PubMed、Semantic Scholar）都必须提供密钥。模型 Key 与数据源 Key 并不通用。
+PaperSeek 服务的数据源访问由 PaperSeek 管理，Web of Science 和万方数据除外：站点不提供这两个库的密钥，即使使用 PaperSeek 服务，也需要在**设置 → 模型服务**中保存自己的密钥。社区版按上表允许匿名访问或使用可选密钥；在线版 BYOK 是单独的访问策略，在设置中填写并保存数据源密钥；除 arXiv、Crossref、PaperHub 等无需密钥的数据源外，其余数据源（包括 OpenAlex、PubMed、Semantic Scholar）都必须提供密钥。模型 Key 与数据源 Key 并不通用。
+
+## 中文数据库
+
+在万方数据、国家哲学社会科学学术期刊数据库和中华医学期刊库检索时，检索计划、概念组和每一条检索式都用中文构建，使用这些数据库实际标引的中文学术用语；无论你用中文还是英文提问都是如此。SGLT2、COVID-19 这类通用缩写会原样保留。
+
+三个数据库的检索式写法各不相同：
+
+| 数据库 | PaperSeek 发送的检索式 |
+| --- | --- |
+| 万方数据 | 万方 PQ 表达式，例如 `(数字治理 OR 数字化治理) AND 乡村振兴`；只有核心概念需要时才加 标题:、关键词:、摘要: 字段 |
+| 国家哲学社会科学学术期刊数据库 | 用 AND、OR、NOT 连接的中文检索词；PaperSeek 会在题名、主题词和摘要中检索每个词 |
+| 中华医学期刊库 | 2–4 个用空格分隔的中文词。该库要求所有词同时出现，不支持 OR，所以每个概念只保留一个词 |
+
+这些数据库返回中文题名、作者、刊名和摘要。国家哲学社会科学学术期刊数据库和中华医学期刊库只提供题录和摘要，PaperSeek 不会下载其全文。万方需要 AppKey（[申请地址](https://ai.wfdata.com/skills/api)），可在**设置 → 数据源**中填写，或设置环境变量 `PAPERSEEK_WANFANG_API_KEY`。
 
 ## 配置与测试数据源
 
@@ -30,6 +47,7 @@ PaperSeek 服务的数据源访问由 PaperSeek 管理。社区版按上表允�
 - [NCBI API 指南](https://www.ncbi.nlm.nih.gov/books/NBK25497/)。
 - [Serper 账户](https://serper.dev/)。
 - [WoS Starter 应用](https://developer.clarivate.com/apis/wos-starter)。
+- [万方 AppKey 申请](https://ai.wfdata.com/skills/api)。
 
 上游订阅和速率限制，与 PaperSeek 账户及积分分别管理。
 
@@ -43,7 +61,7 @@ PaperSeek 服务的数据源访问由 PaperSeek 管理。社区版按上表允�
 
 ## 网络代理
 
-如果你的网络无法直接访问某个数据源或模型服务，或者数据源对你的网络地址限速，可以在 **设置 › 数据源 › 网络代理** 中设置代理，并选择哪些请求走代理：大模型请求、按网络地址限速的数据源（arXiv、Crossref、PaperHub，以及未填写密钥的 PubMed 和 OpenAlex）、其他数据源。代理不会增加密钥的额度。详情及对应的环境变量见[网络代理](../reference/configuration.md#网络代理)。
+如果你的网络无法直接访问某个数据源或模型服务，或者数据源对你的网络地址限速，可以在 **设置 › 通用 › 网络代理** 中设置代理，并选择哪些请求走代理：大模型请求、按网络地址限速的数据源（arXiv、Crossref、PaperHub、国家哲学社会科学学术期刊数据库、中华医学期刊库，以及未填写密钥的 PubMed 和 OpenAlex）、其他数据源。代理不会增加密钥的额度。详情及对应的环境变量见[网络代理](../reference/configuration.md#网络代理)。
 
 ## 领域与分类
 

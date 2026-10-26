@@ -12,10 +12,27 @@ Choose an index that fits your research. Coverage, metadata, access, and filters
 | [Semantic Scholar](https://www.semanticscholar.org/) | Optional key | Key required | Papers and scholarly graph metadata |
 | [PubMed](https://pubmed.ncbi.nlm.nih.gov/) | Optional NCBI key | Key required | Biomedical and life-science research |
 | Google Scholar via [Serper](https://serper.dev/) | Serper key required | Key required | Scholar results through the supported API |
-| PaperHub top CS conferences | No key | No key | PaperHub's conference collection |
+| PaperHub top CS conferences | No key | No key | PaperHub's conference collection, widened with papers OpenReview lists as accepted |
 | [Web of Science Starter](https://developer.clarivate.com/apis/wos-starter) | Clarivate key required | Key required | Supported WoS collection when enabled |
+| [Wanfang Data](https://www.wanfangdata.com.cn/) | Wanfang AppKey required | Your own key required | Chinese journal articles, theses, and conference papers |
+| [National Social Sciences Database (NSSD)](https://www.ncpssd.cn/) | No key | Not available | Chinese social sciences and humanities journals |
+| [Chinese Medical Journals (Yiigle)](https://www.yiigle.com/) | No key | Not available | Chinese Medical Association journals: titles and abstracts |
 
-PaperSeek Service manages source access for you. Community permits anonymous access or optional keys as shown above. Online BYOK has a separate access policy: add and save source keys in Settings for every source that takes a key, including OpenAlex, PubMed, and Semantic Scholar. arXiv, Crossref, and PaperHub need no key. A model key is not a data-source key.
+PaperSeek Service manages source access for you, except Web of Science and Wanfang Data: PaperSeek provides no key for these, so with PaperSeek Service too you save your own key under **Settings → Model service**. Community permits anonymous access or optional keys as shown above. Online BYOK has a separate access policy: add and save source keys in Settings for every source that takes a key, including OpenAlex, PubMed, and Semantic Scholar. arXiv, Crossref, and PaperHub need no key. A model key is not a data-source key.
+
+## Chinese databases
+
+Searches on Wanfang Data, NSSD, and Chinese Medical Journals are planned and built in Chinese: the search plan, its concept groups, and every query use the Chinese terminology these databases index, whatever language you ask in. Widely used abbreviations such as SGLT2 or COVID-19 stay as they are.
+
+Each database takes its own query form:
+
+| Database | Query PaperSeek sends |
+| --- | --- |
+| Wanfang Data | A Wanfang PQ expression, for example `(数字治理 OR 数字化治理) AND 乡村振兴`; a 标题:, 关键词:, or 摘要: field only when a core concept needs it |
+| NSSD | Chinese terms with AND, OR, and NOT; PaperSeek searches each term in the title, subject terms, and abstract |
+| Chinese Medical Journals | Two to four space-separated Chinese terms. The database matches all of them and has no OR, so each concept keeps one term |
+
+Results from these databases carry Chinese titles, authors, venues, and abstracts. NSSD and Chinese Medical Journals return metadata and abstracts only; PaperSeek never downloads their full text. Wanfang needs an AppKey ([apply here](https://ai.wfdata.com/skills/api)): add it in **Settings → Data sources** or set `PAPERSEEK_WANFANG_API_KEY`.
 
 ## Configure and test a source
 
@@ -30,6 +47,7 @@ Open **Settings → Data sources** and choose **Configure** or **Configure key**
 - [NCBI API guidance](https://www.ncbi.nlm.nih.gov/books/NBK25497/).
 - [Serper account](https://serper.dev/).
 - [WoS Starter application](https://developer.clarivate.com/apis/wos-starter).
+- [Wanfang AppKey application](https://ai.wfdata.com/skills/api).
 
 Provider subscriptions and rate limits are separate from PaperSeek accounts and credits.
 
@@ -43,7 +61,7 @@ Rate limits and malformed API responses are reported as source problems, not zer
 
 ## Network proxy
 
-If your network cannot reach a source or model provider directly, or a source has throttled your network address, set up a proxy in **Settings › Data sources › Network proxy**. You choose which requests go through it: model requests, sources that limit by network address (arXiv, Crossref, PaperHub, and PubMed or OpenAlex without a key), and other sources. A proxy does not raise a key's quota. See [Network proxy](../reference/configuration.md#network-proxy) for the details and the matching environment variables.
+If your network cannot reach a source or model provider directly, or a source has throttled your network address, set up a proxy in **Settings › General › Network proxy**. You choose which requests go through it: model requests, sources that limit by network address (arXiv, Crossref, PaperHub, NSSD, Chinese Medical Journals, and PubMed or OpenAlex without a key), and other sources. A proxy does not raise a key's quota. See [Network proxy](../reference/configuration.md#network-proxy) for the details and the matching environment variables.
 
 ## Fields and categories
 

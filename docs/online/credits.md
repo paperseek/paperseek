@@ -8,7 +8,7 @@ PaperSeek Service is the default online mode: PaperSeek provides the models, and
 2. Describe your question, choose a data source and a search budget.
 3. Start the search. The form shows how many credits the task uses and how many are left today.
 
-Searches and reviews use **Default**, the built-in model chosen by PaperSeek. Preliminary ranking is configured in **Settings › Model service**. Available sources are shown in the application.
+Searches and reviews use **Default**, the built-in model chosen by PaperSeek. Preliminary ranking is configured in **Settings › Model service**. Available sources are shown in the application. Web of Science and Wanfang Data have no PaperSeek-provided key: save your own under **Settings › Model service** to search them with PaperSeek Service too.
 
 ## Credits
 

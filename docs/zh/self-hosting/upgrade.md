@@ -76,7 +76,7 @@ paperseek serve --database /data/paperseek/paperseek.db
    如使用 MCP 适配器，在同一条命令中加上 `"paperseek-mcp==1.0.0b4"`。使用 Docker 时，在 `.env` 中把 `PAPERSEEK_VERSION` 设为 `1.0.0-beta4`，再依次执行 `docker compose pull` 和 `docker compose up -d`。
 3. 启动服务，并用 `paperseek version` 确认版本。
 
-升级后最多同时运行 4 个检索和综述任务，可用 `PAPERSEEK_MAX_CONCURRENT_RUNS` 修改。如果你的网络需要代理才能访问模型或数据源，请在 **设置 › 数据源 › 网络代理** 中设置，或使用[网络代理](../reference/configuration.md#网络代理)中的环境变量。
+升级后最多同时运行 4 个检索和综述任务，可用 `PAPERSEEK_MAX_CONCURRENT_RUNS` 修改。如果你的网络需要代理才能访问模型或数据源，请在 **设置 › 通用 › 网络代理** 中设置，或使用[网络代理](../reference/configuration.md#网络代理)中的环境变量。
 
 尚未写出正文的综述，下次生成大纲时会重新提取证据，因此会再次调用写作模型；已有正文的综述保留原有证据。
 

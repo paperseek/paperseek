@@ -19,11 +19,12 @@ Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Configure a model API and d
 
 ## Capabilities
 
-- Eight scholarly sources: OpenAlex, arXiv, Crossref, Semantic Scholar, PubMed, Google Scholar via Serper, PaperHub, and Web of Science Starter.
+- Eleven scholarly sources: OpenAlex, arXiv, Crossref, Semantic Scholar, PubMed, Google Scholar via Serper, PaperHub (widened with accepted OpenReview papers), Web of Science Starter, and the Chinese databases Wanfang Data, NSSD, and Chinese Medical Journals, which are searched in Chinese.
 - Query iteration, bounded candidate retrieval, optional citation expansion, and relevance ranking.
 - OpenAI Responses, OpenAI-compatible Chat Completions, and Anthropic Messages model protocols.
 - Local fusion, Embedding + Rerank, or System One preliminary ranking.
-- Search history, filters, selection, citation maps, and complete CSV/JSON exports.
+- Venue labels and filters: CAS tiers, JCR quartiles and Impact Factor, CCF classes (from ShowJCR), and conference acceptance from PaperHub and OpenReview.
+- Search history, filters, selection, citation maps, and complete CSV, JSON, BibTeX, and RIS exports.
 - **Experimental** abstract-based reviews with editable outlines, section writing, versions, and Markdown/Word/BibTeX exports.
 
 A run begins with one selected data source. Search is bounded, not guaranteed exhaustive; reviews use available abstracts and metadata rather than automatically read full texts.

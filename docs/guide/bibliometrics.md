@@ -15,9 +15,12 @@ Older searches without this corpus artifact can only be analyzed from their save
 | View | What it provides |
 | --- | --- |
 | Overview | Publication years, venues, document types, authors, institutions, countries, citation coverage, and the scored subset |
+| Venue rankings | CAS tiers and Top, JCR quartiles, CCF classes, and a table of ranked journals and conferences with their Impact Factor |
 | Keywords | Native keywords or source categories, frequencies, and an optional co-occurrence network |
 | Paper relations | Bibliographic coupling: papers connected by shared returned references |
 | Data quality | Field coverage, missing values, scope, and source limitations |
+
+Venue rankings label the whole analysed corpus, not only scored papers, from the [ShowJCR tables](results.md#journal-rankings-and-conference-acceptance) on this computer when the analysis is created. An analysis created before the tables were downloaded has no ranking labels; create it again from the same search. Only the JCR IF is an Impact Factor.
 
 Missing citation counts remain unknown; an explicitly returned zero remains zero. Author and institution labels are not identity-disambiguated. Country counts describe returned affiliations, not researcher nationality. Keyword provenance matters: an OpenAlex concept or a Semantic Scholar field is not necessarily an author-supplied keyword.
 
