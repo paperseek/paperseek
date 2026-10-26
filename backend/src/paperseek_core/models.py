@@ -727,6 +727,16 @@ class FinalPaperResult(CoreModel):
     document_types: list[str] = Field(default_factory=list)
     citations: str = "0"
     reasoning: str = ""
+    volume: str = ""
+    issue: str = ""
+    pages: str = ""
+    issn: str = ""
+    eissn: str = ""
+    arxiv_id: str = ""
+    # Partitions and impact figures per platform; see paperseek_core.journal_metrics.
+    journal_metrics: dict[str, Any] = Field(default_factory=dict)
+    # Conference acceptance (venue, year, Oral/Spotlight/Poster); see paperseek_core.acceptance.
+    acceptance: dict[str, Any] = Field(default_factory=dict)
 
 
 class ResearchAssemblyRequest(CoreModel):
@@ -746,6 +756,8 @@ class ResearchAssemblyRequest(CoreModel):
     search_state: dict[str, Any] = Field(default_factory=dict)
     items: list[RankedPaper] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    # Per document uid: {"journal_metrics": {...}, "acceptance": {...}} from the enrichment step.
+    annotations_by_uid: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class ResearchResult(CoreModel):

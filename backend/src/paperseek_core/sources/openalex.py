@@ -53,6 +53,7 @@ class OpenAlexSource:
             "ids",
             "primary_topic",
             "referenced_works",
+            "biblio",
         )
     )
 
@@ -491,6 +492,9 @@ class OpenAlexSource:
             source=PaperSource(
                 source_title=self._clean_text(source_obj.get("display_name") or ""),
                 publish_year=work.get("publication_year"),
+                volume=str((work.get("biblio") or {}).get("volume") or ""),
+                issue=str((work.get("biblio") or {}).get("issue") or ""),
+                pages=work.get("biblio") or None,
             ),
             names=PaperNames(authors=authors),
             links=PaperLinks(
@@ -501,6 +505,8 @@ class OpenAlexSource:
             citations=[PaperCitation(db="OpenAlex", count=citation_count)] if citation_count else [],
             identifiers=PaperIdentifiers(
                 doi=normalize_doi(work.get("doi") or ""),
+                issn=str(source_obj.get("issn_l") or ""),
+                eissn=next((str(value) for value in source_obj.get("issn") or [] if value and value != source_obj.get("issn_l")), ""),
                 openalex=openalex_id,
                 pmid=(ids.get("pmid") or "").replace("https://pubmed.ncbi.nlm.nih.gov/", ""),
             ),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from paperseek_core.models import (
     CheckpointDraft,
@@ -72,6 +72,13 @@ class DecisionPort(Protocol):
     base_url: str
 
     async def score(self, state: dict, questions: dict) -> DecisionBatchResult: ...
+
+
+@runtime_checkable
+class EnrichmentPort(Protocol):
+    """Adds journal partitions and conference acceptance to final results; never fails a run."""
+
+    async def annotate(self, documents: list[PaperRecord]) -> dict[str, dict[str, Any]]: ...
 
 
 @runtime_checkable

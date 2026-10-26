@@ -35,6 +35,8 @@ export function eventLabel(t: TFunc, eventType: string): string {
     "ranking.failed": "eventRankingFailed",
     "workflow.completed": "eventWorkflowCompleted",
     "workflow.recovery": "eventRecoveryApplied",
+    "enrichment.completed": "eventEnrichmentCompleted",
+    "enrichment.failed": "eventEnrichmentFailed",
   };
   return t(labels[eventType] || "progressUpdated");
 }
@@ -106,6 +108,9 @@ export function eventDetail(t: TFunc, event: { event_type: string; payload?: Rec
     return `${t("finalOutput")}: ${Number(payload.result_count ?? 0)} · ${t("warnings")}: ${Number(payload.warning_count ?? 0)}`;
   }
   if (event.event_type === "workflow.recovery") return t("recoveryApplied");
+  if (event.event_type === "enrichment.completed") {
+    return `${t("journalMatches")}: ${Number(payload.journal_matches ?? 0)} · ${t("acceptanceMatches")}: ${Number(payload.acceptance_matches ?? 0)}`;
+  }
   return t("progressUpdated");
 }
 

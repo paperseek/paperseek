@@ -22,6 +22,7 @@ class CommunityDeploymentSettings(BaseModel):
     pubmed_api_key: str = Field(repr=False)
     wos_api_key: str = Field(repr=False)
     google_scholar_api_key: str = Field(repr=False)
+    wanfang_api_key: str = Field(default="", repr=False)
     contact_email: str
     wos_db: str = "WOS"
     proxy: ProxyPolicy = Field(default_factory=ProxyPolicy, repr=False, exclude=True)
@@ -54,6 +55,7 @@ class CommunityDeploymentSettings(BaseModel):
             pubmed_api_key=os.environ.get("PAPERSEEK_PUBMED_API_KEY", "").strip(),
             wos_api_key=os.environ.get("PAPERSEEK_WOS_API_KEY", "").strip(),
             google_scholar_api_key=os.environ.get("PAPERSEEK_GOOGLE_SCHOLAR_API_KEY", "").strip(),
+            wanfang_api_key=os.environ.get("PAPERSEEK_WANFANG_API_KEY", "").strip(),
             contact_email=os.environ.get("PAPERSEEK_CONTACT_EMAIL", "").strip(),
             wos_db=normalize_wos_db(os.environ.get("PAPERSEEK_WOS_DB")),
             max_concurrent_runs=os.environ.get("PAPERSEEK_MAX_CONCURRENT_RUNS", "").strip() or 4,

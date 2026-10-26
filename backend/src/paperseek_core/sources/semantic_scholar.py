@@ -159,6 +159,7 @@ class SemanticScholarSource:
             citations=[PaperCitation(db="Semantic Scholar", count=citation_count)] if citation_count else [],
             identifiers=PaperIdentifiers(
                 doi=normalize_doi(external.get("DOI") or external.get("DOIUrl") or ""),
+                issn=str(venue_obj.get("issn") or "") if isinstance(venue_obj, dict) else "",
                 pmid=str(external.get("PubMed") or ""),
                 arxiv=str(external.get("ArXiv") or ""),
                 semanticscholar=paper_id,

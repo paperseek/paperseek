@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { api, type ResultPageQuery } from "../../api/client";
+import { api, type AcceptanceFilter, type ExportFormat, type JournalFilter, type ResultPageQuery } from "../../api/client";
 import type { PaperResult, RunDetail } from "../../api/types";
 import Icon from "../../components/Icon.vue";
 import UiMenu from "../../components/UiMenu.vue";
@@ -35,6 +35,14 @@ const query = ref("");
 const appliedQuery = ref("");
 const minScore = ref("all");
 const availability = ref("all");
+const journalFilter = ref("all");
+const acceptanceFilter = ref("all");
+const JOURNAL_FILTERS: JournalFilter[] = ["cas1", "cas2", "cas3", "castop", "jcr1", "jcr2", "ccfa", "ccfb", "ccfc", "ranked"];
+const ACCEPTANCE_FILTERS: AcceptanceFilter[] = ["accepted", "oral", "spotlight"];
+const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
+  { format: "csv", label: "CSV" }, { format: "json", label: "JSON" },
+  { format: "bibtex", label: "BibTeX" }, { format: "ris", label: "RIS" },
+];
 const sort = ref<NonNullable<ResultPageQuery["sort"]>>("rank");
 const selectedIds = ref(new Set<string>());
 const uidById = new Map<string, string>();
@@ -57,7 +65,8 @@ const paperId = (paper: PaperResult) => String(paper.uid || paper.doi || paper.u
 function rememberUids(papers: PaperResult[]) {
   for (const paper of papers) if (paper.uid) uidById.set(paperId(paper), paper.uid);
 }
-const filtersActive = computed(() => Boolean(appliedQuery.value.trim()) || minScore.value !== "all" || availability.value !== "all");
+const filtersActive = computed(() => Boolean(appliedQuery.value.trim()) || minScore.value !== "all" || availability.value !== "all"
+  || journalFilter.value !== "all" || acceptanceFilter.value !== "all");
 const total = computed(() => totalCount.value ?? run.value?.result_count ?? results.value.length);
 const summaryLine = computed(() => {
   const parts = [u("summary", { total: total.value.toLocaleString() })];
@@ -88,11 +97,20 @@ const metaOptions = computed<SelectOption<string>[]>(() => [
   { value: "doi", label: u("metaDoi") },
   { value: "pdf", label: u("metaPdf") },
 ]);
+const journalOptions = computed<SelectOption<string>[]>(() => [
+  { value: "all", label: u("journalAll") },
+  ...JOURNAL_FILTERS.map((value) => ({ value, label: u(`journal_${value}`) })),
+]);
+const acceptanceOptions = computed<SelectOption<string>[]>(() => [
+  { value: "all", label: u("acceptanceAll") },
+  ...ACCEPTANCE_FILTERS.map((value) => ({ value, label: u(`acceptance_${value}`) })),
+]);
 const sortOptions = computed<SelectOption<NonNullable<ResultPageQuery["sort"]>>[]>(() => [
   { value: "rank", label: u("sortRank") },
   { value: "score", label: u("sortScore") },
   { value: "citations", label: u("sortCitations") },
   { value: "year", label: u("sortYear") },
+  { value: "impact", label: u("sortImpact") },
 ]);
 
 function toggleSelection(paper: PaperResult) {
@@ -121,6 +139,8 @@ function filterParams(): ResultPageQuery {
     query: appliedQuery.value.trim() || undefined,
     minScore: minScore.value === "all" ? null : Number(minScore.value),
     metadata: availability.value === "all" ? "" : (availability.value as ResultPageQuery["metadata"]),
+    journal: journalFilter.value === "all" ? "" : (journalFilter.value as JournalFilter),
+    acceptance: acceptanceFilter.value === "all" ? "" : (acceptanceFilter.value as AcceptanceFilter),
     sort: sort.value,
   };
 }
@@ -136,6 +156,8 @@ function syncUrl() {
   if (appliedQuery.value.trim()) next.q = appliedQuery.value.trim();
   if (minScore.value !== "all") next.score = minScore.value;
   if (availability.value !== "all") next.meta = availability.value;
+  if (journalFilter.value !== "all") next.journal = journalFilter.value;
+  if (acceptanceFilter.value !== "all") next.accepted = acceptanceFilter.value;
   if (sort.value !== "rank") next.sort = sort.value;
   void router.replace({ query: next });
 }
@@ -224,6 +246,7 @@ function remember(id: string) {
   if (!id || props.snapshot) return;
   rememberResults(id, {
     query: query.value, minScore: minScore.value, availability: availability.value, sort: sort.value,
+    journal: journalFilter.value, acceptance: acceptanceFilter.value,
     selected: [...selectedIds.value], uids: [...uidById], expanded: [...expanded.value], loadedCount: results.value.length,
   });
 }
@@ -237,7 +260,9 @@ watch(runId, (value) => {
   query.value = appliedQuery.value = typeof fromUrl.q === "string" ? fromUrl.q : saved?.query || "";
   minScore.value = typeof fromUrl.score === "string" && ["7", "8", "9"].includes(fromUrl.score) ? fromUrl.score : saved?.minScore || "all";
   availability.value = typeof fromUrl.meta === "string" && ["abstract", "doi", "pdf"].includes(fromUrl.meta) ? fromUrl.meta : saved?.availability || "all";
-  sort.value = (typeof fromUrl.sort === "string" && ["score", "citations", "year"].includes(fromUrl.sort) ? fromUrl.sort : saved?.sort || "rank") as typeof sort.value;
+  journalFilter.value = typeof fromUrl.journal === "string" && (JOURNAL_FILTERS as string[]).includes(fromUrl.journal) ? fromUrl.journal : saved?.journal || "all";
+  acceptanceFilter.value = typeof fromUrl.accepted === "string" && (ACCEPTANCE_FILTERS as string[]).includes(fromUrl.accepted) ? fromUrl.accepted : saved?.acceptance || "all";
+  sort.value = (typeof fromUrl.sort === "string" && ["score", "citations", "year", "impact"].includes(fromUrl.sort) ? fromUrl.sort : saved?.sort || "rank") as typeof sort.value;
   selectedIds.value = new Set(saved?.selected);
   expanded.value = new Set(saved?.expanded);
   uidById.clear();
@@ -252,9 +277,9 @@ watch(query, (value) => {
     void applyFilters();
   }, 180);
 });
-watch([minScore, availability, sort], () => void applyFilters());
+watch([minScore, availability, journalFilter, acceptanceFilter, sort], () => void applyFilters());
 
-async function exportSelected(format: "csv" | "json") {
+async function exportSelected(format: ExportFormat) {
   if (!selectedUids.value.length || exporting.value) return;
   exporting.value = true;
   exportError.value = "";
@@ -276,6 +301,8 @@ function clearFilters() {
   query.value = appliedQuery.value = "";
   minScore.value = "all";
   availability.value = "all";
+  journalFilter.value = "all";
+  acceptanceFilter.value = "all";
   void applyFilters();
 }
 function createReview() {
@@ -303,8 +330,7 @@ onBeforeUnmount(() => {
       <UiMenu :label="u('exportAll')" trigger-class="btn btn-outline btn-sm" align="end" :min-width="160">
         <template #trigger><Icon name="download" />{{ u("exportAll") }}<Icon name="chevron-down" /></template>
         <slot name="exports" :run-id="runId" :selected-uids="selectedUids">
-          <a class="opt" role="menuitem" data-menu-item :href="api.exportUrl(runId, 'csv')">CSV</a>
-          <a class="opt" role="menuitem" data-menu-item :href="api.exportUrl(runId, 'json')">JSON</a>
+          <a v-for="item in EXPORT_FORMATS" :key="item.format" class="opt" role="menuitem" data-menu-item :href="api.exportUrl(runId, item.format)">{{ item.label }}</a>
         </slot>
       </UiMenu>
     </RunToolbar>
@@ -320,6 +346,8 @@ onBeforeUnmount(() => {
       </label>
       <UiSelect v-model="minScore" :options="scoreOptions" :label="u('score')" :prefix="u('score')" size="sm" inline chevron="down" />
       <UiSelect v-model="availability" :options="metaOptions" :label="u('metadata')" :prefix="u('metadata')" size="sm" inline chevron="down" />
+      <UiSelect v-model="journalFilter" :options="journalOptions" :label="u('journalFilter')" :prefix="u('journalFilter')" size="sm" inline chevron="down" />
+      <UiSelect v-model="acceptanceFilter" :options="acceptanceOptions" :label="u('acceptanceFilter')" :prefix="u('acceptanceFilter')" size="sm" inline chevron="down" />
       <div class="row end" style="gap: 8px">
         <span class="sm muted num" data-testid="results-summary">{{ summaryLine }}<template v-if="refreshing"> · {{ u("loading") }}</template></span>
         <UiSelect v-model="sort" :options="sortOptions" :label="u('sortLabel')" size="sm" inline chevron="down" width="128px" />
@@ -375,8 +403,7 @@ onBeforeUnmount(() => {
       <span class="div"></span>
       <UiMenu :label="u('exportSelected')" trigger-class="btn" side="top" :min-width="140" :disabled="exporting || !selectedUids.length">
         <template #trigger><Icon :name="exporting ? 'loader' : 'download'" />{{ u("exportSelected") }}</template>
-        <button class="opt" role="menuitem" data-menu-item type="button" data-testid="export-selected-csv" @click="exportSelected('csv')">CSV</button>
-        <button class="opt" role="menuitem" data-menu-item type="button" data-testid="export-selected-json" @click="exportSelected('json')">JSON</button>
+        <button v-for="item in EXPORT_FORMATS" :key="item.format" class="opt" role="menuitem" data-menu-item type="button" :data-testid="`export-selected-${item.format}`" @click="exportSelected(item.format)">{{ item.label }}</button>
       </UiMenu>
       <span v-if="reviewsEnabled" :title="canReview ? undefined : u('reviewSelectionRule')"><button class="btn light" type="button" :disabled="!canReview" @click="createReview"><Icon name="file-plus" />{{ u("createReviewFromSelection") }}</button></span>
       <button class="btn btn-icon" type="button" :aria-label="u('clearSelectionLabel')" style="width: 32px; padding: 0" @click="selectedIds = new Set()"><Icon name="x" /></button>

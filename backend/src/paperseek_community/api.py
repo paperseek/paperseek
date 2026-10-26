@@ -24,6 +24,7 @@ from paperseek_community.api_routes.bibliometrics import (
     cleanup_analyses,
     register_bibliometric_routes,
 )
+from paperseek_community.api_routes.journal_metrics import register_journal_metric_routes
 from paperseek_community.api_routes.review_events import register_review_events
 from paperseek_community.api_routes.reviews import register_review_routes
 from paperseek_community.api_routes.settings import register_settings_routes
@@ -160,6 +161,7 @@ def create_app(
                            accept_jobs=execution_resolver is not None or accept_submissions_without_worker)
     register_review_events(app, database=database, credentials=credentials)
     register_bibliometric_routes(app, database=database)
+    register_journal_metric_routes(app, database=database, settings=settings, workspace=workspace)
     register_workspace_data_routes(app, database=database, credentials=credentials)
 
     if static_dir is not None:

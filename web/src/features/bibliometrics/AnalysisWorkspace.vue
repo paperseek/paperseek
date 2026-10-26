@@ -11,6 +11,7 @@ import { metricsApi, type Analysis } from "./api";
 import { useMetricMessages } from "./messages";
 import MetricDistribution from "./MetricDistribution.vue";
 import MetricNetworkPanel from "./MetricNetworkPanel.vue";
+import { formatNumber } from "../results/venue-labels";
 
 const { m } = useMetricMessages();
 const u = useUi();
@@ -21,7 +22,7 @@ const analysis = ref<Analysis | null>(null);
 const loading = ref(false);
 const busy = ref(false);
 const error = ref("");
-const steps = ["overview", "keywords", "coupling", "quality"] as const;
+const steps = ["overview", "rankings", "keywords", "coupling", "quality"] as const;
 const tab = computed(() => steps.find((step) => step === route.query.view) || "overview");
 let request: AbortController | undefined;
 let generation = 0;
@@ -75,6 +76,9 @@ function tabKey(event: KeyboardEvent, index: number) {
   go(steps[next]);
 }
 const stats = computed(() => analysis.value?.statistics);
+const casTiers = computed(() => (stats.value?.cas_tiers || []).map((item) => ({ ...item, label: u("casBadge", { n: item.label }) })));
+const ccfRanks = computed(() => (stats.value?.ccf_ranks || []).map((item) => ({ ...item, label: u("ccfBadge", { rank: item.label }) })));
+const ccfA = computed(() => stats.value?.ccf_ranks?.find((item) => item.label === "A")?.count ?? 0);
 const hasCitations = computed(() => stats.value?.coverage.some((field) => field.field === "citations" && field.available > 0));
 </script>
 
@@ -134,6 +138,41 @@ const hasCitations = computed(() => stats.value?.coverage.some((field) => field.
           <MetricDistribution v-for="field in ['authors', 'institutions', 'countries'] as const" :key="field" :title="m(field)" :items="stats[field]" :total="stats.category_totals?.[field]" />
         </div>
         <p class="xs muted">{{ m("nameHint") }}</p>
+      </section>
+
+      <section v-else-if="tab === 'rankings'" id="metric-panel-rankings" class="stack" style="gap: 16px" role="tabpanel" aria-labelledby="metric-tab-rankings">
+        <div v-if="!stats.ranked_paper_count" class="alert" style="grid-template-columns: 16px 1fr"><Icon name="info" /><p class="alert-title">{{ u("noRankings") }}</p></div>
+        <template v-else>
+          <div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+            <div class="card stat"><p class="stat-label">{{ u("rankedPapers") }}</p><p class="stat-value">{{ (stats.ranked_paper_count ?? 0).toLocaleString() }}</p><p class="stat-foot">{{ u("rankedPapersFoot", { n: stats.paper_count.toLocaleString() }) }}</p></div>
+            <div class="card stat"><p class="stat-label">{{ u("casTopPapers") }}</p><p class="stat-value">{{ (stats.cas_top_count ?? 0).toLocaleString() }}</p></div>
+            <div class="card stat"><p class="stat-label">{{ u("ccfAPapers") }}</p><p class="stat-value">{{ ccfA.toLocaleString() }}</p></div>
+          </div>
+          <div class="grid-3" style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))">
+            <MetricDistribution :title="u('casTiers')" :items="casTiers" />
+            <MetricDistribution :title="u('jcrQuartiles')" :items="stats.jcr_quartiles || []" />
+            <MetricDistribution :title="u('ccfRanks')" :items="ccfRanks" />
+          </div>
+          <section class="card c">
+            <div class="card-header"><div><h2 class="card-title">{{ u("rankedVenues") }}</h2><p v-if="(stats.category_totals?.ranked_venues ?? 0) > (stats.ranked_venues?.length ?? 0)" class="card-desc">{{ u("topN", { n: stats.ranked_venues?.length ?? 0, total: (stats.category_totals?.ranked_venues ?? 0).toLocaleString() }) }}</p></div></div>
+            <div class="table-wrap" style="border: 0">
+              <table class="table">
+                <thead><tr><th>{{ u("colVenue") }}</th><th class="shrink r">{{ u("colRankedPapers") }}</th><th class="shrink">CCF</th><th class="shrink">{{ u("casTiers") }}</th><th class="shrink">JCR</th><th class="shrink r">IF</th></tr></thead>
+                <tbody>
+                  <tr v-for="venue in stats.ranked_venues" :key="venue.label">
+                    <td class="wrap">{{ venue.label }}</td>
+                    <td class="r num">{{ venue.count.toLocaleString() }}</td>
+                    <td>{{ venue.ccf_rank || "—" }}</td>
+                    <td class="nowrap">{{ venue.cas_tier ? u("casBadge", { n: venue.cas_tier }) + (venue.cas_top ? ` · ${u("casTop")}` : "") : "—" }}</td>
+                    <td>{{ venue.jcr_quartile || "—" }}</td>
+                    <td class="r num">{{ formatNumber(venue.impact_factor) || "—" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <p class="xs muted">{{ u("rankingsHint") }}</p>
       </section>
 
       <section v-else-if="tab === 'keywords'" id="metric-panel-keywords" class="stack" style="gap: 16px" role="tabpanel" aria-labelledby="metric-tab-keywords">

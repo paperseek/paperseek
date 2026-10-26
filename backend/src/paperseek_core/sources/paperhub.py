@@ -6,9 +6,11 @@ import re
 import time
 from typing import Any
 
+from paperseek_core.acceptance import from_paperhub, merge, title_key
 from paperseek_core.models import PaperAuthor, PaperIdentifiers, PaperKeywords, PaperLinks, PaperNames, PaperRecord, PaperSource
 from paperseek_core.sources.contracts import SourceCapabilities, SourceError, SourceSearchMetadata, SourceSearchRequest, SourceSearchResult
 from paperseek_core.sources.http import AsyncHttpTransport
+from paperseek_core.sources.openreview import OpenReviewClient
 
 
 @dataclass
@@ -30,9 +32,13 @@ class PaperHubSource:
     _paper_cache: list[dict[str, Any]] | None = None
     _paper_cache_loaded_at = 0.0
     _paper_cache_manifest_version = ""
+    _title_index: dict[str, dict[str, Any]] | None = None
+    # OpenReview rows per query, so later pages of one search see the same union.
+    _openreview_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
-    def __init__(self, *, transport: AsyncHttpTransport) -> None:
+    def __init__(self, *, transport: AsyncHttpTransport, openreview: OpenReviewClient | None = None) -> None:
         self.transport = transport
+        self.openreview = openreview
         self.capabilities = SourceCapabilities(
             source=self.name,
             lanes=("relevance", "recent", "local_quality"),
@@ -49,12 +55,25 @@ class PaperHubSource:
         cls._paper_cache = None
         cls._paper_cache_loaded_at = 0.0
         cls._paper_cache_manifest_version = ""
+        cls._title_index = None
+        cls._openreview_cache = {}
+
+    @classmethod
+    def cached_acceptance(cls, title: str) -> dict[str, Any]:
+        """Acceptance from an already loaded snapshot; never downloads one."""
+        if cls._paper_cache is None:
+            return {}
+        if cls._title_index is None:
+            cls._title_index = {title_key(paper.get("title")): paper for paper in cls._paper_cache if paper.get("title")}
+        paper = cls._title_index.get(title_key(title))
+        return from_paperhub(paper) if paper else {}
 
     async def search(self, request: SourceSearchRequest) -> SourceSearchResult:
         query = request.query.strip()
         if not query:
             raise SourceError(self.name, "Paper Hub search query is empty.")
         papers = await self._load_papers(query)
+        papers = self._union(papers, await self._openreview_rows(query))
         parsed = self._parse_query(query)
         scored = [(score, paper) for paper in papers if (score := self._match_score(paper, parsed)) is not None]
         if request.lane == "recent":
@@ -69,6 +88,36 @@ class PaperHubSource:
             metadata=SourceSearchMetadata(total=len(scored), page=max(1, request.page), limit=page_size),
             hits=[self._to_record(paper) for _, paper in scored[offset : offset + page_size]],
         )
+
+    async def _openreview_rows(self, query: str) -> list[dict[str, Any]]:
+        if self.openreview is None:
+            return []
+        cls = self.__class__
+        cached = cls._openreview_cache.get(query)
+        if cached and time.monotonic() - cached[0] < self.CACHE_TTL_SECONDS:
+            return cached[1]
+        try:
+            rows = await self.openreview.search(query)
+        except SourceError as exc:
+            # OpenReview only widens Paper Hub; a block or outage leaves the snapshot results.
+            self.last_response_info = {**self.last_response_info, "openreview_error": str(exc)}
+            return []
+        if len(cls._openreview_cache) >= 64:
+            cls._openreview_cache.pop(next(iter(cls._openreview_cache)))
+        cls._openreview_cache[query] = (time.monotonic(), rows)
+        return rows
+
+    @staticmethod
+    def _union(papers: list[dict[str, Any]], extra: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Paper Hub plus OpenReview papers it lacks; a shared paper keeps Paper Hub's row and both sources."""
+        if not extra:
+            return papers
+        by_title = {title_key(row["title"]): row for row in extra}
+        merged = []
+        for paper in papers:
+            row = by_title.pop(title_key(paper.get("title")), None)
+            merged.append({**paper, "acceptance": merge(from_paperhub(paper), row["acceptance"])} if row else paper)
+        return merged + list(by_title.values())
 
     async def _load_papers(self, query: str) -> list[dict[str, Any]]:
         now = time.monotonic()
@@ -125,6 +174,7 @@ class PaperHubSource:
                     raise
                 raise SourceError(self.name, f"Paper Hub snapshot loading failed: {exc}", query=query) from exc
             cls._paper_cache = papers
+            cls._title_index = None
             cls._paper_cache_loaded_at = now
             cls._paper_cache_manifest_version = version
             self.last_response_info = {**info, "manifest_version": version, "shards": len(shards), "papers": len(papers), "download_workers": min(8, len(shards))}
@@ -251,6 +301,7 @@ class PaperHubSource:
             if value and value not in keywords:
                 keywords.append(value)
         url = str(paper.get("url") or "")
+        acceptance = paper.get("acceptance") or from_paperhub(paper)
         return PaperRecord(
             uid=paper_id or url,
             title=str(paper.get("title") or paper_id),
@@ -258,10 +309,10 @@ class PaperHubSource:
             source_types=[presentation] if presentation else ["conference-paper"],
             source=PaperSource(source_title=conference, publish_year=paper.get("year")),
             names=PaperNames(authors=[PaperAuthor(display_name=str(name)) for name in paper.get("authors") or [] if name]),
-            links=PaperLinks(record=url, landing_page=url),
+            links=PaperLinks(record=url, landing_page=url, pdf=str(paper.get("pdf") or "")),
             identifiers=PaperIdentifiers(),
             keywords=PaperKeywords(author_keywords=keywords),
             abstract=str(paper.get("abstract") or ""),
             provider="paperhub",
-            raw=paper,
+            raw={**paper, "acceptance": acceptance},
         )

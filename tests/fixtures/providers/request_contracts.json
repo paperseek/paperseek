@@ -5,7 +5,7 @@
     "params": {
       "per-page": 25,
       "page": 3,
-      "select": "id,doi,title,display_name,publication_year,publication_date,type,type_crossref,authorships,primary_location,cited_by_count,abstract_inverted_index,open_access,keywords,concepts,ids,primary_topic,referenced_works",
+      "select": "id,doi,title,display_name,publication_year,publication_date,type,type_crossref,authorships,primary_location,cited_by_count,abstract_inverted_index,open_access,keywords,concepts,ids,primary_topic,referenced_works,biblio",
       "search": "AI governance",
       "filter": "primary_topic.field.id:17|14",
       "sort": "cited_by_count:desc",

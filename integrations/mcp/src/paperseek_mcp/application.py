@@ -16,6 +16,7 @@ from paperseek_app.services import (
 )
 from paperseek_community.artifacts import FileArtifactStore
 from paperseek_community.composition import CommunityExecutionResolver
+from paperseek_community.journal_tables import JournalTableStore
 from paperseek_community.credentials import EncryptedRunCredentialStore
 from paperseek_community.persistence import SQLiteRunUnitOfWork, migrate_database
 from paperseek_community.settings import CommunityDeploymentSettings
@@ -54,6 +55,7 @@ class CommunityMCPApplication:
         self.execution_resolver = execution_resolver or CommunityExecutionResolver(
             self.settings,
             self.credentials,
+            journal_tables=JournalTableStore(self.database.parent),
         )
 
     @asynccontextmanager

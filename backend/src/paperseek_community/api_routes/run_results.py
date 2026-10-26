@@ -21,6 +21,8 @@ def register_run_result_routes(app: FastAPI, *, database: Path) -> None:
         min_score: float | None = None,
         metadata: str | None = None,
         sort: str = "rank",
+        journal: str | None = None,
+        acceptance: str | None = None,
     ) -> ResultPageOutput:
         run_service, uow = open_query_service(database)
         try:
@@ -32,6 +34,8 @@ def register_run_result_routes(app: FastAPI, *, database: Path) -> None:
                 min_score=min_score,
                 metadata=metadata,
                 sort=sort,
+                journal=journal,
+                acceptance=acceptance,
             )
             return {
                 "results": [

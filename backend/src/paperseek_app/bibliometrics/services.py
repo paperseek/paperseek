@@ -1,5 +1,6 @@
 """Analysis lifecycle; files stay independent of deletable source searches."""
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 import csv
 import gzip
@@ -32,8 +33,10 @@ from paperseek_core.bibliometrics.models import (
     NetworkRequest,
     NetworkTooDense,
 )
+from paperseek_core.bibliometrics.corpus import rank_corpus
 from paperseek_core.bibliometrics.networks import network
 from paperseek_core.bibliometrics.statistics import overview
+from paperseek_core.journal_metrics import JournalMetricsTable
 
 
 def digest(value: dict) -> str:
@@ -48,8 +51,10 @@ class AnalysisService:
         store: AnalysisStore,
         files: ArtifactStore,
         runs: RunQueryService | None = None,
+        rankings: Callable[[], JournalMetricsTable | None] | None = None,
     ):
         self.store, self.files, self.runs = store, files, runs
+        self.rankings = rankings
 
     def create(self, request: AnalysisCreate, key: str) -> AnalysisDetail:
         signature = digest(request.model_dump())
@@ -93,6 +98,7 @@ class AnalysisService:
                         ],
                         keyword_source="legacy:unverified",
                         scored=item.record.score is not None,
+                        issns=[issn for issn in (item.record.issn, item.record.eissn) if issn],
                     )
                     for item in records
                 ],
@@ -101,6 +107,8 @@ class AnalysisService:
             raise AnalysisError("analysis_empty_corpus", 422)
         if len(corpus.papers) > 50000:
             raise AnalysisError("analysis_corpus_too_large", 422)
+        if self.rankings is not None:
+            corpus = rank_corpus(corpus, self.rankings())
         identity, written = str(uuid4()), []
         try:
             corpus_file = self._put(identity, "corpus", corpus.model_dump_json())
@@ -217,6 +225,11 @@ class AnalysisService:
             "keywords",
             "citations",
             "scored",
+            "cas_tier",
+            "cas_top",
+            "jcr_quartile",
+            "impact_factor",
+            "ccf_rank",
         )
         writer.writerow(fields)
         for paper in corpus.papers:

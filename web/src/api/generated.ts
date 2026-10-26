@@ -254,10 +254,13 @@ export interface components {
       };
     "MetricOverview": {
         "authors" : Array<components["schemas"]["MetricBucket"]>;
+        "cas_tiers"?: Array<components["schemas"]["MetricBucket"]>;
+        "cas_top_count"?: number;
         "category_limit"?: number;
         "category_totals"?: {
         [key: string]: number;
       };
+        "ccf_ranks"?: Array<components["schemas"]["MetricBucket"]>;
         "citation_sources" : Array<components["schemas"]["MetricBucket"]>;
         "citation_sum" : number;
         "cited_paper_count" : number;
@@ -265,10 +268,13 @@ export interface components {
         "coverage" : Array<components["schemas"]["Coverage"]>;
         "document_types" : Array<components["schemas"]["MetricBucket"]>;
         "institutions" : Array<components["schemas"]["MetricBucket"]>;
+        "jcr_quartiles"?: Array<components["schemas"]["MetricBucket"]>;
         "keyword_sources" : Array<components["schemas"]["MetricBucket"]>;
         "keywords" : Array<components["schemas"]["MetricBucket"]>;
         "paper_count" : number;
         "providers" : Array<components["schemas"]["MetricBucket"]>;
+        "ranked_paper_count"?: number;
+        "ranked_venues"?: Array<components["schemas"]["RankedVenue"]>;
         "scored_count" : number;
         "venues" : Array<components["schemas"]["MetricBucket"]>;
         "years" : Array<components["schemas"]["MetricBucket"]>;
@@ -392,6 +398,15 @@ export interface components {
         "capacity" : number;
         "running" : number;
       };
+    "RankedVenue": {
+        "cas_tier"?: number | null;
+        "cas_top"?: boolean;
+        "ccf_rank"?: string;
+        "count" : number;
+        "impact_factor"?: number | null;
+        "jcr_quartile"?: string;
+        "label" : string;
+      };
     "RecordRename": {
         "title" : string;
       };
@@ -422,18 +437,29 @@ export interface components {
       };
     "ResultOutput": {
         "abstract"?: string;
+        "acceptance"?: {
+        [key: string]: unknown;
+      };
+        "arxiv_id"?: string;
         "authors"?: Array<string>;
         "authors_text"?: string;
         "citation_count"?: number;
         "citations"?: string;
         "document_types"?: Array<string>;
         "doi"?: string;
+        "eissn"?: string;
         "id"?: string;
+        "issn"?: string;
+        "issue"?: string;
+        "journal_metrics"?: {
+        [key: string]: unknown;
+      };
         "keywords"?: string;
         "keywords_text"?: string;
         "links"?: {
         [key: string]: unknown;
       };
+        "pages"?: string;
         "pdf_url"?: string;
         "provider"?: string;
         "publication_type"?: string;
@@ -452,6 +478,7 @@ export interface components {
         "uid"?: string;
         "url"?: string;
         "venue"?: string;
+        "volume"?: string;
         "year"?: number | null;
       };
     "ResultPageOutput": {
@@ -890,6 +917,7 @@ export type ProgressPayload = components["schemas"]["ProgressPayload"];
 export type ProxySettingsInput = components["schemas"]["ProxySettingsInput"];
 export type ProxySettingsOutput = components["schemas"]["ProxySettingsOutput"];
 export type QueueStatus = components["schemas"]["QueueStatus"];
+export type RankedVenue = components["schemas"]["RankedVenue"];
 export type RecordRename = components["schemas"]["RecordRename"];
 export type RenderedReview = components["schemas"]["RenderedReview"];
 export type RenderedSection = components["schemas"]["RenderedSection"];

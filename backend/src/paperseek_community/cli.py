@@ -20,6 +20,7 @@ from paperseek_app.services import (
 from paperseek_community.api import create_app
 from paperseek_community.artifacts import FileArtifactStore
 from paperseek_community.composition import CommunityExecutionResolver, community_static_dir
+from paperseek_community.journal_tables import JournalTableStore
 from paperseek_community.credentials import EncryptedRunCredentialStore
 from paperseek_community.diagnostics import community_doctor_report
 from paperseek_community.legacy_settings import (
@@ -172,7 +173,8 @@ def main(
     credentials = EncryptedRunCredentialStore(database)
     workspace = WorkspaceSettingsStore(database, credentials)
     resolver = execution_resolver or CommunityExecutionResolver(
-        settings, credentials, proxy=lambda: workspace.proxy_policy(settings))
+        settings, credentials, proxy=lambda: workspace.proxy_policy(settings),
+        journal_tables=JournalTableStore(database.parent))
     if args.command == "serve":
         import uvicorn
 

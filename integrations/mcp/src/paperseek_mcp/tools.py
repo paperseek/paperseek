@@ -192,8 +192,8 @@ def register_tools(server: MCPServer, application: PaperSeekApplication) -> None
         return _call_application(application.cancel_search, run_id=run_id)
 
     @server.tool(name="export_results", title="Export results", structured_output=True, annotations=READ_ONLY)
-    def export_results(run_id: RunId, format: Literal["json", "csv"] = "json") -> dict[str, Any]:
-        """Return a complete persisted JSON or CSV export."""
+    def export_results(run_id: RunId, format: Literal["json", "csv", "bibtex", "ris"] = "json") -> dict[str, Any]:
+        """Return a complete persisted export: JSON, CSV, or BibTeX / RIS for Zotero, EndNote and JabRef."""
         return _call_application(application.export_results, run_id=run_id, format=format)
 
     @server.tool(

@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import ExitStack, closing
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from importlib.resources import files
 from pathlib import Path
@@ -481,6 +482,8 @@ class M3DurableArtifactExecutorContractTest(unittest.TestCase):
                 "final_result.json",
                 "export.json",
                 "export.csv",
+                "export.bib",
+                "export.ris",
                 "candidate_pool.jsonl",
                 "citation_map.json",
                 "bibliometric_corpus.json",
@@ -490,6 +493,20 @@ class M3DurableArtifactExecutorContractTest(unittest.TestCase):
         results = restarted_query.get_results(queued.id)
         self.assertEqual({item.record_artifact_id for item in results}, {final_artifact.id})
         self.assertEqual(asyncio.run(self._executor(restarted_execution).run_once()), None)
+
+    def test_worker_runs_keep_the_execution_enrichment_labels(self) -> None:
+        class Labels:
+            async def annotate(self, documents):
+                return {document.uid: {"journal_metrics": {"ccf": {"rank": "A", "rank_number": 1}}} for document in documents}
+
+        queued = self._create_run()
+        executor = RunExecutor(self.execution_service,
+                               lambda run, cancellation: replace(self._execution(run, cancellation), enrichment=Labels()),
+                               owner_id="embedded-worker", lease_seconds=60)
+        self.assertEqual(asyncio.run(executor.run_once()).status, RunStatus.COMPLETED)
+        results = self.query_service.get_results(queued.id)
+        self.assertTrue(results)
+        self.assertTrue(all(item.record.journal_metrics["ccf"]["rank"] == "A" for item in results))
 
     def test_completion_artifact_reference_failure_rolls_back_success_and_marks_failed(self) -> None:
         run = self._create_run()

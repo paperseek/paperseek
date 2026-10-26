@@ -5,6 +5,7 @@ import Icon from "../../components/Icon.vue";
 import UiSelect from "../../components/UiSelect.vue";
 import { useLocale } from "../../locales";
 import { useUi } from "../../locales/ui";
+import NetworkProxy from "../settings/NetworkProxy.vue";
 import SettingsModels from "../settings/SettingsModels.vue";
 import SettingsSources from "../settings/SettingsSources.vue";
 import SettingsUser from "../settings/SettingsUser.vue";
@@ -33,11 +34,14 @@ onMounted(() => void loadSettings(true));
     <SettingsModels v-else-if="section === 'models'" />
     <SettingsSources v-else-if="section === 'sources'" />
     <SettingsUser v-else-if="section === 'user'" />
-    <section v-else class="card c" style="max-width: 880px" aria-labelledby="general-title">
-      <div class="card-header"><div><h2 id="general-title" class="card-title">{{ u("language") }}</h2><p class="help" style="margin-top: 4px">{{ u("generalDesc") }}</p></div></div>
-      <div class="card-content" style="max-width: 280px">
-        <UiSelect v-model="languageValue" :options="[{ value: 'zh', label: '简体中文' }, { value: 'en', label: 'English' }]" :label="u('language')" />
-      </div>
-    </section>
+    <template v-else>
+      <section class="card c" style="max-width: 880px" aria-labelledby="general-title">
+        <div class="card-header"><div><h2 id="general-title" class="card-title">{{ u("language") }}</h2><p class="help" style="margin-top: 4px">{{ u("generalDesc") }}</p></div></div>
+        <div class="card-content" style="max-width: 280px">
+          <UiSelect v-model="languageValue" :options="[{ value: 'zh', label: '简体中文' }, { value: 'en', label: 'English' }]" :label="u('language')" />
+        </div>
+      </section>
+      <NetworkProxy />
+    </template>
   </main>
 </template>

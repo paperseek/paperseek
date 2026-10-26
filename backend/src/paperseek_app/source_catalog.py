@@ -98,6 +98,16 @@ SOURCES = (
         "Computer science top conferences",
         "not_required",
     ),
+    SourceDefinition(
+        "wanfang",
+        "Wanfang Data",
+        "required",
+        "Wanfang AppKey",
+        "Get Wanfang AppKey",
+        "https://ai.wfdata.com/skills/api",
+    ),
+    SourceDefinition("nssd", "National Social Sciences Database (NSSD)", "not_required"),
+    SourceDefinition("yiigle", "Chinese Medical Journals (Yiigle)", "not_required"),
 )
 
 SOURCE_BY_ID = {source.id: source for source in SOURCES}

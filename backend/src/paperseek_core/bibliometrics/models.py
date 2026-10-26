@@ -27,6 +27,13 @@ class MetricPaper(MetricModel):
     citations: int | None = None
     citation_source: str = ""
     scored: bool = False
+    issns: list[str] = Field(default_factory=list)
+    # Venue rankings from the ShowJCR tables, added when an analysis is created.
+    cas_tier: int | None = None
+    cas_top: bool = False
+    jcr_quartile: str = ""
+    impact_factor: float | None = None
+    ccf_rank: str = ""
 
 
 class MetricCorpus(MetricModel):
@@ -44,6 +51,16 @@ class MetricCorpus(MetricModel):
 class MetricBucket(MetricModel):
     label: str
     count: int
+
+
+class RankedVenue(MetricModel):
+    label: str
+    count: int
+    cas_tier: int | None = None
+    cas_top: bool = False
+    jcr_quartile: str = ""
+    impact_factor: float | None = None
+    ccf_rank: str = ""
 
 
 class Coverage(MetricModel):
@@ -70,6 +87,12 @@ class MetricOverview(MetricModel):
     coverage: list[Coverage]
     category_totals: dict[str, int] = Field(default_factory=dict)
     category_limit: int = 100
+    ranked_paper_count: int = 0
+    cas_top_count: int = 0
+    cas_tiers: list[MetricBucket] = Field(default_factory=list)
+    jcr_quartiles: list[MetricBucket] = Field(default_factory=list)
+    ccf_ranks: list[MetricBucket] = Field(default_factory=list)
+    ranked_venues: list[RankedVenue] = Field(default_factory=list)
 
 
 class NetworkRequest(MetricModel):

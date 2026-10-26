@@ -85,6 +85,7 @@ const messages = {
     venue: "发表来源",
     references: "可识别的参考文献",
     references_available: "原生参考文献列表（含空列表）",
+    venue_rank: "期刊或会议分级（中科院、JCR、CCF）",
     doi: "DOI",
     qualityHint:
       "缺失元数据会影响对应统计。参考文献列表存在但没有可识别标识时，仍无法参与耦合分析。",
@@ -203,6 +204,7 @@ const messages = {
     venue: "Venue",
     references: "Identifiable references",
     references_available: "Native reference lists (including empty)",
+    venue_rank: "Venue ranking (CAS, JCR, CCF)",
     doi: "DOI",
     qualityHint:
       "Missing metadata limits the corresponding statistics. An available reference list without identifiable references cannot support coupling.",

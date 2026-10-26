@@ -5,7 +5,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from paperseek_core.models import ResearchWorkflowRequest
-from paperseek_core.ports import CancellationToken, DecisionPort, EmbeddingPort, LLMPort, RerankPort, SourcePort, WorkflowObserver
+from paperseek_core.ports import (
+    CancellationToken, DecisionPort, EmbeddingPort, EnrichmentPort, LLMPort, RerankPort, SourcePort, WorkflowObserver,
+)
 from paperseek_core.workflow import ResearchWorkflow
 
 
@@ -48,6 +50,7 @@ class WorkflowExecution:
     embedding: EmbeddingPort | None = None
     reranker: RerankPort | None = None
     decision: DecisionPort | None = None
+    enrichment: EnrichmentPort | None = None
     close: Callable[[], Awaitable[None]] | None = None
     deadline_at: float | None = None
 
@@ -56,7 +59,8 @@ class WorkflowExecution:
             return await ResearchWorkflow(
                 llm=self.llm, source=self.source, observer=observer,
                 embedding=self.embedding,
-                reranker=self.reranker, decision=self.decision, cancellation=cancellation,
+                reranker=self.reranker, decision=self.decision, enrichment=self.enrichment,
+                cancellation=cancellation,
             ).run(self.request)
 
 

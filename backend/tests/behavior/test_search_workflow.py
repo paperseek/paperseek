@@ -150,7 +150,8 @@ class M2FinalAssemblyContractTest(unittest.TestCase):
         artifacts = {artifact.filename: artifact for artifact in result.artifacts}
         self.assertEqual(
             set(artifacts),
-            {"final_result.json", "export.json", "export.csv", "candidate_pool.jsonl", "citation_map.json"},
+            {"final_result.json", "export.json", "export.csv", "export.bib", "export.ris", "candidate_pool.jsonl",
+             "citation_map.json"},
         )
         self.assertEqual(artifacts["export.csv"].content, (M0 / "export.csv").read_text(encoding="utf-8"))
         self.assertEqual(json.loads(artifacts["export.json"].content), json.loads((M0 / "export.json").read_text(encoding="utf-8")))
@@ -291,7 +292,8 @@ class M2ResearchWorkflowContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(observer.checkpoints[-1].step_key, "assemble_final_result")
         self.assertEqual(
             {item["filename"] for item in observer.checkpoints[-1].state["artifacts"]},
-            {"final_result.json", "export.json", "export.csv", "candidate_pool.jsonl", "citation_map.json", "bibliometric_corpus.json"},
+            {"final_result.json", "export.json", "export.csv", "export.bib", "export.ris", "candidate_pool.jsonl",
+             "citation_map.json", "bibliometric_corpus.json"},
         )
         self.assertEqual(observer.events[-1].event_type, "workflow.completed")
 

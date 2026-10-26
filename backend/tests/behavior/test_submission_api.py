@@ -336,6 +336,9 @@ class M4SubmissionProductEntryContractTest(unittest.TestCase):
                     "wos",
                     "googlescholar",
                     "paperhub",
+                    "wanfang",
+                    "nssd",
+                    "yiigle",
                 ],
             )
             self.assertTrue(sources["openalex"]["default"])

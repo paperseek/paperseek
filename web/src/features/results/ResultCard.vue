@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { PaperResult } from "../../api/types";
+import type { Acceptance, JournalPartitions, PaperResult } from "../../api/types";
 import AppDialog from "../../components/AppDialog.vue";
 import Icon from "../../components/Icon.vue";
 import UiMenu from "../../components/UiMenu.vue";
 import { useLocale } from "../../locales";
 import { useUi } from "../../locales/ui";
+import { formatNumber, venueBadges } from "./venue-labels";
 
 const props = defineProps<{ paper: PaperResult; identity: string; selected: boolean; expanded: ReadonlySet<string> }>();
 const emit = defineEmits<{ select: []; expand: [key: string] }>();
@@ -25,6 +26,21 @@ const reasoning = computed(() => props.paper.reasoning || props.paper.relevance_
 const open = computed(() => props.expanded.has(`${props.identity}:abstract`));
 const keywords = computed(() => (Array.isArray(props.paper.keywords) ? props.paper.keywords.join("; ") : props.paper.keywords || ""));
 const type = computed(() => (props.paper.document_types?.length ? props.paper.document_types.join("; ") : props.paper.publication_type || ""));
+const journal = computed(() => (props.paper.journal_metrics || {}) as JournalPartitions);
+const acceptance = computed(() => (props.paper.acceptance || {}) as Acceptance);
+const number = formatNumber;
+// Short labels beside the score; the details dialog spells out each platform and edition.
+const badges = computed(() => venueBadges(u, journal.value));
+const partitionRows = computed(() => {
+  const { cas, jcr, ccf } = journal.value;
+  const edition = (year?: number | null) => (year ? ` · ${u("partitionYear", { year })}` : "");
+  return [
+    cas?.tier ? `${u("casBadge", { n: cas.tier })}${cas.top ? ` · ${u("casTop")}` : ""}${cas.category ? ` · ${cas.category}` : ""}${cas.rank ? ` · ${cas.rank}` : ""}${edition(cas.year)}` : "",
+    jcr?.quartile || jcr?.impact_factor != null ? `${[jcr.quartile ? u("jcrBadge", { q: jcr.quartile }) : "", jcr.impact_factor != null ? u("impactFactor", { n: number(jcr.impact_factor) }) : "", jcr.rank || ""].filter(Boolean).join(" · ")}${edition(jcr.year)}` : "",
+    ccf?.rank ? `${u("ccfBadge", { rank: ccf.rank })} · ${u(ccf.type === "journal" ? "ccfJournal" : "ccfConference")}${ccf.abbreviation ? ` · ${ccf.abbreviation}` : ""}${ccf.field ? ` · ${ccf.field}` : ""}${edition(ccf.year)}` : "",
+  ].filter(Boolean);
+});
+const openImpact = computed(() => journal.value.openalex);
 </script>
 
 <template>
@@ -49,6 +65,9 @@ const type = computed(() => (props.paper.document_types?.length ? props.paper.do
         <span class="badge" :class="scoreClass" data-testid="result-score">{{ score === null ? u("unscored") : `${score}/10` }}</span>
         <a v-if="paper.doi" class="badge badge-outline" :href="`https://doi.org/${paper.doi}`" target="_blank" rel="noopener">DOI</a>
         <a v-if="paper.pdf_url" class="badge badge-secondary" :href="paper.pdf_url" target="_blank" rel="noopener"><Icon name="download" />PDF</a>
+        <a v-if="acceptance.label && acceptance.url" class="badge badge-outline" data-testid="result-acceptance" :href="acceptance.url" target="_blank" rel="noopener">{{ acceptance.label }}</a>
+        <span v-else-if="acceptance.label" class="badge badge-outline" data-testid="result-acceptance">{{ acceptance.label }}</span>
+        <span v-for="badge in badges" :key="badge" class="badge badge-outline" data-testid="result-journal-rank">{{ badge }}</span>
         <span v-if="citations != null" class="xs muted num end">{{ u("citations", { n: Number(citations).toLocaleString() }) }}</span>
       </div>
     </div>
@@ -58,6 +77,9 @@ const type = computed(() => (props.paper.document_types?.length ? props.paper.do
         <template v-if="year"><dt>{{ u("year") }}</dt><dd style="text-align: left">{{ year }}</dd></template>
         <template v-if="venue"><dt>{{ u("venue") }}</dt><dd style="text-align: left">{{ venue }}</dd></template>
         <template v-if="type"><dt>{{ u("type") }}</dt><dd style="text-align: left">{{ type }}</dd></template>
+        <template v-if="acceptance.label"><dt>{{ u("acceptanceLabel") }}</dt><dd style="text-align: left">{{ acceptance.label }}<template v-if="acceptance.sources?.length"> · <span class="muted">{{ acceptance.sources.map((name) => name === "paperhub" ? "Paper Hub" : "OpenReview").join(" + ") }}</span></template></dd></template>
+        <template v-if="partitionRows.length"><dt>{{ u("journalPartitions") }}</dt><dd style="text-align: left"><span v-for="row in partitionRows" :key="row" style="display: block">{{ row }}</span><span class="xs muted" style="display: block">{{ u("partitionNote") }}<template v-if="journal.matched_by === 'title'"> · {{ u("matchedByTitle") }}</template></span></dd></template>
+        <template v-if="openImpact"><dt>{{ u("openImpactLabel") }}</dt><dd style="text-align: left">{{ u("openImpactValue", { citedness: number(openImpact.two_year_mean_citedness, 2) || "—", h: openImpact.h_index ?? "—" }) }}</dd></template>
         <template v-if="paper.doi"><dt>DOI</dt><dd style="text-align: left"><a class="link" :href="`https://doi.org/${paper.doi}`" target="_blank" rel="noopener">{{ paper.doi }}</a></dd></template>
         <template v-if="keywords"><dt>{{ u("keywords") }}</dt><dd style="text-align: left">{{ keywords }}</dd></template>
         <template v-if="paper.provider"><dt>{{ u("provider") }}</dt><dd style="text-align: left">{{ sourceName(paper.provider, paper.provider) }}</dd></template>
