@@ -132,7 +132,7 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:8765/health >/dev/null
           curl --fail --silent http://127.0.0.1:8765/ready >/dev/null
-          curl --fail --silent http://127.0.0.1:8765/api/v1/sources | python -c 'import json,sys; ids={x["id"] for x in json.load(sys.stdin)["sources"]}; assert ids == {"openalex","arxiv","crossref","semanticscholar","pubmed","wos","googlescholar","paperhub"}'
+          curl --fail --silent http://127.0.0.1:8765/api/v1/sources | python -c 'import json,sys; ids={x["id"] for x in json.load(sys.stdin)["sources"]}; assert ids == {"openalex","arxiv","crossref","semanticscholar","pubmed","wos","googlescholar","paperhub","wanfang","nssd","yiigle"}'
           for route in search runs/release-smoke runs/release-smoke/results runs/release-smoke/citation-map history; do
             curl --fail --silent "http://127.0.0.1:8765/${route}" >/dev/null
           done

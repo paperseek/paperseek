@@ -117,7 +117,7 @@ async def run(url: str, token: str, origin: str, host: str, run_id: str | None) 
 
     print(
         json.dumps(
-            {"persisted_run": run_id, "sources": 8, "status": "ok", "tools": EXPECTED_TOOLS},
+            {"persisted_run": run_id, "sources": len(sources), "status": "ok", "tools": EXPECTED_TOOLS},
             sort_keys=True,
         )
     )
