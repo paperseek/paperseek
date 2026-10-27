@@ -15,7 +15,7 @@ permissions:
   packages: write
 
 env:
-  PAPERSEEK_VERSION: "1.0.0-beta4"
+  PAPERSEEK_VERSION: "1.0.0-beta5"
   COMMUNITY_IMAGE: ghcr.io/paperseek/paperseek
   MCP_IMAGE: ghcr.io/paperseek/paperseek-mcp
 
@@ -62,8 +62,8 @@ jobs:
           uv build --wheel --out-dir .release-mcp/dist integrations/mcp
           uv venv .release-mcp/venv --python 3.12
           uv pip install --python .release-mcp/venv/bin/python \
-            .release-mcp/dist/paperseek-1.0.0b4-py3-none-any.whl \
-            .release-mcp/dist/paperseek_mcp-1.0.0b4-py3-none-any.whl
+            .release-mcp/dist/paperseek-1.0.0b5-py3-none-any.whl \
+            .release-mcp/dist/paperseek_mcp-1.0.0b5-py3-none-any.whl
           gate=$(env -u PYTHONPATH \
             PAPERSEEK_CLI_EXECUTABLE="$PWD/.release-mcp/venv/bin/paperseek" \
             PAPERSEEK_ISOLATED_PREFIX="$PWD/.release-mcp/venv" \

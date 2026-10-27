@@ -27,7 +27,7 @@ def register_system_routes(
 ) -> None:
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok", "version": "1.0.0b4"}
+        return {"status": "ok", "version": "1.0.0b5"}
 
     @app.get("/ready")
     def ready() -> dict:

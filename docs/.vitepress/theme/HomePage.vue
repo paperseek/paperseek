@@ -25,7 +25,7 @@ const sources = ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Scholar', 'PubMed', 
       <HeroPainting />
       <div class="ps-hero-body ps-container">
         <div>
-          <a class="ps-release" :href="link('changelog')"><span class="ps-release-dot" />{{ t('Introducing PaperSeek 1.0.0-beta4', '认识 PaperSeek 1.0.0-beta4') }}<span aria-hidden="true">↗</span></a>
+          <a class="ps-release" :href="link('changelog')"><span class="ps-release-dot" />{{ t('Introducing PaperSeek 1.0.0-beta5', '认识 PaperSeek 1.0.0-beta5') }}<span aria-hidden="true">↗</span></a>
           <h1 id="hero-heading">{{ t('Follow the question.', '从问题出发，') }}<br>{{ t('Find the evidence.', '找到研究的线索。') }}</h1>
         </div>
         <div class="ps-hero-side">
@@ -43,7 +43,7 @@ const sources = ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Scholar', 'PubMed', 
       <FeatureSection id="feature-search" index="01" :eyebrow="t('Literature search', '文献检索')"
         :title="t('Ask a question. Get a reading list.', '提出问题，得到一份阅读清单。')"
         :body="t('PaperSeek turns your question into search strategies, refines them over several rounds, follows citations, and ranks every candidate with a reason you can read.', 'PaperSeek 把研究问题转化为检索式，多轮迭代、沿引用扩展，再为每篇候选文献评分，并写明排序理由。')"
-        :points="[t('Eight scholarly sources, from OpenAlex to Web of Science', '八个学术数据源，从 OpenAlex 到 Web of Science'), t('Every stage of the search visible while it runs', '检索的每个阶段都实时可见'), t('A score and a written reason for each paper', '每篇文献都有评分和排序理由')]"
+        :points="[t('Eleven scholarly sources, from OpenAlex to Wanfang Data', '十一个学术数据源，从 OpenAlex 到万方数据'), t('Every stage of the search visible while it runs', '检索的每个阶段都实时可见'), t('A score and a written reason for each paper', '每篇文献都有评分和排序理由')]"
         :href="link('guide/search')" :link-text="t('How search works', '了解检索流程')">
         <SearchDemo :zh="zh" />
       </FeatureSection>

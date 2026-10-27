@@ -196,7 +196,7 @@ class M3SseReadHistoryExportCleanupContractTest(unittest.TestCase):
                     config_schema_version, artifact_schema_version, error_code,
                     created_at, deadline_at, updated_at
                 ) VALUES (?, 'Preserve this run', 'openalex', 'queued', '{}', '',
-                          0, 0, 0, 'm2.research-workflow.v1', '1.0.0b4',
+                          0, 0, 0, 'm2.research-workflow.v1', '1.0.0b5',
                           'm2.frozen-search.v1', 1, 1, '', ?, ?, ?)
                 """,
                 (existing_id, now, (self.clock() + timedelta(hours=1)).isoformat(timespec="microseconds"), now),

@@ -9,7 +9,7 @@
   <p>Open-source literature search, preliminary bibliometrics, and abstract-based reviews.</p>
   <p>
     <a href="https://github.com/paperseek/paperseek/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-171717?style=flat-square"></a>
-    <img alt="Version 1.0.0-beta4" src="https://img.shields.io/badge/version-1.0.0--beta4-171717?style=flat-square">
+    <img alt="Version 1.0.0-beta5" src="https://img.shields.io/badge/version-1.0.0--beta5-171717?style=flat-square">
     <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-171717?style=flat-square">
     <img alt="Vue 3" src="https://img.shields.io/badge/frontend-Vue%203-171717?style=flat-square">
     <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek"><img alt="Try it on ModelScope" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.paperseek.app%2Fbadges%2Fmodelscope.json&style=flat-square"></a>
@@ -120,7 +120,7 @@ Searches on the three Chinese databases are planned and queried in Chinese. Open
 Requires **Python 3.12+**. The release package includes the built Web UI.
 
 ```sh
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 paperseek serve
 ```
 
@@ -132,10 +132,10 @@ Open [localhost:8765](http://127.0.0.1:8765), configure a model connection and s
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta4 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta5 docker compose up -d
 ```
 
-Edit `.env` before starting. On PowerShell, use `Copy-Item` instead of `cp`, then `$env:PAPERSEEK_VERSION="1.0.0-beta4"; docker compose up -d`. The included Compose service publishes 127.0.0.1:8765 and uses a persistent `paperseek-data` volume. These commands pin the beta image; prereleases do not update `latest`. The supplied Compose file and `.env.example` also default to `1.0.0-beta4`.
+Edit `.env` before starting. On PowerShell, use `Copy-Item` instead of `cp`, then `$env:PAPERSEEK_VERSION="1.0.0-beta5"; docker compose up -d`. The included Compose service publishes 127.0.0.1:8765 and uses a persistent `paperseek-data` volume. These commands pin the beta image; prereleases do not update `latest`. The supplied Compose file and `.env.example` also default to `1.0.0-beta5`.
 
 ### ModelScope Studio
 
@@ -221,7 +221,7 @@ Configure credentials in the process environment first. The six commands are `se
 ### Model Context Protocol
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b4"
+python -m pip install "paperseek-mcp==1.0.0b5"
 paperseek-mcp --transport stdio
 ```
 
@@ -282,7 +282,10 @@ PaperSeek also builds on these projects:
 - [paper-search-pro](https://github.com/O0000-code/paper-search-pro) (Apache-2.0): the journal-ranking matching, OpenReview acceptance rules, and the NSSD and Chinese Medical Journals query forms are adapted from its design.
 - [PaperHub](https://github.com/Yupu-Wang/paper-hub): the top computer-science conference collection, integrated with the author's permission.
 - [ShowJCR](https://github.com/hitfyd/ShowJCR): the CAS, JCR, and CCF tables, downloaded at run time and not redistributed.
-- [OpenReview](https://openreview.net/), [Wanfang Data](https://www.wanfangdata.com.cn/), the [National Social Sciences Database](https://www.ncpssd.cn/), and [Chinese Medical Journals](https://www.yiigle.com/) for acceptance records and Chinese literature.
+- [paper-search-cli](https://github.com/dr-dumpling/paper-search-cli): the command-line usage and literature-search workflow.
+- [openclaw-paper-search](https://github.com/Lloyd-Jahn/openclaw-paper-search): how a paper-search tool is organized.
+- [wosstarter_python_client](https://github.com/clarivate/wosstarter_python_client): how the Web of Science Starter API is called.
+- [MiroFish](https://github.com/666ghj/MiroFish): the split layout and workflow display of the first Web interface.
 
 See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components and attributions.
 

@@ -27,9 +27,9 @@ FROM python:3.12.13-slim AS runtime
 
 LABEL io.modelcontextprotocol.server.name="io.github.paperseek/paperseek" \
       org.opencontainers.image.title="PaperSeek MCP Server" \
-      org.opencontainers.image.version="1.0.0-beta4" \
+      org.opencontainers.image.version="1.0.0-beta5" \
       org.opencontainers.image.source="https://github.com/paperseek/paperseek" \
-      org.opencontainers.image.ref.name="ghcr.io/paperseek/paperseek-mcp:1.0.0-beta4"
+      org.opencontainers.image.ref.name="ghcr.io/paperseek/paperseek-mcp:1.0.0-beta5"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -45,7 +45,7 @@ RUN useradd --create-home --shell /bin/sh paperseek \
 COPY --from=wheel-build /wheels /wheels
 RUN cd /wheels \
     && sha256sum --check SHA256SUMS \
-    && python -m pip install --no-index --find-links /wheels paperseek-mcp==1.0.0b4 \
+    && python -m pip install --no-index --find-links /wheels paperseek-mcp==1.0.0b5 \
     && rm -rf /wheels
 
 USER paperseek

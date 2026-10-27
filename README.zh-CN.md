@@ -9,7 +9,7 @@
   <p>开源文献检索、初步文献计量与基于摘要的文献综述。</p>
   <p>
     <a href="LICENSE"><img alt="Apache 2.0 许可" src="https://img.shields.io/badge/license-Apache%202.0-171717?style=flat-square"></a>
-    <img alt="版本 1.0.0-beta4" src="https://img.shields.io/badge/version-1.0.0--beta4-171717?style=flat-square">
+    <img alt="版本 1.0.0-beta5" src="https://img.shields.io/badge/version-1.0.0--beta5-171717?style=flat-square">
     <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-171717?style=flat-square">
     <img alt="Vue 3" src="https://img.shields.io/badge/frontend-Vue%203-171717?style=flat-square">
     <a href="https://modelscope.cn/studios/HongMingfeng/PaperSeek"><img alt="在魔搭体验" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.paperseek.app%2Fbadges%2Fmodelscope.json&style=flat-square"></a>
@@ -115,7 +115,7 @@ PaperSeek 用于文献发现与整理，不保证穷尽式系统检索；相关�
 需要 **Python 3.12+**，发行包自带已构建的网页。
 
 ```sh
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 paperseek serve
 ```
 
@@ -127,10 +127,10 @@ paperseek serve
 git clone https://github.com/paperseek/paperseek.git
 cd paperseek
 cp .env.example .env
-PAPERSEEK_VERSION=1.0.0-beta4 docker compose up -d
+PAPERSEEK_VERSION=1.0.0-beta5 docker compose up -d
 ```
 
-启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta4"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta4`。
+启动前编辑 `.env`。PowerShell 使用 `Copy-Item` 替代 `cp`，然后执行 `$env:PAPERSEEK_VERSION="1.0.0-beta5"; docker compose up -d`。Compose 默认只向本机发布 127.0.0.1:8765，并通过 `paperseek-data` 卷持久化数据。以上命令已固定 beta 镜像；预发布不会更新 `latest`。随附的 Compose 与 `.env.example` 也默认使用 `1.0.0-beta5`。
 
 ### ModelScope 创空间
 
@@ -216,7 +216,7 @@ paperseek search "How does open-source funding affect maintenance?" --source ope
 ### Model Context Protocol
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b4"
+python -m pip install "paperseek-mcp==1.0.0b5"
 paperseek-mcp --transport stdio
 ```
 
@@ -277,7 +277,10 @@ PaperSeek 还得益于以下项目：
 - [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Apache-2.0）：期刊分区匹配、OpenReview 录用判定，以及国家哲学社会科学学术期刊数据库和中华医学期刊库的检索式写法，参考并改写自该项目的设计。
 - [PaperHub](https://github.com/Yupu-Wang/paper-hub)：计算机顶会文献集合，经作者同意集成。
 - [ShowJCR](https://github.com/hitfyd/ShowJCR)：中科院分区表、JCR 与 CCF 目录，运行时下载，PaperSeek 不再分发。
-- [OpenReview](https://openreview.net/)、[万方数据](https://www.wanfangdata.com.cn/)、[国家哲学社会科学学术期刊数据库](https://www.ncpssd.cn/)、[中华医学期刊库](https://www.yiigle.com/)：会议录用记录与中文文献。
+- [paper-search-cli](https://github.com/dr-dumpling/paper-search-cli)：参考命令行用法与文献检索工作流设计。
+- [openclaw-paper-search](https://github.com/Lloyd-Jahn/openclaw-paper-search)：参考文献搜索工具的组织方式。
+- [wosstarter_python_client](https://github.com/clarivate/wosstarter_python_client)：参考 Web of Science Starter API 的调用方式。
+- [MiroFish](https://github.com/666ghj/MiroFish)：参考早期 Web 界面的左右分栏与工作流展示。
 
 分发组件与署名说明见[第三方声明](THIRD_PARTY_NOTICES.md)。
 

@@ -17,7 +17,7 @@ Use English or Chinese natural language; no hand-written Boolean query is requir
 
 ## Choose the source and scope
 
-A run starts from **one selected source**. Multiple retrieval paths do not mean that all eight sources are queried in the same run.
+A run starts from **one selected source**. Multiple retrieval paths do not mean that all eleven sources are queried in the same run.
 
 OpenAlex, arXiv, and WoS offer source-specific field filters. Other sources use a research-field hint while planning queries. A hint is not a database-level hard filter.
 

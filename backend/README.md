@@ -11,7 +11,7 @@ PaperSeek turns a research question into a reading list. It plans and refines qu
 Requires Python 3.12 or newer. The release package includes the Web UI.
 
 ```sh
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 paperseek serve
 ```
 
@@ -40,7 +40,7 @@ paperseek search "How does open-source funding affect maintenance?" --source ope
 The local HTTP API is under `/api/v1`, with its schema at `/openapi.json`. MCP is packaged separately:
 
 ```sh
-python -m pip install "paperseek-mcp==1.0.0b4"
+python -m pip install "paperseek-mcp==1.0.0b5"
 paperseek-mcp --transport stdio
 ```
 

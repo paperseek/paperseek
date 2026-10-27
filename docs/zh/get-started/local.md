@@ -12,16 +12,16 @@
 ~~~bash [macOS / Linux]
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 ~~~
 ~~~powershell [Windows PowerShell]
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 ~~~
 :::
 
-从 1.0.0-beta4 源码检出安装时，改为 `python -m pip install ./backend`。修改前端源码后，请按[贡献指南](../developers/contributing.md)中的构建说明操作。
+从 1.0.0-beta5 源码检出安装时，改为 `python -m pip install ./backend`。修改前端源码后，请按[贡献指南](../developers/contributing.md)中的构建说明操作。
 
 ## 2. 启动
 
