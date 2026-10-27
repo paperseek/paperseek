@@ -279,13 +279,12 @@ PaperSeek is built with Python, FastAPI, httpx, Vue, Vite, and the work of the s
 
 PaperSeek also builds on these projects:
 
-- [paper-search-pro](https://github.com/O0000-code/paper-search-pro) (Apache-2.0): the journal-ranking matching, OpenReview acceptance rules, and the NSSD and Chinese Medical Journals query forms are adapted from its design.
-- [PaperHub](https://github.com/Yupu-Wang/paper-hub): the top computer-science conference collection, integrated with the author's permission.
+- [paper-search-pro](https://github.com/O0000-code/paper-search-pro) (Apache-2.0): the journal-ranking matching and the OpenReview acceptance rules are adapted from its design.
+- [PaperHub](https://github.com/Yupu-Wang/paper-hub): its paper index of top computer-science conferences, with titles, abstracts, authors, venue, year, and Oral, Spotlight, or Poster, powers the top-conference source and its acceptance labels. Integrated with the author's permission.
 - [ShowJCR](https://github.com/hitfyd/ShowJCR): the CAS, JCR, and CCF tables, downloaded at run time and not redistributed.
 - [paper-search-cli](https://github.com/dr-dumpling/paper-search-cli): the command-line usage and literature-search workflow.
 - [openclaw-paper-search](https://github.com/Lloyd-Jahn/openclaw-paper-search): how a paper-search tool is organized.
 - [wosstarter_python_client](https://github.com/clarivate/wosstarter_python_client): how the Web of Science Starter API is called.
-- [MiroFish](https://github.com/666ghj/MiroFish): the split layout and workflow display of the first Web interface.
 
 See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components and attributions.
 

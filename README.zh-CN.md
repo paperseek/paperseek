@@ -274,13 +274,12 @@ PaperSeek 使用 Python、FastAPI、httpx、Vue、Vite，以及上述学术数�
 
 PaperSeek 还得益于以下项目：
 
-- [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Apache-2.0）：期刊分区匹配、OpenReview 录用判定，以及国家哲学社会科学学术期刊数据库和中华医学期刊库的检索式写法，参考并改写自该项目的设计。
-- [PaperHub](https://github.com/Yupu-Wang/paper-hub)：计算机顶会文献集合，经作者同意集成。
+- [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Apache-2.0）：期刊分区匹配与 OpenReview 录用判定，参考并改写自该项目的设计。
+- [PaperHub](https://github.com/Yupu-Wang/paper-hub)：计算机顶会论文索引，包含标题、摘要、作者、会议、年份以及 Oral、Spotlight、Poster 类型，用作计算机顶会数据源及其录用标签。经作者同意集成。
 - [ShowJCR](https://github.com/hitfyd/ShowJCR)：中科院分区表、JCR 与 CCF 目录，运行时下载，PaperSeek 不再分发。
 - [paper-search-cli](https://github.com/dr-dumpling/paper-search-cli)：参考命令行用法与文献检索工作流设计。
 - [openclaw-paper-search](https://github.com/Lloyd-Jahn/openclaw-paper-search)：参考文献搜索工具的组织方式。
 - [wosstarter_python_client](https://github.com/clarivate/wosstarter_python_client)：参考 Web of Science Starter API 的调用方式。
-- [MiroFish](https://github.com/666ghj/MiroFish)：参考早期 Web 界面的左右分栏与工作流展示。
 
 分发组件与署名说明见[第三方声明](THIRD_PARTY_NOTICES.md)。
 

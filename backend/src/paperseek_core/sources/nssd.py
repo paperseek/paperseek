@@ -5,8 +5,6 @@ POST https://www.ncpssd.cn/searchHandler/search, form fields ``search``, ``pageN
 abstract IKSE. PaperSeek writes plain Boolean queries (``(乡村振兴 OR 农村振兴) AND 数字治理``) and
 each term becomes ``(IKTE="t" OR IKST="t" OR IKSE="t")``; a term spanning two fields would
 otherwise be missed when its words are split across title and subject terms.
-
-Adapted from paper-search-pro (https://github.com/O0000-code/paper-search-pro), Apache-2.0.
 """
 
 from __future__ import annotations

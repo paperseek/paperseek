@@ -24,15 +24,15 @@ These packages are installed as separate Python distributions and retain their o
 
 ## PaperHub integration / PaperHub 集成
 
-[Yupu-Wang/paper-hub](https://github.com/Yupu-Wang/paper-hub) provides the manifest and content-addressed shards used by the computer-science top-conference source. PaperSeek integrates this source with the author's permission and reads the published index at runtime.
+[Yupu-Wang/paper-hub](https://github.com/Yupu-Wang/paper-hub) provides the paper index of top computer-science conferences (titles, abstracts, authors, venue, year, and presentation type) behind the top-conference source and its acceptance labels, published as a manifest and content-addressed shards. PaperSeek integrates this source with the author's permission and reads the published index at runtime.
 
-[Yupu-Wang/paper-hub](https://github.com/Yupu-Wang/paper-hub) 为计算机顶会数据源提供 manifest 和内容哈希 shard。PaperSeek 经作者同意集成该数据源，并在运行时读取公开索引。
+[Yupu-Wang/paper-hub](https://github.com/Yupu-Wang/paper-hub) 提供计算机顶会论文索引（标题、摘要、作者、会议、年份与报告类型），用作计算机顶会数据源及其录用标签，以 manifest 和内容哈希 shard 形式发布。PaperSeek 经作者同意集成该数据源，并在运行时读取公开索引。
 
 ## paper-search-pro / 设计来源
 
-Portions of PaperSeek are adapted from [paper-search-pro](https://github.com/O0000-code/paper-search-pro), Copyright 2026 Bo, licensed under the [Apache License 2.0](https://github.com/O0000-code/paper-search-pro/blob/main/LICENSE.txt): the journal-ranking table parsing and ISSN matching (`paperseek_core/journal_metrics.py`), the OpenReview acceptance rules and venue labels (`paperseek_core/acceptance.py`, `paperseek_core/sources/openreview.py`), and the NSSD and Chinese Medical Journals query forms (`paperseek_core/sources/nssd.py`, `paperseek_core/sources/yiigle.py`). The code was rewritten for PaperSeek; the adapted files say so in their module notes.
+Portions of PaperSeek are adapted from [paper-search-pro](https://github.com/O0000-code/paper-search-pro), Copyright 2026 Bo, licensed under the [Apache License 2.0](https://github.com/O0000-code/paper-search-pro/blob/main/LICENSE.txt): the journal-ranking table parsing and ISSN matching (`paperseek_core/journal_metrics.py`), and the OpenReview acceptance rules and venue labels (`paperseek_core/acceptance.py`, `paperseek_core/sources/openreview.py`). The code was rewritten for PaperSeek; the adapted files say so in their module notes.
 
-PaperSeek 的部分功能参考并改写自 [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Copyright 2026 Bo，[Apache License 2.0](https://github.com/O0000-code/paper-search-pro/blob/main/LICENSE.txt)）：期刊分区表解析与 ISSN 匹配、OpenReview 录用判定与会议标签，以及国家哲学社会科学学术期刊数据库和中华医学期刊库的检索式写法。相关代码已为 PaperSeek 重写，并在模块说明中注明来源。
+PaperSeek 的部分功能参考并改写自 [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Copyright 2026 Bo，[Apache License 2.0](https://github.com/O0000-code/paper-search-pro/blob/main/LICENSE.txt)）：期刊分区表解析与 ISSN 匹配，以及 OpenReview 录用判定与会议标签。相关代码已为 PaperSeek 重写，并在模块说明中注明来源。
 
 ## Runtime data sources / 运行时数据
 
