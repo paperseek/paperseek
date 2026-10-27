@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useData, withBase } from 'vitepress'
 import HeroPainting from './HeroPainting.vue'
 import FeatureSection from './features/FeatureSection.vue'
@@ -18,6 +18,21 @@ onMounted(() => { document.documentElement.classList.add('ps-snap'); stopSnap = 
 onBeforeUnmount(() => { document.documentElement.classList.remove('ps-snap'); stopSnap?.() })
 const sources = computed(() => ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Scholar', 'PubMed', 'Google Scholar', 'PaperHub', 'Web of Science',
   t('Wanfang Data', '万方数据'), t('NSSD', '国家哲社科期刊数据库'), t('Chinese Medical Journals', '中华医学期刊库')])
+// The names stay on one row and scroll only when the row is wider than the page.
+const strip = ref<HTMLElement>()
+const scrolling = ref(false)
+let stripObserver: ResizeObserver | undefined
+onMounted(() => {
+  const measure = () => {
+    const set = strip.value?.querySelector<HTMLElement>('.ps-sources-set')
+    if (strip.value && set) scrolling.value = set.scrollWidth > strip.value.clientWidth
+  }
+  // Watch the names too: web fonts can widen them after the strip has its size.
+  stripObserver = new ResizeObserver(measure)
+  for (const element of [strip.value, strip.value?.querySelector('.ps-sources-set')]) if (element) stripObserver.observe(element)
+  measure()
+})
+onBeforeUnmount(() => stripObserver?.disconnect())
 </script>
 
 <template>
@@ -37,7 +52,13 @@ const sources = computed(() => ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Schol
           </div>
         </div>
       </div>
-      <a class="ps-sources" :href="link('guide/sources')" :aria-label="t('Supported scholarly sources', '支持的学术数据源')"><span v-for="source in sources" :key="source">{{ source }}</span></a>
+      <a ref="strip" class="ps-sources" :class="{ 'is-scrolling': scrolling }" :href="link('guide/sources')" :aria-label="t('Supported scholarly sources', '支持的学术数据源')">
+        <div class="ps-sources-track">
+          <div v-for="copy in (scrolling ? 2 : 1)" :key="copy" class="ps-sources-set" :aria-hidden="copy > 1 || undefined">
+            <span v-for="source in sources" :key="source">{{ source }}</span>
+          </div>
+        </div>
+      </a>
     </section>
 
     <div class="ps-features">
