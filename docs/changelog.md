@@ -15,6 +15,7 @@ Results show where each paper was published and accepted, export straight into r
 - Results carry CAS tiers and Top, JCR quartiles and Impact Factor, and CCF classes from [ShowJCR](https://github.com/hitfyd/ShowJCR). The tables download to your computer on the first search; **Settings → Data sources → Journal rankings** shows their editions, updates them, or imports a local copy.
 - Conference acceptance shows venue, year, and Oral, Spotlight, or Poster, from PaperHub and OpenReview. Only main-track, NeurIPS Datasets & Benchmarks, and TMLR acceptances count.
 - The results page filters by CAS tier or Top, JCR quartile, CCF class, and acceptance, and sorts by Impact Factor. Details also show OpenAlex open impact, which is not an Impact Factor.
+- Chinese journals are labelled PKU Core (北大核心), CSSCI source journal, CSSCI source collection, or CSSCI Extended, with each list's edition, from a list PaperSeek keeps. They are matched by Chinese title or former title, and each list is its own results filter.
 - The review paper picker shows the same labels and filters by them. Bibliometrics adds a **Venue rankings** view: tier, quartile, and class distributions and a table of ranked journals and conferences.
 
 ### Exports

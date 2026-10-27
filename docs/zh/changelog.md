@@ -15,6 +15,7 @@ outline: 2
 - 结果标注中科院分区与 Top、JCR 分区与影响因子、CCF 类别，数据来自 [ShowJCR](https://github.com/hitfyd/ShowJCR)。首次检索时自动下载到本机；**设置 → 数据源 → 期刊分区数据**中可查看版本、更新或导入本地文件。
 - 会议录用信息显示会议、年份以及 Oral、Spotlight 或 Poster，来自 PaperHub 与 OpenReview。只计入会议主会场、NeurIPS Datasets & Benchmarks 和 TMLR 的录用。
 - 结果页可按中科院分区或 Top、JCR 分区、CCF 类别和录用情况筛选，并可按影响因子排序。详细书目信息还会显示 OpenAlex 开放影响力（不是影响因子）。
+- 中文期刊标注北大核心，以及 CSSCI 来源期刊、来源集刊或扩展版，并注明各目录版本，目录由 PaperSeek 整理。按中文刊名或曾用名匹配，每类在结果页都可单独筛选。
 - 综述选文显示同样的标签，也能据此筛选。文献计量新增**期刊分区**页，展示分区、分级的分布，以及期刊与会议分级表。
 
 ### 导出

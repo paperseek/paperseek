@@ -81,7 +81,7 @@ const sizeOptions = computed<SelectOption<SizeChoice>[]>(() => {
 const canContinue = computed(() => selected.size >= 2 && selected.size <= MAX_REVIEW_PAPERS && !loading.value && !suggesting.value);
 const journalOptions = computed<SelectOption<string>[]>(() => [
   { value: "all", label: u("journalAll") },
-  ...(["cas1", "cas2", "castop", "jcr1", "jcr2", "ccfa", "ccfb", "ccfc", "ranked"] as JournalFilter[]).map((value) => ({ value, label: u(`journal_${value}`) })),
+  ...(["cas1", "cas2", "castop", "jcr1", "jcr2", "ccfa", "ccfb", "ccfc", "pku", "cssci", "cssci_c", "cssci_e", "ranked"] as JournalFilter[]).map((value) => ({ value, label: u(`journal_${value}`) })),
 ]);
 // Keep selected records from later pages visible when returning to this draft.
 const visiblePapers = computed(() => query.value.trim() || journal.value !== "all" ? papers.value : [

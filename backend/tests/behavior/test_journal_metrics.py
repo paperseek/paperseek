@@ -1,16 +1,19 @@
-"""ShowJCR tables label papers: CAS and JCR by ISSN then journal title, CCF by venue name or abbreviation."""
+"""Ranking tables label papers: CAS and JCR by ISSN then journal title, CCF by venue name or abbreviation,
+北大核心 and CSSCI by Chinese title."""
 
 from __future__ import annotations
 
 import asyncio
+import io
 import tempfile
 import unittest
+import zipfile
 
 import httpx
 
 from paperseek_community.journal_tables import JournalTableError, JournalTableStore
 from paperseek_core.enrichment import ResultEnricher
-from paperseek_core.journal_metrics import showjcr_url
+from paperseek_core.journal_metrics import CN_CORE_URL, matches_filter, showjcr_url
 from paperseek_core.models import PaperIdentifiers, PaperRecord, PaperSource
 
 CAS = ("Journal,年份,ISSN/EISSN,Review,OA Journal Index（OAJ）,大类,大类分区,Top\n"
@@ -23,13 +26,31 @@ CCF = ("刊物名称,Journal,年份,出版社,网址,领域,CCF推荐类别（�
        "TPAMI,IEEE Transactions on Pattern Analysis and Machine Intelligence,2026,IEEE,,人工智能,推荐国际学术刊物,A类\n"
        "NeurIPS,Conference on Neural Information Processing Systems,2026,MIT Press,,人工智能,推荐国际学术会议,A类\n"
        "ICLR,International Conference on Learning Representations,2026,OpenReview,,人工智能,推荐国际学术会议,A类\n")
+# 刊名, 收录, 曾用名 without a header row, as shared strings like the published sheet.
+CN_CORE_ROWS = [("安徽大学学报（哲学社会科学版）", "CSSCI来源期刊（2025-2026）；北大中文核心（2023版）", ""),
+                ("阿拉伯世界研究", "CSSCI扩展版（2025-2026）", ""),
+                ("上海体育大学学报", "北大中文核心（2023版）", "上海体育学院学报")]
+
+
+def _xlsx(rows: list[tuple[str, ...]]) -> bytes:
+    strings = sorted({value for row in rows for value in row if value})
+    cells = "".join(f'<row r="{line}">' + "".join(f'<c r="{"ABC"[column]}{line}" t="s"><v>{strings.index(value)}</v></c>'
+                                                  for column, value in enumerate(row) if value) + "</row>"
+                    for line, row in enumerate(rows, 1))
+    namespace = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as book:
+        book.writestr("xl/sharedStrings.xml", f"<sst {namespace}>" + "".join(f"<si><t>{value}</t></si>" for value in strings) + "</sst>")
+        book.writestr("xl/worksheets/sheet1.xml", f"<worksheet {namespace}><sheetData>{cells}</sheetData></worksheet>")
+    return buffer.getvalue()
 
 
 class JournalMetricsContractTest(unittest.TestCase):
     def test_showjcr_tables_label_journals_and_conferences(self) -> None:
-        bodies = {showjcr_url("cas"): CAS, showjcr_url("jcr"): JCR, showjcr_url("ccf"): CCF}
+        bodies = {showjcr_url("cas"): CAS.encode(), showjcr_url("jcr"): JCR.encode(), showjcr_url("ccf"): CCF.encode(),
+                  CN_CORE_URL: _xlsx(CN_CORE_ROWS)}
         client = httpx.AsyncClient(transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, content=bodies[str(request.url)].encode("utf-8"))))
+            lambda request: httpx.Response(200, content=bodies[str(request.url)])))
         papers = [
             PaperRecord(uid="tpami", title="A", source=PaperSource(source_title="IEEE TPAMI"),
                         identifiers=PaperIdentifiers(issn="19393539")),
@@ -37,12 +58,16 @@ class JournalMetricsContractTest(unittest.TestCase):
             PaperRecord(uid="neurips", title="C", source=PaperSource(source_title="Advances in Neural Information Processing Systems 37")),
             PaperRecord(uid="iclr", title="D", provider="paperhub", raw={"conference": "ICLR", "year": 2025, "presentation": "oral"}),
             PaperRecord(uid="workshop", title="E", source=PaperSource(source_title="NeurIPS 2024 Workshop on Efficient ML")),
+            PaperRecord(uid="anhui", title="F", source=PaperSource(source_title="安徽大学学报(哲学社会科学版)")),
+            PaperRecord(uid="arab", title="G", source=PaperSource(source_title="阿拉伯世界研究")),
+            PaperRecord(uid="renamed", title="H", source=PaperSource(source_title="上海体育学院学报")),
         ]
         with tempfile.TemporaryDirectory() as folder:
             store = JournalTableStore(folder)
             labels = asyncio.run(ResultEnricher(journals=lambda: store.ensure(client)).annotate(papers))
             self.assertEqual([(row["platform"], row["journals"], row["year"], row["source"]) for row in store.status()],
-                             [("cas", 2, 2025, "showjcr"), ("jcr", 2, 2025, "showjcr"), ("ccf", 3, 2026, "showjcr")])
+                             [("cas", 2, 2025, "showjcr"), ("jcr", 2, 2025, "showjcr"), ("ccf", 3, 2026, "showjcr"),
+                              ("cn_core", 3, None, "paperseek")])
             with self.assertRaises(JournalTableError):
                 store.import_table("jcr", b"Journal,Category\nNature,Science\n", filename="bad.csv")
 
@@ -55,6 +80,14 @@ class JournalMetricsContractTest(unittest.TestCase):
         self.assertEqual(labels["iclr"]["journal_metrics"]["ccf"]["rank"], "A")
         self.assertEqual(labels["iclr"]["acceptance"]["label"], "ICLR 2025 Oral")
         self.assertNotIn("journal_metrics", labels.get("workshop", {}))
+        # Full-width and half-width brackets name the same journal; 扩展版 is not a CSSCI source journal.
+        anhui = labels["anhui"]["journal_metrics"]["cn_core"]
+        self.assertEqual((anhui["pku_edition"], anhui["cssci_edition"]), ("2023", "2025-2026"))
+        self.assertEqual([name for name in ("pku", "cssci", "cssci_c", "cssci_e") if matches_filter(labels["anhui"]["journal_metrics"], name)],
+                         ["pku", "cssci"])
+        self.assertEqual([name for name in ("pku", "cssci", "cssci_e") if matches_filter(labels["arab"]["journal_metrics"], name)],
+                         ["cssci_e"])
+        self.assertTrue(labels["renamed"]["journal_metrics"]["cn_core"]["pku"])
 
 
 if __name__ == "__main__":

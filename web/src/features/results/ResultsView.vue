@@ -37,7 +37,7 @@ const minScore = ref("all");
 const availability = ref("all");
 const journalFilter = ref("all");
 const acceptanceFilter = ref("all");
-const JOURNAL_FILTERS: JournalFilter[] = ["cas1", "cas2", "cas3", "castop", "jcr1", "jcr2", "ccfa", "ccfb", "ccfc", "ranked"];
+const JOURNAL_FILTERS: JournalFilter[] = ["cas1", "cas2", "cas3", "castop", "jcr1", "jcr2", "ccfa", "ccfb", "ccfc", "pku", "cssci", "cssci_c", "cssci_e", "ranked"];
 const ACCEPTANCE_FILTERS: AcceptanceFilter[] = ["accepted", "oral", "spotlight"];
 const EXPORT_FORMATS: { format: ExportFormat; label: string }[] = [
   { format: "csv", label: "CSV" }, { format: "json", label: "JSON" },

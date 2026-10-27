@@ -11,6 +11,10 @@ because yearly releases add and reorder columns:
 - ``ccf``: CCF 推荐国际学术会议和期刊目录. ``刊物名称`` (abbreviation), ``Journal`` (full
   name), ``领域``, ``CCF推荐类别`` (刊物/会议), ``CCF推荐类型`` (A类/B类/C类). No ISSN.
 
+``cn_core`` (北大核心 and CSSCI) is PaperSeek's own sheet, not ShowJCR's: 刊名, 收录
+(``CSSCI来源期刊（2025-2026）；北大中文核心（2023版）``) and 曾用名, by position without a header
+row, or by those names when one is present. It has no ISSN, so it is matched by Chinese title only.
+
 A CAS 区, a JCR quartile and a CCF class are rankings; only the JCR IF is an Impact Factor.
 
 Adapted from paper-search-pro (https://github.com/O0000-code/paper-search-pro), Apache-2.0.
@@ -24,8 +28,8 @@ import re
 import unicodedata
 from typing import Any, Iterable, Literal
 
-PLATFORMS = ("cas", "jcr", "ccf")
-Platform = Literal["cas", "jcr", "ccf"]
+PLATFORMS = ("cas", "jcr", "ccf", "cn_core")
+Platform = Literal["cas", "jcr", "ccf", "cn_core"]
 
 _SHOWJCR = ("https://raw.githubusercontent.com/hitfyd/ShowJCR/master/"
             "%E4%B8%AD%E7%A7%91%E9%99%A2%E5%88%86%E5%8C%BA%E8%A1%A8%E5%8F%8AJCR%E5%8E%9F%E5%A7%8B%E6%95%B0%E6%8D%AE%E6%96%87%E4%BB%B6/")
@@ -35,24 +39,41 @@ SHOWJCR_FILES: dict[str, tuple[str, int]] = {
 }
 
 
+CN_CORE_URL = "https://xhsjson-1311978040.cos.ap-beijing.myqcloud.com/cn_core.xlsx"
+
+
 def showjcr_url(platform: str) -> str:
     return _SHOWJCR + SHOWJCR_FILES[platform][0]
 
 
-# Result filters: name -> (platform, field, best allowed value).
+def table_source(platform: str) -> tuple[str, str, int | None, str]:
+    """(url, file name, edition, source) a table downloads from."""
+    if platform == "cn_core":
+        return CN_CORE_URL, "cn_core.xlsx", None, "paperseek"
+    name, year = SHOWJCR_FILES[platform]
+    return showjcr_url(platform), name, year, "showjcr"
+
+
+# Result filters: name -> (platform, field, best allowed value). A field in JOURNAL_FLAGS must be true.
 JOURNAL_FILTERS: dict[str, tuple[str, str, int]] = {
     "cas1": ("cas", "tier", 1), "cas2": ("cas", "tier", 2), "cas3": ("cas", "tier", 3),
     "castop": ("cas", "top", 1),
     "jcr1": ("jcr", "quartile_number", 1), "jcr2": ("jcr", "quartile_number", 2),
     "ccfa": ("ccf", "rank_number", 1), "ccfb": ("ccf", "rank_number", 2), "ccfc": ("ccf", "rank_number", 3),
+    "pku": ("cn_core", "pku", 1), "cssci": ("cn_core", "cssci", 1),
+    "cssci_c": ("cn_core", "cssci_collection", 1), "cssci_e": ("cn_core", "cssci_extended", 1),
     "ranked": ("", "", 0),
 }
+JOURNAL_FLAGS = frozenset({"top", "pku", "cssci", "cssci_collection", "cssci_extended"})
 
 _ISSN = re.compile(r"[^0-9Xx]")
 _CAS_PARTITION = re.compile(r"^\s*([1-4])\s*(?:区)?\s*(?:\[\s*([^\]]+)\])?")
 _QUARTILE = re.compile(r"Q([1-4])", re.I)
 _CCF_RANK = re.compile(r"([ABC])\s*类?", re.I)
 _YEAR = re.compile(r"(?:19|20)\d{2}")
+_EDITION = re.compile(r"(?:19|20)\d{2}(?:\s*[-–—~至]\s*(?:19|20)\d{2})?")
+# Where a Chinese title's own name ends and its edition (学报.自然科学版, 学报（社会科学版）) begins.
+_CN_TITLE_PART = re.compile(r"[（(.．:：·]")
 # Words that differ between how a source and the CCF list name the same conference.
 _VENUE_FILLER = frozenset({"proceedings", "proc", "of", "the", "advances", "in", "annual", "international", "intl",
                            "conference", "conf", "on", "ieee", "acm", "cvf", "and", "joint", "meeting", "symposium"})
@@ -79,6 +100,13 @@ def journal_key(title: Any) -> str:
     if words[:1] == ["the"]:
         words = words[1:]
     return " ".join(words)
+
+
+def cn_title_key(title: Any) -> str:
+    """Match key for Chinese journal titles: width, punctuation and a "(中英文)" marker do not count."""
+    text = unicodedata.normalize("NFKC", str(title or "")).casefold().replace("中英文", "")
+    key = re.sub(r"[\W_]+", "", text)
+    return key if re.search(r"[\u4e00-\u9fff]", key) else ""
 
 
 def venue_core(name: Any) -> str:
@@ -212,7 +240,40 @@ def parse_ccf(text: str, *, year: int | None = None) -> list[dict[str, Any]]:
     return entries
 
 
-PARSERS = {"cas": parse_cas, "jcr": parse_jcr, "ccf": parse_ccf}
+def cn_core_listing(text: str) -> dict[str, Any]:
+    """北大核心 and CSSCI from a 收录 cell. CSSCI 来源期刊 (``cssci``), 来源集刊 and 扩展版 are separate lists."""
+    metrics: dict[str, Any] = {"pku": False, "cssci": False, "cssci_collection": False, "cssci_extended": False}
+    for item in re.split(r"[；;，,、\n]+", unicodedata.normalize("NFKC", text or "")):
+        match = _EDITION.search(item)
+        edition = re.sub(r"\s*[-–—~至]\s*", "-", match.group(0)) if match else ""
+        if "CSSCI" in item.upper() or "南大核心" in item:
+            field = "cssci_extended" if "扩展" in item else "cssci_collection" if "集刊" in item else "cssci"
+        elif "北大" in item or "中文核心" in item:
+            field = "pku"
+        else:
+            continue
+        metrics[field], metrics[f"{field}_edition"] = True, edition
+    return metrics
+
+
+def parse_cn_core(text: str, *, year: int | None = None) -> list[dict[str, Any]]:
+    header, rows = _rows(text)
+    columns = _columns(header)
+    title = _find(columns, "刊名", "期刊名称", "期刊", "journal")
+    if title is None:
+        title, listing, former, rows = 0, 1, 2, [header, *rows]
+    else:
+        listing, former = _find(columns, "收录", "收录情况", "核心", prefix=True), _find(columns, "曾用名", prefix=True)
+    entries = []
+    for row in rows:
+        metrics = cn_core_listing(_cell(row, listing))
+        if _cell(row, title) and any(metrics.values()):
+            entries.append({"title": _cell(row, title), "issns": [],
+                            "metrics": {**metrics, "former_title": _cell(row, former), "year": year}})
+    return entries
+
+
+PARSERS = {"cas": parse_cas, "jcr": parse_jcr, "ccf": parse_ccf, "cn_core": parse_cn_core}
 
 
 class JournalMetricsTable:
@@ -250,6 +311,21 @@ class JournalMetricsTable:
             abbreviation = entry["abbreviation"]
             if len(abbreviation) >= 3 and sum(char.isupper() for char in abbreviation) >= 2:
                 self.ccf_by_abbreviation.setdefault(abbreviation.casefold(), ccf)
+        # Current and former titles, then the name before an edition or subtitle (财经论丛 for
+        # 财经论丛（浙江财经大学学报）) when only one journal has it: 北京大学学报 alone is three journals.
+        self.cn_core_by_title: dict[str, dict[str, Any]] = {}
+        cn_core = entries_by_platform.get("cn_core") or []
+        for entry in cn_core:
+            for name in (entry["title"], entry["metrics"]["former_title"]):
+                if key := cn_title_key(name):
+                    self.cn_core_by_title.setdefault(key, entry["metrics"])
+        stems: dict[str, list[dict[str, Any]]] = {}
+        for entry in cn_core:
+            if (stem := cn_title_key(_CN_TITLE_PART.split(entry["title"])[0])) and stem != cn_title_key(entry["title"]):
+                stems.setdefault(stem, []).append(entry["metrics"])
+        for stem, found in stems.items():
+            if len(found) == 1:
+                self.cn_core_by_title.setdefault(stem, found[0])
 
     def __bool__(self) -> bool:
         return bool(self.platforms)
@@ -290,6 +366,8 @@ class JournalMetricsTable:
                       **{platform: dict(journal[platform]) for platform in ("cas", "jcr") if platform in journal}}
         if ccf := self.ccf(venue, abbreviations):
             labels = {"journal": venue, "matched_by": "title", **labels, "ccf": dict(ccf)}
+        if (key := cn_title_key(venue)) and (cn_core := self.cn_core_by_title.get(key)):
+            labels = {"journal": venue, "matched_by": "title", **labels, "cn_core": dict(cn_core)}
         return labels
 
 
@@ -298,11 +376,12 @@ def matches_filter(metrics: dict[str, Any], name: str) -> bool:
     if not platform:
         return any(platform in metrics for platform in PLATFORMS)
     value = (metrics.get(platform) or {}).get(field)
-    if field == "top":
+    if field in JOURNAL_FLAGS:
         return value is True
     return isinstance(value, int) and value <= best
 
 
-__all__ = ["JOURNAL_FILTERS", "PARSERS", "PLATFORMS", "SHOWJCR_FILES", "JournalMetricsTable", "journal_key",
-           "matches_filter", "normalize_issn", "normalize_issns", "parse_ccf", "parse_cas", "parse_jcr", "showjcr_url",
+__all__ = ["CN_CORE_URL", "JOURNAL_FILTERS", "JOURNAL_FLAGS", "PARSERS", "PLATFORMS", "SHOWJCR_FILES",
+           "JournalMetricsTable", "cn_core_listing", "cn_title_key", "journal_key", "matches_filter", "normalize_issn",
+           "normalize_issns", "parse_ccf", "parse_cas", "parse_cn_core", "parse_jcr", "showjcr_url", "table_source",
            "venue_core"]
