@@ -37,8 +37,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_KEY }}
           OPENAI__KEY: ${{ secrets.OPENAI_KEY }}
           OPENAI__API_BASE: https://api.deepseek.com
-          config.model: openai/deepseek-v4-pro
-          config.fallback_models: '["openai/deepseek-v4-pro"]'
+          config.model: openai/deepseek-v4-flash
+          config.fallback_models: '["openai/deepseek-v4-flash"]'
           config.custom_model_max_tokens: "32000"
           github_action_config.auto_describe: "true"
           github_action_config.auto_review: "true"

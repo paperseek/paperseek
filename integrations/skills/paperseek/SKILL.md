@@ -11,7 +11,7 @@ Use the local PaperSeek Community product. This Skill guides setup and use; it d
 
 ## References
 
-- Read `references/source-routing.md` to choose among the eight Community sources.
+- Read `references/source-routing.md` to choose among the eleven Community sources.
 - Read `references/cli-contract.md` for the six formal CLI commands and durable-run behavior.
 - Read `references/management-layer.md` for installation, diagnostics, migration, Web/API, and secret handling.
 - If a reference conflicts with the installed command help or `/openapi.json`, trust the installed product and report the documentation drift.

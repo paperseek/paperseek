@@ -3,7 +3,7 @@
   "name": "io.github.paperseek/paperseek",
   "title": "PaperSeek",
   "description": "Durable academic literature search through the PaperSeek application services.",
-  "version": "1.0.0-beta4",
+  "version": "1.0.0-beta5",
   "repository": {
     "source": "github",
     "url": "https://github.com/paperseek/paperseek"
@@ -12,14 +12,14 @@
     {
       "registryType": "pypi",
       "identifier": "paperseek-mcp",
-      "version": "1.0.0b4",
+      "version": "1.0.0b5",
       "transport": {
         "type": "stdio"
       }
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/paperseek/paperseek-mcp:1.0.0-beta4",
+      "identifier": "ghcr.io/paperseek/paperseek-mcp:1.0.0-beta5",
       "transport": {
         "type": "streamable-http",
         "url": "http://127.0.0.1:8766/mcp"

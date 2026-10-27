@@ -4,7 +4,47 @@ outline: 2
 
 # Changelog
 
-Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta4.
+Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta5.
+
+## 1.0.0-beta5 {#v1-0-0-beta5}
+
+Results show where each paper was published and accepted, export straight into reference managers, and three Chinese databases join the sources. It upgrades earlier 1.0 betas in place, without a migration.
+
+### Venue rankings and acceptance
+
+- Results carry CAS tiers and Top, JCR quartiles and Impact Factor, and CCF classes from [ShowJCR](https://github.com/hitfyd/ShowJCR). The tables download to your computer on the first search; **Settings → Data sources → Journal rankings** shows their editions, updates them, or imports a local copy.
+- Conference acceptance shows venue, year, and Oral, Spotlight, or Poster, from PaperHub and OpenReview. Only main-track, NeurIPS Datasets & Benchmarks, and TMLR acceptances count.
+- The results page filters by CAS tier or Top, JCR quartile, CCF class, and acceptance, and sorts by Impact Factor. Details also show OpenAlex open impact, which is not an Impact Factor.
+- The review paper picker shows the same labels and filters by them. Bibliometrics adds a **Venue rankings** view: tier, quartile, and class distributions and a table of ranked journals and conferences.
+
+### Exports
+
+- Complete and selected results export as BibTeX and RIS for Zotero, EndNote, and JabRef, with entry types for journal articles, conference papers, and preprints, and the conference acceptance in the note field. MCP `export_results` offers the same formats.
+- Records from OpenAlex, Crossref, PubMed, and Semantic Scholar keep ISSN, volume, issue, and pages when the source provides them.
+
+### Data sources
+
+- **Wanfang Data** (your AppKey), the **National Social Sciences Database**, and **Chinese Medical Journals** join the sources. Their searches are planned and queried in Chinese, each in its own query form.
+- The top-conference source also searches OpenReview and adds the accepted papers PaperHub lacks.
+
+### Settings
+
+- The network proxy moved to **Settings → General**. **Remove proxies** now removes them at once. OpenReview and the ShowJCR download use the data-source proxy scope.
+
+### Fixes
+
+- A model reply missing its final brackets is closed and accepted instead of failing; a reply cut off inside a later paragraph is repaired rather than shortened.
+- A review section written with extra paragraphs keeps them, merged within the length limits and marked for review.
+- Review paper selection survives switching modules, and the temporary draft is released once the review is saved.
+- The MCP Docker image is built against its own release package.
+
+### Upgrade notes
+
+- From an earlier 1.0 beta, install 1.0.0b5 with pip or set `PAPERSEEK_VERSION=1.0.0-beta5` for Docker; your data needs no migration. See [upgrading from an earlier 1.0 beta](self-hosting/upgrade.md#from-an-earlier-1-0-beta).
+- Venue labels are added when a search finishes, so earlier results have none; run a search again to label it. Recreate a bibliometric analysis to get its Venue rankings view.
+- The ranking tables download from GitHub. If GitHub is unreachable, set a proxy in **Settings → General** or import the files.
+
+See [Results and history](guide/results.md) and [Data sources](guide/sources.md) for details.
 
 ## 1.0.0-beta4 {#v1-0-0-beta4}
 

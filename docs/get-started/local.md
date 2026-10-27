@@ -12,16 +12,16 @@ Use **Python 3.12 or newer** and an isolated environment.
 ~~~bash [macOS / Linux]
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 ~~~
 ~~~powershell [Windows PowerShell]
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install "paperseek==1.0.0b4"
+python -m pip install "paperseek==1.0.0b5"
 ~~~
 :::
 
-For a 1.0.0-beta4 source checkout, use `python -m pip install ./backend` instead. After changing frontend source, follow the [contributor build instructions](../developers/contributing.md).
+For a 1.0.0-beta5 source checkout, use `python -m pip install ./backend` instead. After changing frontend source, follow the [contributor build instructions](../developers/contributing.md).
 
 ## 2. Start
 

@@ -12,7 +12,7 @@ Task guides for the PaperSeek workspace, in both editions. New here? Start with 
 
 ## Setup
 
-- [Data sources](sources.md) — eight scholarly sources, keys, filters, and missing metadata.
+- [Data sources](sources.md) — eleven scholarly sources, keys, filters, and missing metadata.
 - [Models & ranking](models.md) — connect model APIs, protocols, and ranking stages.
 
 ## Workspace

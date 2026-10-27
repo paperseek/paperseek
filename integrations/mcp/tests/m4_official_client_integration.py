@@ -36,7 +36,7 @@ EXPECTED_TOOLS = [
     "list_sources",
     "get_source_capabilities",
 ]
-CLIENT_INFO = Implementation(name="paperseek-m4-gate", version="1.0.0b4")
+CLIENT_INFO = Implementation(name="paperseek-m4-gate", version="1.0.0b5")
 SERVICE_TOKEN = "m4-official-client-token"
 CLIENT_ORIGIN = "https://client.example.test"
 
@@ -265,7 +265,7 @@ class InstalledMCPGate:
                 yield session, initialize
 
     async def verify_session(self, session: ClientSession, initialize: Any) -> list[dict[str, Any]]:
-        if initialize.server_info.name != "paperseek" or initialize.server_info.version != "1.0.0b4":
+        if initialize.server_info.name != "paperseek" or initialize.server_info.version != "1.0.0b5":
             raise AssertionError(initialize)
         tools = await session.list_tools()
         schemas = [tool.model_dump(mode="json", by_alias=True) for tool in tools.tools]
@@ -380,11 +380,11 @@ class M4OfficialClientIntegration(unittest.TestCase):
     async def _run_gate(self) -> None:
         gate = InstalledMCPGate()
         try:
-            self.assertEqual(importlib.metadata.version("paperseek"), "1.0.0b4")
-            self.assertEqual(importlib.metadata.version("paperseek-mcp"), "1.0.0b4")
+            self.assertEqual(importlib.metadata.version("paperseek"), "1.0.0b5")
+            self.assertEqual(importlib.metadata.version("paperseek-mcp"), "1.0.0b5")
             self.assertEqual(importlib.metadata.version("mcp"), "2.0.0")
             requirements = importlib.metadata.requires("paperseek-mcp") or []
-            self.assertIn("paperseek==1.0.0b4", requirements)
+            self.assertIn("paperseek==1.0.0b5", requirements)
             self.assertIn("mcp==2.0.0", requirements)
             registry_metadata = json.loads(
                 (
@@ -395,7 +395,7 @@ class M4OfficialClientIntegration(unittest.TestCase):
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(registry_metadata["name"], "io.github.paperseek/paperseek")
-            self.assertEqual(registry_metadata["version"], "1.0.0-beta4")
+            self.assertEqual(registry_metadata["version"], "1.0.0-beta5")
             import paperseek_app
             import paperseek_mcp
 

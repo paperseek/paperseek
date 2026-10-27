@@ -137,7 +137,7 @@ def create_app(
 
     app = FastAPI(
         title="PaperSeek Community API",
-        version="1.0.0b4",
+        version="1.0.0b5",
         responses={status: {"model": ErrorResponse} for status in (400, 404, 409, 422, 500, 503)},
         lifespan=lifespan,
     )

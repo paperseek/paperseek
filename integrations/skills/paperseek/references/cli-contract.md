@@ -1,6 +1,6 @@
 # PaperSeek CLI Contract
 
-The v1.0.0-beta4 Community distribution exposes exactly six product commands:
+The v1.0.0-beta5 Community distribution exposes exactly six product commands:
 
 ```text
 paperseek search
@@ -23,7 +23,7 @@ paperseek search "QUESTION" \
   --output json
 ```
 
-Supported sources are `openalex`, `arxiv`, `semanticscholar`, `pubmed`, `googlescholar`, `paperhub`, `crossref`, and `wos`. Optional functional switches include repeated `--field-id`, `--field-hint`, `--wos-db`, and `--citation-enabled`. LLM provider, API type, model, and base URL can be selected without placing a key on the command line; keys come from current environment configuration.
+Supported sources are `openalex`, `arxiv`, `semanticscholar`, `pubmed`, `googlescholar`, `paperhub`, `crossref`, `wos`, `wanfang`, `nssd`, and `yiigle`. Optional functional switches include repeated `--field-id`, `--field-hint`, `--wos-db`, and `--citation-enabled`. LLM provider, API type, model, and base URL can be selected without placing a key on the command line; keys come from current environment configuration.
 
 Search uses the same submission normalizer, SQLite unit of work, artifact store, executor, and durable run state as the HTTP API. JSON output contains `run_id`, `status`, `source`, `result_count`, `error_code`, `warnings`, and normalized `results`.
 

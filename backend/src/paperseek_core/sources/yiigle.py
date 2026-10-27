@@ -4,8 +4,6 @@ POST https://www.yiigle.com/apiVue/search/searchList with JSON; no key. ``isAggr
 "N", otherwise only facets come back. The endpoint has no field codes or Boolean operators: it
 ANDs the words of ``queryString`` across title, abstract and keywords, and treats "OR" as one more
 word. So a Boolean query keeps only the first term of each group, and NOT terms are dropped.
-
-Adapted from paper-search-pro (https://github.com/O0000-code/paper-search-pro), Apache-2.0.
 """
 
 from __future__ import annotations

@@ -104,7 +104,7 @@ def main() -> None:
             )
 
     version = _run(executable, "version")
-    if version.returncode != 0 or version.stdout.strip() != "1.0.0b4":
+    if version.returncode != 0 or version.stdout.strip() != "1.0.0b5":
         raise AssertionError(version)
 
     doctor = _run(

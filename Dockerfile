@@ -40,9 +40,9 @@ RUN uv build --wheel --out-dir /wheels
 FROM python:3.12.13-slim AS runtime
 
 LABEL org.opencontainers.image.title="PaperSeek Community" \
-      org.opencontainers.image.version="1.0.0-beta4" \
+      org.opencontainers.image.version="1.0.0-beta5" \
       org.opencontainers.image.source="https://github.com/paperseek/paperseek" \
-      org.opencontainers.image.ref.name="ghcr.io/paperseek/paperseek:1.0.0-beta4"
+      org.opencontainers.image.ref.name="ghcr.io/paperseek/paperseek:1.0.0-beta5"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

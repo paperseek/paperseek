@@ -14,6 +14,9 @@ Use this reference when deciding which PaperSeek data source to use for a user r
 | Computer science top conferences | Top CS conference papers | ICLR/ICML/NeurIPS/AAAI/NDSS-oriented conference paper search | Not exhaustive; no citation graph or DOI registry guarantees |
 | Crossref | DOI and publisher bibliographic metadata | DOI/title/venue/year verification, publisher metadata, broad registry | Abstracts often absent; not ideal as the only semantic recall source |
 | Web of Science Starter | Institution-backed WoS metadata when key and entitlement exist | Curated citation index metadata and citation counts | Key required; native abstracts should not be assumed |
+| Wanfang Data | Chinese journal articles, theses, and conference papers | Broad Chinese coverage, Chinese abstracts and keywords | Requires `PAPERSEEK_WANFANG_API_KEY`; Chinese literature only |
+| National Social Sciences Database (NSSD) | Chinese social sciences and humanities journals | No key, Chinese abstracts | Metadata and abstracts only; social sciences scope |
+| Chinese Medical Journals (Yiigle) | Chinese Medical Association journals | No key, Chinese titles and abstracts | Medicine only; metadata and abstracts only |
 
 ## Default Choice
 
@@ -59,6 +62,13 @@ Use computer science top-conference search when:
 - the task is ML/AI/security conference discovery;
 - a focused static conference index is acceptable.
 
+Use Wanfang Data, NSSD, or Chinese Medical Journals when:
+
+- the user wants Chinese-language literature;
+- Wanfang for broad Chinese coverage, when `PAPERSEEK_WANFANG_API_KEY` is configured;
+- NSSD for Chinese social sciences and humanities;
+- Chinese Medical Journals for Chinese clinical and medical research.
+
 Use WoS only when:
 
 - the user has configured `PAPERSEEK_WOS_API_KEY`;
@@ -90,9 +100,9 @@ paperseek search "QUERY" --source openalex --no-citation-enabled
 ## Query Guidance
 
 - Natural-language questions may be Chinese or English; PaperSeek asks the LLM to generate source-appropriate search queries.
-- For Chinese user questions, preserve the original question but expect English scholarly query terms.
+- For Chinese user questions, preserve the original question. Most sources get English scholarly query terms; Wanfang Data, NSSD, and Chinese Medical Journals are planned and queried in Chinese whatever language the question uses.
 - Prefer concise research questions over very long pasted text.
-- Add a field constraint only when the user requests one; it can over-narrow results. For OpenAlex, arXiv, and WoS, use repeated `--field-id` values from the source’s supported fields or categories (for example, `--source arxiv --field-id cs.CL`). For Semantic Scholar, PubMed, Google Scholar, PaperHub, and Crossref, use `--field-hint "TEXT"` instead. Do not abbreviate either option to `--field`, which is ambiguous.
+- Add a field constraint only when the user requests one; it can over-narrow results. For OpenAlex, arXiv, and WoS, use repeated `--field-id` values from the source’s supported fields or categories (for example, `--source arxiv --field-id cs.CL`). For the other sources, use `--field-hint "TEXT"` instead. Do not abbreviate either option to `--field`, which is ambiguous.
 - If results are weak, rerun with a shorter question, fewer concepts, or broader terms.
 
 ## Result Interpretation
@@ -106,6 +116,7 @@ When reporting results, include:
 - number of iterations;
 - total returned count;
 - top paper titles, authors, venue, year, DOI or URL when available;
-- relevance score and reason.
+- relevance score and reason;
+- CAS tier, JCR quartile and Impact Factor, CCF class, or conference acceptance when the result carries them.
 
 Do not fabricate missing abstracts, DOI, citation counts, or authors.
