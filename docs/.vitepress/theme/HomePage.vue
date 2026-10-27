@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useData, withBase } from 'vitepress'
 import HeroPainting from './HeroPainting.vue'
 import FeatureSection from './features/FeatureSection.vue'
@@ -16,36 +16,8 @@ const link = (path: string) => withBase((zh.value ? '/zh/' : '/') + path)
 let stopSnap: (() => void) | undefined
 onMounted(() => { document.documentElement.classList.add('ps-snap'); stopSnap = pageSnap() })
 onBeforeUnmount(() => { document.documentElement.classList.remove('ps-snap'); stopSnap?.() })
-// Logos belong to their owners and are shown in one tone; OpenReview has no logo, so it keeps its wordmark.
-// Heights are in pixels at the strip's 17px desktop size and scale with it.
-const sources: { name: string, logo?: string, height?: number, text?: string }[] = [
-  { name: 'OpenAlex', logo: 'openalex.png', height: 20 },
-  { name: 'arXiv', logo: 'arxiv.svg', height: 24 },
-  { name: 'Crossref', logo: 'crossref.svg', height: 30 },
-  { name: 'Semantic Scholar', logo: 'semanticscholar.svg', height: 30 },
-  { name: 'PubMed', logo: 'pubmed.svg', height: 24 },
-  { name: 'Google Scholar', logo: 'googlescholar.svg', height: 22, text: 'Google Scholar' },
-  { name: 'OpenReview', text: 'OpenReview' },
-  { name: 'Web of Science', logo: 'wos.svg', height: 16 },
-  { name: 'Wanfang Data', logo: 'wanfang.svg', height: 30 },
-  { name: 'National Social Sciences Database', logo: 'nssd.png', height: 26 },
-  { name: 'Chinese Medical Journals', logo: 'yiigle.svg', height: 20 },
-]
-// The strip scrolls only when one row of logos is wider than the page.
-const strip = ref<HTMLElement>()
-const scrolling = ref(false)
-let stripObserver: ResizeObserver | undefined
-onMounted(() => {
-  const measure = () => {
-    const set = strip.value?.querySelector<HTMLElement>('.ps-sources-set')
-    if (strip.value && set) scrolling.value = set.scrollWidth > strip.value.clientWidth
-  }
-  // Watch the logos too: they widen the set as they load, while the strip keeps its size.
-  stripObserver = new ResizeObserver(measure)
-  for (const element of [strip.value, strip.value?.querySelector('.ps-sources-set')]) if (element) stripObserver.observe(element)
-  measure()
-})
-onBeforeUnmount(() => stripObserver?.disconnect())
+const sources = computed(() => ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Scholar', 'PubMed', 'Google Scholar', 'PaperHub', 'Web of Science',
+  t('Wanfang Data', '万方数据'), t('NSSD', '国家哲社科期刊数据库'), t('Chinese Medical Journals', '中华医学期刊库')])
 </script>
 
 <template>
@@ -65,16 +37,7 @@ onBeforeUnmount(() => stripObserver?.disconnect())
           </div>
         </div>
       </div>
-      <a ref="strip" class="ps-sources" :class="{ 'is-scrolling': scrolling }" :href="link('guide/sources')" :aria-label="t('Supported scholarly sources', '支持的学术数据源')">
-        <div class="ps-sources-track">
-          <div v-for="copy in (scrolling ? 2 : 1)" :key="copy" class="ps-sources-set" :aria-hidden="copy > 1 || undefined">
-            <span v-for="source in sources" :key="source.name" class="ps-source" :title="source.name">
-              <img v-if="source.logo" :src="withBase('/sources/' + source.logo)" :alt="source.text || copy > 1 ? '' : source.name" :style="{ height: source.height / 17 + 'em' }">
-              <span v-if="source.text">{{ source.text }}</span>
-            </span>
-          </div>
-        </div>
-      </a>
+      <a class="ps-sources" :href="link('guide/sources')" :aria-label="t('Supported scholarly sources', '支持的学术数据源')"><span v-for="source in sources" :key="source">{{ source }}</span></a>
     </section>
 
     <div class="ps-features">

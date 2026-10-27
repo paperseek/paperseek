@@ -97,20 +97,8 @@ a, button { -webkit-tap-highlight-color: transparent; }
 .ps-hero-side { flex: 0 1 390px; padding-bottom: 6px; }
 .ps-hero-description { font-size: 15px; line-height: 1.75; letter-spacing: .01em; color: var(--vp-c-text-2); text-wrap: pretty; }
 .ps-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-.ps-sources { display: block; overflow: hidden; padding: 18px 40px; border-block: 1px solid var(--vp-c-divider); font-size: 17px; font-weight: 600; letter-spacing: -.02em; color: var(--vp-c-text-3); transition: color .16s; }
+.ps-sources { display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 14px 28px; padding: 18px 40px; border-block: 1px solid var(--vp-c-divider); font-size: 17px; font-weight: 600; letter-spacing: -.02em; color: var(--vp-c-text-3); transition: color .16s; }
 .ps-sources:hover { color: var(--vp-c-text-2); }
-.ps-sources-track { display: flex; width: max-content; min-width: 100%; }
-.ps-sources-set { display: flex; flex: 1 0 auto; justify-content: space-around; align-items: center; gap: 36px; }
-.ps-source { display: inline-flex; flex: none; align-items: center; gap: 8px; height: 1.9em; white-space: nowrap; }
-.ps-source img { width: auto; max-width: none; filter: grayscale(1); opacity: .62; transition: opacity .16s; }
-.dark .ps-source img { filter: grayscale(1) invert(1); opacity: .7; }
-.ps-sources:hover .ps-source img { opacity: .9; }
-/* Two identical sets, each ending in one gap, so moving by half the track loops without a seam. */
-.ps-sources.is-scrolling { padding-inline: 0; mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-.ps-sources.is-scrolling .ps-sources-track { min-width: 0; animation: ps-sources-scroll 48s linear infinite; }
-.ps-sources.is-scrolling .ps-sources-set { padding-right: 36px; }
-.ps-sources.is-scrolling:hover .ps-sources-track, .ps-sources.is-scrolling:focus-visible .ps-sources-track { animation-play-state: paused; }
-@keyframes ps-sources-scroll { to { transform: translateX(-50%); } }
 .ps-button { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 40px; padding: 8px 18px; border: 1px solid var(--vp-c-border); border-radius: 8px; font-size: 14px; font-weight: 550; background: var(--vp-c-bg); transition: background .16s; }
 .ps-button:hover { background: var(--vp-c-bg-soft); }
 .ps-button-primary { color: var(--ps-inverse); border-color: var(--ps-foreground); background: var(--ps-foreground); }
@@ -151,9 +139,7 @@ a, button { -webkit-tap-highlight-color: transparent; }
   .ps-hero h1, :lang(zh) .ps-hero h1 { font-size: 36px; }
   .ps-hero-side { flex-basis: auto; }
   .ps-release { font-size: 11px; margin-bottom: 18px; }
-  .ps-sources { padding: 16px 18px; font-size: 14px; }
-  .ps-sources-set { gap: 26px; }
-  .ps-sources.is-scrolling .ps-sources-set { padding-right: 26px; }
+  .ps-sources { justify-content: center; padding: 20px 18px; gap: 10px 20px; font-size: 13px; }
   .ps-container { width: calc(100% - 36px); }
   .ps-button { min-height: 44px; font-size: 13px; padding: 8px 14px; }
   .ps-section { padding: 50px 0; }
@@ -170,6 +156,5 @@ a, button { -webkit-tap-highlight-color: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
-  .ps-sources.is-scrolling { overflow-x: auto; }
 }
 .ps-text-link:hover { text-decoration: underline; text-underline-offset: 4px; }
