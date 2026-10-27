@@ -70,7 +70,7 @@ test("an active run is announced with view and stop; Ctrl+Enter submits", async 
   await page.getByLabel("研究问题").fill("next question");
   await expect(page.getByRole("button", { name: "开始检索" })).toBeDisabled();
   await page.getByRole("button", { name: "停止" }).click();
-  await expect(page.getByText("已有检索正在运行")).toBeHidden();
+  await expect(page.getByText("已有检索正在运行")).toHaveCount(0);
   expect(requestsTo(state, "POST", `/runs/${ids.running}/cancel`)).toHaveLength(1);
   await page.getByLabel("研究问题").press("Control+Enter");
   await expect(page).toHaveURL(/\/runs\/abababab/);
