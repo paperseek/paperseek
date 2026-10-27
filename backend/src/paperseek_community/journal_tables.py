@@ -1,20 +1,25 @@
-"""Journal and conference ranking tables from ShowJCR, kept as files beside the database."""
+"""Journal and conference ranking tables from ShowJCR and PaperSeek, kept as files beside the database."""
 from __future__ import annotations
 
 import asyncio
+import csv
 from datetime import datetime, timezone
 import json
+import io
 import os
+import posixpath
 import re
 from pathlib import Path
 import threading
 import time
 from typing import Any
 from uuid import uuid4
+from xml.etree import ElementTree
+import zipfile
 
 import httpx
 
-from paperseek_core.journal_metrics import PARSERS, PLATFORMS, SHOWJCR_FILES, JournalMetricsTable, showjcr_url
+from paperseek_core.journal_metrics import PARSERS, PLATFORMS, JournalMetricsTable, table_source
 
 MAX_TABLE_BYTES = 64 * 1024 * 1024
 
@@ -23,7 +28,61 @@ class JournalTableError(ValueError):
     pass
 
 
+_SHEET = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_RELATIONSHIP_ID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+_RELATIONSHIP = "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"
+
+
+def _texts(element: ElementTree.Element) -> str:
+    return "".join(text.text or "" for text in element.iter(f"{_SHEET}t"))
+
+
+def _xlsx_text(content: bytes) -> str:
+    """The first worksheet of an .xlsx file as CSV text, so it is kept and parsed like a CSV table.
+
+    The first worksheet is the first in the workbook's own order, found through the workbook's
+    relationships: ``sheet1.xml`` can be any sheet once sheets are moved, deleted or added.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as book:
+            targets = {}
+            for relation in ElementTree.fromstring(book.read("xl/_rels/workbook.xml.rels")).iter(_RELATIONSHIP):
+                target = relation.get("Target") or ""
+                targets[relation.get("Id")] = (relation.get("Type") or "", target.lstrip("/") if target.startswith("/")
+                                               else posixpath.normpath(posixpath.join("xl", target)))
+            first = next(ElementTree.fromstring(book.read("xl/workbook.xml")).iter(f"{_SHEET}sheet"), None)
+            sheet_part = targets.get(first.get(_RELATIONSHIP_ID) if first is not None else None, ("", ""))[1]
+            shared_part = next((part for kind, part in targets.values() if kind.endswith("/sharedStrings")), "")
+            if not sheet_part:
+                raise JournalTableError("journal_table_encoding")
+            if sum(book.getinfo(part).file_size for part in (shared_part, sheet_part) if part) > MAX_TABLE_BYTES:
+                raise JournalTableError("journal_table_size")
+            shared = ([_texts(item) for item in ElementTree.fromstring(book.read(shared_part)).iter(f"{_SHEET}si")]
+                      if shared_part else [])
+            sheet = ElementTree.fromstring(book.read(sheet_part))
+    except (zipfile.BadZipFile, ElementTree.ParseError, KeyError) as exc:
+        raise JournalTableError("journal_table_encoding") from exc
+    output = io.StringIO()
+    writer = csv.writer(output)
+    for row in sheet.iter(f"{_SHEET}row"):
+        cells: dict[int, str] = {}
+        for cell in row.iter(f"{_SHEET}c"):
+            letters = re.match(r"[A-Z]+", cell.get("r") or "")
+            column = (sum((ord(char) - 64) * 26 ** power for power, char in enumerate(reversed(letters.group(0)))) - 1
+                      if letters else len(cells))
+            value = cell.find(f"{_SHEET}v")
+            if cell.get("t") == "inlineStr":
+                cells[column] = _texts(cell)
+            elif value is not None and value.text:
+                shared_index = int(value.text) if cell.get("t") == "s" and value.text.isdigit() else -1
+                cells[column] = shared[shared_index] if 0 <= shared_index < len(shared) else value.text
+        writer.writerow([cells.get(index, "") for index in range(max(cells, default=-1) + 1)])
+    return output.getvalue()
+
+
 def _decode(content: bytes) -> str:
+    if content.startswith(b"PK\x03\x04"):
+        return _xlsx_text(content)
     for encoding in ("utf-8-sig", "gb18030"):
         try:
             return content.decode(encoding)
@@ -76,19 +135,21 @@ class JournalTableStore:
         return [platform for platform, row in zip(PLATFORMS, self.status(), strict=True) if not row["imported"]]
 
     async def download(self, client: httpx.AsyncClient, platforms: list[str] | None = None) -> list[dict[str, Any]]:
-        """Fetch the current ShowJCR edition of each table; a table that fails keeps its previous copy."""
+        """Fetch the current edition of each table; a table that fails keeps its previous copy."""
         saved = []
         for platform in platforms or list(PLATFORMS):
-            name, year = SHOWJCR_FILES[platform]
+            url, name, year, source = table_source(platform)
             try:
-                # Named as a source so the data-source proxy scope applies, as for PaperHub's GitHub files.
-                response = await client.get(showjcr_url(platform), timeout=120, follow_redirects=True,
+                # Every table, PaperSeek's included, is tagged showjcr so they all share one data-source proxy
+                # scope, as PaperHub's GitHub files do; an unknown tag would be routed as model traffic.
+                # `source` only records where the table came from.
+                response = await client.get(url, timeout=120, follow_redirects=True,
                                             extensions={"paperseek_source": "showjcr"})
                 response.raise_for_status()
             except httpx.HTTPError as exc:
                 raise JournalTableError("journal_table_download") from exc
             saved.append(await asyncio.to_thread(self.import_table, platform, response.content, filename=name,
-                                                 year=year, source="showjcr"))
+                                                 year=year, source=source))
         return saved
 
     def import_table(self, platform: str, content: bytes, *, filename: str = "", year: int | None = None,

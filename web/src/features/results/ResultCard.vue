@@ -6,7 +6,7 @@ import Icon from "../../components/Icon.vue";
 import UiMenu from "../../components/UiMenu.vue";
 import { useLocale } from "../../locales";
 import { useUi } from "../../locales/ui";
-import { formatNumber, venueBadges } from "./venue-labels";
+import { cnCoreListings, formatNumber, venueBadges } from "./venue-labels";
 
 const props = defineProps<{ paper: PaperResult; identity: string; selected: boolean; expanded: ReadonlySet<string> }>();
 const emit = defineEmits<{ select: []; expand: [key: string] }>();
@@ -38,6 +38,7 @@ const partitionRows = computed(() => {
     cas?.tier ? `${u("casBadge", { n: cas.tier })}${cas.top ? ` · ${u("casTop")}` : ""}${cas.category ? ` · ${cas.category}` : ""}${cas.rank ? ` · ${cas.rank}` : ""}${edition(cas.year)}` : "",
     jcr?.quartile || jcr?.impact_factor != null ? `${[jcr.quartile ? u("jcrBadge", { q: jcr.quartile }) : "", jcr.impact_factor != null ? u("impactFactor", { n: number(jcr.impact_factor) }) : "", jcr.rank || ""].filter(Boolean).join(" · ")}${edition(jcr.year)}` : "",
     ccf?.rank ? `${u("ccfBadge", { rank: ccf.rank })} · ${u(ccf.type === "journal" ? "ccfJournal" : "ccfConference")}${ccf.abbreviation ? ` · ${ccf.abbreviation}` : ""}${ccf.field ? ` · ${ccf.field}` : ""}${edition(ccf.year)}` : "",
+    ...cnCoreListings(u, journal.value).map(({ label, edition: listed }) => (listed ? `${label} · ${u("partitionYear", { year: listed })}` : label)),
   ].filter(Boolean);
 });
 const openImpact = computed(() => journal.value.openalex);

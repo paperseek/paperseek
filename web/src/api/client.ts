@@ -24,10 +24,10 @@ export interface ResultPageQuery {
   sort?: "rank" | "score" | "citations" | "year" | "impact";
 }
 
-export type JournalFilter = "cas1" | "cas2" | "cas3" | "castop" | "jcr1" | "jcr2" | "ccfa" | "ccfb" | "ccfc" | "ranked";
+export type JournalFilter = "cas1" | "cas2" | "cas3" | "castop" | "jcr1" | "jcr2" | "ccfa" | "ccfb" | "ccfc" | "pku" | "cssci" | "cssci_c" | "cssci_e" | "ranked";
 export type AcceptanceFilter = "accepted" | "oral" | "spotlight";
 export type ExportFormat = "csv" | "json" | "bibtex" | "ris";
-export type JournalPlatform = "cas" | "jcr" | "ccf";
+export type JournalPlatform = "cas" | "jcr" | "ccf" | "cn_core";
 
 export interface JournalTableStatus {
   platform: JournalPlatform;
@@ -35,7 +35,7 @@ export interface JournalTableStatus {
   journals: number;
   year: number | null;
   filename: string;
-  source: "showjcr" | "file";
+  source: "showjcr" | "paperseek" | "file";
   imported_at: string | null;
 }
 

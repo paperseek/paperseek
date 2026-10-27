@@ -17,16 +17,17 @@ Relevance measures the match to **your question**. It is not a study-quality sco
 Cards can carry two kinds of venue labels. Open **Details** for the full entry.
 
 - **Journal and venue rankings**: CAS tier and Top (中科院分区), JCR quartile and Impact Factor, and the CCF class (A, B or C) of recommended conferences and journals, from [ShowJCR](https://github.com/hitfyd/ShowJCR). CAS and JCR are matched by ISSN, otherwise by the exact journal title; Details says when the title was used. CCF is matched by the venue's full name or its abbreviation, such as NeurIPS; workshops get no CCF class. Only the JCR figure is an Impact Factor; CAS tiers, JCR quartiles and CCF classes are rankings.
+- **Chinese core journals**: PKU Core (北大核心) and three separate CSSCI lists: CSSCI source journals, CSSCI source collections (集刊) and CSSCI Extended (扩展版), each with its edition. Details also show the edition. PaperSeek keeps this list. It has no ISSN, so it is matched by the Chinese journal title or a former title; brackets, full-width punctuation and a "(中英文)" marker do not count. A name shared by several journals, such as 北京大学学报 without its edition, gets no label.
 - **Open impact**: a journal's 2-year mean citedness and h-index from OpenAlex. It needs no import and is not an Impact Factor.
 - **Conference acceptance**: venue, year and Oral, Spotlight or Poster, from the PaperHub collection and OpenReview. Only papers a main conference track, NeurIPS Datasets & Benchmarks or TMLR accepted count; workshop, rejected, withdrawn and under-review submissions do not.
 
-Labels are added when a search finishes. The ShowJCR tables download from GitHub on the first search and stay on this computer; **Settings → Data sources → Journal rankings** shows their editions and **Update from ShowJCR** fetches them again. The network proxy applies to this download. Where GitHub is unreachable, download the same file from ShowJCR (`FQBJCR2025-UTF8.csv`, `JCR2025-UTF8.csv`, `CCF2026-UTF8.csv`) and use **Import local file**. Run a search again to label it with a new edition.
+Labels are added when a search finishes. The ShowJCR tables download from GitHub on the first search and stay on this computer; **Settings → Data sources → Journal rankings** shows their editions and **Update all** fetches them again; the PKU Core and CSSCI list downloads with them. The network proxy applies to these downloads. Where GitHub is unreachable, download the same file from ShowJCR (`FQBJCR2025-UTF8.csv`, `JCR2025-UTF8.csv`, `CCF2026-UTF8.csv`) and use **Import local file**. The PKU Core and CSSCI list imports from `.xlsx` or CSV with the columns 刊名, 收录 and 曾用名. Run a search again to label it with a new edition.
 
 ## Filter, sort, and select
 
 Result controls search the returned set, apply available filters, and change the order. They do not issue a fresh external search.
 
-**Journal** keeps papers in a CAS tier, CAS Top, a JCR quartile range, or a CCF class range (A, A–B, A–C). **Accepted** keeps papers with conference acceptance, Oral only, or Oral and Spotlight. **By impact factor** sorts by JCR Impact Factor, then by OpenAlex open impact. Papers without a label are left out by these filters, not guessed.
+**Journal** keeps papers in a CAS tier, CAS Top, a JCR quartile range, a CCF class range (A, A–B, A–C), PKU Core, CSSCI source journals, CSSCI source collections, or CSSCI Extended. **Accepted** keeps papers with conference acceptance, Oral only, or Oral and Spotlight. **By impact factor** sorts by JCR Impact Factor, then by OpenAlex open impact. Papers without a label are left out by these filters, not guessed.
 
 Select individual papers for a smaller export or a review, and check the selected count before continuing. **Select loaded** applies only to the currently loaded papers. Review creation requires 2–256 selected papers. Switching modules preserves the selection during this session.
 

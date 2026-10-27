@@ -44,6 +44,12 @@ export interface JournalPartitions {
   cas?: { tier: number; rank?: string; top?: boolean; category?: string; year?: number | null };
   jcr?: { quartile?: string; impact_factor?: number | null; rank?: string; category?: string; year?: number | null };
   ccf?: { rank: "A" | "B" | "C"; type?: "conference" | "journal"; abbreviation?: string; field?: string; year?: number | null };
+  // 北大核心 and the three CSSCI lists, each with its edition ("2023", "2025-2026").
+  cn_core?: {
+    pku?: boolean; pku_edition?: string; cssci?: boolean; cssci_edition?: string;
+    cssci_collection?: boolean; cssci_collection_edition?: string; cssci_extended?: boolean; cssci_extended_edition?: string;
+    former_title?: string;
+  };
   openalex?: { two_year_mean_citedness?: number | null; h_index?: number | null; i10_index?: number | null };
 }
 export interface Acceptance {

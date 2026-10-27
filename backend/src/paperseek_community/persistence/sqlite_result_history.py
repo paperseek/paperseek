@@ -18,7 +18,7 @@ from paperseek_community.persistence.sqlite_support import (
     timestamp as _timestamp,
 )
 from paperseek_core.acceptance import ACCEPTANCE_FILTERS
-from paperseek_core.journal_metrics import JOURNAL_FILTERS, PLATFORMS
+from paperseek_core.journal_metrics import JOURNAL_FILTERS, JOURNAL_FLAGS, PLATFORMS
 from paperseek_core.models import FinalPaperResult, ResearchResult
 
 
@@ -247,8 +247,8 @@ class SQLiteResultHistoryRepository(SQLiteRepositoryBase):
             if not platform:
                 conditions.append("(" + " OR ".join(
                     f"json_extract(record_json, '$.journal_metrics.{name}') IS NOT NULL" for name in PLATFORMS) + ")")
-            elif value_field == "top":
-                conditions.append(f"json_extract(record_json, '$.journal_metrics.{platform}.top') = 1")
+            elif value_field in JOURNAL_FLAGS:
+                conditions.append(f"json_extract(record_json, '$.journal_metrics.{platform}.{value_field}') = 1")
             else:
                 conditions.append(f"json_extract(record_json, '$.journal_metrics.{platform}.{value_field}') <= :journal_best")
                 parameters["journal_best"] = best

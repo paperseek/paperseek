@@ -66,7 +66,7 @@ onMounted(load);
           <span v-else class="xs muted">{{ u("journalTableNone") }}</span>
         </span>
         <div class="row" style="gap: 2px; flex-wrap: nowrap">
-          <input :ref="(element) => (inputs[table.platform] = element as HTMLInputElement | null)" type="file" accept=".csv,text/csv" class="sr-only" tabindex="-1" :aria-label="u('importTable')" @change="importFile(table.platform, $event)" />
+          <input :ref="(element) => (inputs[table.platform] = element as HTMLInputElement | null)" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="sr-only" tabindex="-1" :aria-label="u('importTable')" @change="importFile(table.platform, $event)" />
           <button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="busy !== ''" @click="inputs[table.platform]?.click()"><Icon v-if="busy === table.platform" name="loader" />{{ u("importTable") }}</button>
         </div>
       </div>
