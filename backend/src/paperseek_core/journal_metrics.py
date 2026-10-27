@@ -259,7 +259,9 @@ def cn_core_listing(text: str) -> dict[str, Any]:
 def parse_cn_core(text: str, *, year: int | None = None) -> list[dict[str, Any]]:
     header, rows = _rows(text)
     columns = _columns(header)
-    title = _find(columns, "刊名", "期刊名称", "期刊", "journal")
+    title: int | None = _find(columns, "刊名", "期刊名称", "期刊", "journal")
+    listing: int | None
+    former: int | None
     if title is None:
         title, listing, former, rows = 0, 1, 2, [header, *rows]
     else:

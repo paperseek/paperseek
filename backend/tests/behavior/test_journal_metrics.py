@@ -30,25 +30,41 @@ CCF = ("刊物名称,Journal,年份,出版社,网址,领域,CCF推荐类别（�
 CN_CORE_ROWS = [("安徽大学学报（哲学社会科学版）", "CSSCI来源期刊（2025-2026）；北大中文核心（2023版）", ""),
                 ("阿拉伯世界研究", "CSSCI扩展版（2025-2026）", ""),
                 ("上海体育大学学报", "北大中文核心（2023版）", "上海体育学院学报")]
+STALE_ROWS = [("安徽大学学报（哲学社会科学版）", "北大中文核心（2020版）", "")]
 
 
-def _xlsx(rows: list[tuple[str, ...]]) -> bytes:
-    strings = sorted({value for row in rows for value in row if value})
-    cells = "".join(f'<row r="{line}">' + "".join(f'<c r="{"ABC"[column]}{line}" t="s"><v>{strings.index(value)}</v></c>'
-                                                  for column, value in enumerate(row) if value) + "</row>"
-                    for line, row in enumerate(rows, 1))
+def _xlsx(first: list[tuple[str, ...]], later: list[tuple[str, ...]]) -> bytes:
+    """A workbook whose first sheet is stored as sheet2.xml, as after moving a new sheet to the front."""
+    strings = sorted({value for row in (*first, *later) for value in row if value})
     namespace = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    relationships = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+
+    def sheet(rows: list[tuple[str, ...]]) -> str:
+        cells = "".join(f'<row r="{line}">' + "".join(f'<c r="{"ABC"[column]}{line}" t="s"><v>{strings.index(value)}</v></c>'
+                                                      for column, value in enumerate(row) if value) + "</row>"
+                        for line, row in enumerate(rows, 1))
+        return f"<worksheet {namespace}><sheetData>{cells}</sheetData></worksheet>"
+
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as book:
+        book.writestr("xl/workbook.xml", f'<workbook {namespace} {relationships}><sheets><sheet name="新" sheetId="2" r:id="rId2"/>'
+                                         '<sheet name="旧" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        book.writestr("xl/_rels/workbook.xml.rels",
+                      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+                      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="/xl/worksheets/sheet2.xml"/>'
+                      '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'
+                      "</Relationships>")
         book.writestr("xl/sharedStrings.xml", f"<sst {namespace}>" + "".join(f"<si><t>{value}</t></si>" for value in strings) + "</sst>")
-        book.writestr("xl/worksheets/sheet1.xml", f"<worksheet {namespace}><sheetData>{cells}</sheetData></worksheet>")
+        book.writestr("xl/worksheets/sheet1.xml", sheet(later))
+        book.writestr("xl/worksheets/sheet2.xml", sheet(first))
     return buffer.getvalue()
 
 
 class JournalMetricsContractTest(unittest.TestCase):
     def test_showjcr_tables_label_journals_and_conferences(self) -> None:
         bodies = {showjcr_url("cas"): CAS.encode(), showjcr_url("jcr"): JCR.encode(), showjcr_url("ccf"): CCF.encode(),
-                  CN_CORE_URL: _xlsx(CN_CORE_ROWS)}
+                  CN_CORE_URL: _xlsx(CN_CORE_ROWS, STALE_ROWS)}
         client = httpx.AsyncClient(transport=httpx.MockTransport(
             lambda request: httpx.Response(200, content=bodies[str(request.url)])))
         papers = [

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import json
 import io
 import os
+import posixpath
 import re
 from pathlib import Path
 import threading
@@ -28,6 +29,8 @@ class JournalTableError(ValueError):
 
 
 _SHEET = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_RELATIONSHIP_ID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+_RELATIONSHIP = "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"
 
 
 def _texts(element: ElementTree.Element) -> str:
@@ -35,19 +38,29 @@ def _texts(element: ElementTree.Element) -> str:
 
 
 def _xlsx_text(content: bytes) -> str:
-    """The first worksheet of an .xlsx file as CSV text, so it is kept and parsed like a CSV table."""
+    """The first worksheet of an .xlsx file as CSV text, so it is kept and parsed like a CSV table.
+
+    The first worksheet is the first in the workbook's own order, found through the workbook's
+    relationships: ``sheet1.xml`` can be any sheet once sheets are moved, deleted or added.
+    """
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as book:
-            names = book.namelist()
-            sheets = sorted((name for name in names if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name)),
-                            key=lambda name: int(re.sub(r"\D", "", name)))
-            parts = [name for name in ("xl/sharedStrings.xml", *sheets[:1]) if name in names]
-            if not sheets or sum(book.getinfo(name).file_size for name in parts) > MAX_TABLE_BYTES:
+            targets = {}
+            for relation in ElementTree.fromstring(book.read("xl/_rels/workbook.xml.rels")).iter(_RELATIONSHIP):
+                target = relation.get("Target") or ""
+                targets[relation.get("Id")] = (relation.get("Type") or "", target.lstrip("/") if target.startswith("/")
+                                               else posixpath.normpath(posixpath.join("xl", target)))
+            first = next(ElementTree.fromstring(book.read("xl/workbook.xml")).iter(f"{_SHEET}sheet"), None)
+            sheet_part = targets.get(first.get(_RELATIONSHIP_ID) if first is not None else None, ("", ""))[1]
+            shared_part = next((part for kind, part in targets.values() if kind.endswith("/sharedStrings")), "")
+            if not sheet_part:
+                raise JournalTableError("journal_table_encoding")
+            if sum(book.getinfo(part).file_size for part in (shared_part, sheet_part) if part) > MAX_TABLE_BYTES:
                 raise JournalTableError("journal_table_size")
-            shared = ([_texts(item) for item in ElementTree.fromstring(book.read(parts[0])).iter(f"{_SHEET}si")]
-                      if parts[0] == "xl/sharedStrings.xml" else [])
-            sheet = ElementTree.fromstring(book.read(sheets[0]))
-    except (zipfile.BadZipFile, ElementTree.ParseError) as exc:
+            shared = ([_texts(item) for item in ElementTree.fromstring(book.read(shared_part)).iter(f"{_SHEET}si")]
+                      if shared_part else [])
+            sheet = ElementTree.fromstring(book.read(sheet_part))
+    except (zipfile.BadZipFile, ElementTree.ParseError, KeyError) as exc:
         raise JournalTableError("journal_table_encoding") from exc
     output = io.StringIO()
     writer = csv.writer(output)
