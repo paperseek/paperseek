@@ -21,7 +21,7 @@ Cards can carry two kinds of venue labels. Open **Details** for the full entry.
 - **Open impact**: a journal's 2-year mean citedness and h-index from OpenAlex. It needs no import and is not an Impact Factor.
 - **Conference acceptance**: venue, year and Oral, Spotlight or Poster, from the PaperHub collection and OpenReview. Only papers a main conference track, NeurIPS Datasets & Benchmarks or TMLR accepted count; workshop, rejected, withdrawn and under-review submissions do not.
 
-Labels are added when a search finishes. The ShowJCR tables download from GitHub on the first search and stay on this computer; **Settings → Data sources → Journal rankings** shows their editions and **Update all** fetches them again; the PKU Core and CSSCI list downloads with them. The network proxy applies to this download. Where GitHub is unreachable, download the same file from ShowJCR (`FQBJCR2025-UTF8.csv`, `JCR2025-UTF8.csv`, `CCF2026-UTF8.csv`) and use **Import local file**. The PKU Core and CSSCI list imports from `.xlsx` or CSV with the columns 刊名, 收录 and 曾用名. Run a search again to label it with a new edition.
+Labels are added when a search finishes. The ShowJCR tables download from GitHub on the first search and stay on this computer; **Settings → Data sources → Journal rankings** shows their editions and **Update all** fetches them again; the PKU Core and CSSCI list downloads with them. The network proxy applies to these downloads. Where GitHub is unreachable, download the same file from ShowJCR (`FQBJCR2025-UTF8.csv`, `JCR2025-UTF8.csv`, `CCF2026-UTF8.csv`) and use **Import local file**. The PKU Core and CSSCI list imports from `.xlsx` or CSV with the columns 刊名, 收录 and 曾用名. Run a search again to label it with a new edition.
 
 ## Filter, sort, and select
 

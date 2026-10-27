@@ -127,7 +127,9 @@ class JournalTableStore:
         for platform in platforms or list(PLATFORMS):
             url, name, year, source = table_source(platform)
             try:
-                # Named as a source so the data-source proxy scope applies, as for PaperHub's GitHub files.
+                # Every table, PaperSeek's included, is tagged showjcr so they all share one data-source proxy
+                # scope, as PaperHub's GitHub files do; an unknown tag would be routed as model traffic.
+                # `source` only records where the table came from.
                 response = await client.get(url, timeout=120, follow_redirects=True,
                                             extensions={"paperseek_source": "showjcr"})
                 response.raise_for_status()

@@ -21,7 +21,7 @@
 - **开放影响力**：OpenAlex 提供的期刊 2 年篇均被引和 h 指数，无需导入，不是影响因子。
 - **会议录用**：会议、年份以及 Oral、Spotlight 或 Poster，来自 PaperHub 收录与 OpenReview。只计入会议主会场、NeurIPS Datasets & Benchmarks 和 TMLR 录用的论文，workshop、被拒、撤稿和审稿中的投稿不算。
 
-标签在检索结束时写入。ShowJCR 的数据在首次检索时从 GitHub 下载并保存在本机，**设置 → 数据源 → 期刊分区数据**显示当前版本，点**全部更新**可重新下载，北大核心与 CSSCI 目录会一并下载，下载会使用网络代理设置。无法访问 GitHub 时，可从 ShowJCR 下载同名文件（`FQBJCR2025-UTF8.csv`、`JCR2025-UTF8.csv`、`CCF2026-UTF8.csv`），再用**导入本地文件**替换。北大核心与 CSSCI 目录可导入 `.xlsx` 或 CSV，列依次为刊名、收录、曾用名。重新运行检索即可按新版本标注。
+标签在检索结束时写入。ShowJCR 的数据在首次检索时从 GitHub 下载并保存在本机，**设置 → 数据源 → 期刊分区数据**显示当前版本，点**全部更新**可重新下载，北大核心与 CSSCI 目录会一并下载，两者都使用网络代理设置。无法访问 GitHub 时，可从 ShowJCR 下载同名文件（`FQBJCR2025-UTF8.csv`、`JCR2025-UTF8.csv`、`CCF2026-UTF8.csv`），再用**导入本地文件**替换。北大核心与 CSSCI 目录可导入 `.xlsx` 或 CSV，列依次为刊名、收录、曾用名。重新运行检索即可按新版本标注。
 
 ## 筛选、排序和选择
 
