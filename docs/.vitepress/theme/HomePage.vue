@@ -16,7 +16,7 @@ const link = (path: string) => withBase((zh.value ? '/zh/' : '/') + path)
 let stopSnap: (() => void) | undefined
 onMounted(() => { document.documentElement.classList.add('ps-snap'); stopSnap = pageSnap() })
 onBeforeUnmount(() => { document.documentElement.classList.remove('ps-snap'); stopSnap?.() })
-const sources = computed(() => ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Scholar', 'PubMed', 'Google Scholar', 'PaperHub', 'Web of Science',
+const sources = computed(() => ['OpenAlex', 'arXiv', 'Crossref', 'Semantic Scholar', 'PubMed', 'Google Scholar', 'OpenReview', 'Web of Science',
   t('Wanfang Data', '万方数据'), t('NSSD', '国家哲社科期刊数据库'), t('Chinese Medical Journals', '中华医学期刊库')])
 // The names stay on one row and scroll only when the row is wider than the page.
 const strip = ref<HTMLElement>()
