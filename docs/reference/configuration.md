@@ -19,6 +19,7 @@ The repository's [.env.example](https://github.com/paperseek/paperseek/blob/main
 | `PAPERSEEK_WOS_API_KEY` | Web of Science Starter key |
 | `PAPERSEEK_WOS_DB` | WoS collection, for example `WOS` |
 | `PAPERSEEK_GOOGLE_SCHOLAR_API_KEY` | Serper key or key pool |
+| `PAPERSEEK_WANFANG_API_KEY` | Wanfang Data AppKey |
 | `PAPERSEEK_CONTACT_EMAIL` | Contact email used by source clients that support it |
 | `PAPERSEEK_PROXY_URLS` | HTTP(S) proxy pool, one URL per line or comma-separated; replaces the proxy saved in Settings |
 | `PAPERSEEK_PROXY_SCOPE` | What goes through the pool: `models`, `ip_limited_sources`, `other_sources`; defaults to all three |
@@ -46,7 +47,7 @@ Do not repeat a key to simulate extra capacity. Each provider still enforces its
 
 ### Network proxy
 
-Use a proxy when a model or data source cannot be reached directly from your network, or when a source limits your network address. Set it in **Settings › Data sources › Network proxy**, or with `PAPERSEEK_PROXY_URLS` for a server deployment. The environment variable takes precedence, and Settings then shows the proxy as read-only. Restart the server and worker after changing it.
+Use a proxy when a model or data source cannot be reached directly from your network, or when a source limits your network address. Set it in **Settings › General › Network proxy**, or with `PAPERSEEK_PROXY_URLS` for a server deployment. The environment variable takes precedence, and Settings then shows the proxy as read-only. Restart the server and worker after changing it.
 
 ```powershell
 $env:PAPERSEEK_PROXY_URLS = "http://user:password@proxy-a.example:8080,http://user:password@proxy-b.example:8080"
@@ -58,8 +59,8 @@ Choose what goes through the proxy:
 | Scope | Covers | When it helps |
 | --- | --- | --- |
 | `models` | Language, embedding, rerank and decision models | The model provider cannot be reached directly. Local and LAN addresses always connect directly. |
-| `ip_limited_sources` | arXiv, Crossref, PaperHub, and PubMed or OpenAlex without a key | These sources count requests per network address. A different exit helps when your address is shared with others or has been throttled. |
-| `other_sources` | Semantic Scholar, Web of Science, Google Scholar, and sources with a key | These sources count usage per key or in a shared pool, so a proxy does not raise the limit. It only helps when they cannot be reached directly. |
+| `ip_limited_sources` | arXiv, Crossref, PaperHub, OpenReview, NSSD, Chinese Medical Journals, the ShowJCR table download, and PubMed or OpenAlex without a key | These sources count requests per network address. A different exit helps when your address is shared with others or has been throttled. |
+| `other_sources` | Semantic Scholar, Web of Science, Google Scholar, Wanfang Data, and sources with a key | These sources count usage per key or in a shared pool, so a proxy does not raise the limit. It only helps when they cannot be reached directly. |
 
 Traffic outside the chosen scope follows the system proxy settings (`HTTPS_PROXY`, `NO_PROXY`). With several proxies, requests take them in turn, including retries. Request intervals, cooldowns and `Retry-After` still apply across the whole pool, so a pool never sends faster than a single address would.
 

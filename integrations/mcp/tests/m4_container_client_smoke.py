@@ -92,7 +92,7 @@ async def run(url: str, token: str, origin: str, host: str, run_id: str | None) 
                 if names != EXPECTED_TOOLS:
                     raise AssertionError(names)
                 sources = _payload(await session.call_tool("list_sources"))["sources"]
-                if len(sources) != 8:
+                if len(sources) != 11:
                     raise AssertionError(sources)
                 if run_id is not None:
                     status = _payload(

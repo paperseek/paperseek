@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from paperseek_community.api import create_app
 from paperseek_community.persistence.sqlite_bibliometrics import SQLiteAnalysisStore
-from paperseek_core.bibliometrics.corpus import build_corpus, merge_corpus
+from paperseek_core.bibliometrics.corpus import build_corpus, merge_corpus, rank_corpus
 from paperseek_core.bibliometrics.models import (
     MetricCorpus,
     MetricPaper,
@@ -21,6 +21,7 @@ from paperseek_core.bibliometrics.models import (
 )
 from paperseek_core.bibliometrics.networks import network
 from paperseek_core.bibliometrics.statistics import overview
+from paperseek_core.journal_metrics import JournalMetricsTable, parse_cas, parse_ccf, parse_jcr
 from paperseek_core.models import PaperCitation, PaperRecord, PaperSource
 
 
@@ -63,6 +64,29 @@ class BibliometricAlgorithmsTest(unittest.TestCase):
             2,
         )
         self.assertEqual([item.label for item in result.years], ["2020", "2021"])
+
+    def test_venue_rankings_are_counted_in_rank_order_and_by_venue(self):
+        table = JournalMetricsTable({
+            "cas": parse_cas("Journal,ISSN/EISSN,大类,大类分区,Top\nNEUROCOMPUTING,0925-2312/1872-8286,计算机科学,2 [127/758],否\n"),
+            "jcr": parse_jcr("Journal,ISSN,EISSN,IF(2025),Category_1,IF Quartile(2025)_1,IF Rank(2025)_1\n"
+                             "NEUROCOMPUTING,0925-2312,1872-8286,6.7,AI,Q1,43/210\n"),
+            "ccf": parse_ccf("刊物名称,Journal,CCF推荐类别（国际学术刊物/会议）,CCF推荐类型\n"
+                             ",Neurocomputing,推荐国际学术刊物,C类\nAAAI,AAAI Conference on Artificial Intelligence,推荐国际学术会议,A类\n"),
+        })
+        corpus = MetricCorpus(papers=[
+            MetricPaper(id="a", title="A", venue="Neurocomputing", issns=["0925-2312"]),
+            MetricPaper(id="b", title="B", venue="Proceedings of the AAAI Conference on Artificial Intelligence"),
+            MetricPaper(id="c", title="C", venue="Neurocomputing"),
+            MetricPaper(id="d", title="D", venue="Unlisted Letters"),
+        ])
+        result = overview(rank_corpus(corpus, table))
+        self.assertEqual(result.ranked_paper_count, 3)
+        self.assertEqual([(item.label, item.count) for item in result.ccf_ranks], [("A", 1), ("C", 2)])
+        self.assertEqual([(item.label, item.count) for item in result.cas_tiers], [("2", 2)])
+        self.assertEqual([(item.label, item.count) for item in result.jcr_quartiles], [("Q1", 2)])
+        top = result.ranked_venues[0]
+        self.assertEqual((top.label, top.count, top.cas_tier, top.impact_factor, top.ccf_rank), ("Neurocomputing", 2, 2, 6.7, "C"))
+        self.assertEqual(next(item.available for item in result.coverage if item.field == "venue_rank"), 3)
 
     def test_keywords_full_count_each_paper_once(self):
         corpus = self.corpus().model_copy(

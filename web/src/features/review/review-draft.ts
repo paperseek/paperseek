@@ -16,7 +16,7 @@ export const reviewDraft = reactive({
   revision: 0, initialized: false, step: 1 as 1 | 2 | 3,
   source: null as { id: string; title: string; count: number } | null,
   papers: [] as DraftPaper[], selected: new Map<string, DraftPaper>(), reasons: new Map<string, string>(),
-  cursor: null as string | null, query: "", form: defaults("zh"), moreOpen: false,
+  cursor: null as string | null, query: "", journal: "all", form: defaults("zh"), moreOpen: false,
   created: null as Review | null, loadedFor: "", busy: false, error: "", suggesting: false,
   selection: "idle" as "idle" | "running" | "ready" | "failed",
   createKey: "", createSignature: "", jobKey: "", jobSignature: "",
@@ -40,7 +40,7 @@ export function resetReviewDraft() {
   cancelReviewSelection();
   reviewDraft.revision++;
   Object.assign(reviewDraft, {
-    initialized: false, step: 1, source: null, papers: [], cursor: null, query: "", moreOpen: false,
+    initialized: false, step: 1, source: null, papers: [], cursor: null, query: "", journal: "all", moreOpen: false,
     created: null, loadedFor: "", busy: false, error: "", selection: "idle",
     createKey: "", createSignature: "", jobKey: "", jobSignature: "",
   });

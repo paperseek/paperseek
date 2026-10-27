@@ -18,7 +18,12 @@ SUPPORTED_QUERY_SOURCES = {
     "googlescholar",
     "paperhub",
     "wos",
+    "wanfang",
+    "nssd",
+    "yiigle",
 }
+# Chinese databases: planning and queries use Chinese terminology and Chinese prompts.
+CHINESE_QUERY_SOURCES = {"wanfang", "nssd", "yiigle"}
 PLAIN_TEXT_QUERY_SOURCES = {"crossref", "semanticscholar"}
 MINIMAL_BOOLEAN_QUERY_SOURCES = {"googlescholar", "paperhub"}
 OPENALEX_MAX_ENCODED_SEARCH_BYTES = 3200
@@ -201,6 +206,15 @@ def validate_source_query(source: str, query: str) -> QueryValidation:
             ok=False,
             issue="arXiv field prefixes must use all:, ti:, abs:, au:, cat:, id:, jr:, co:, or rn:",
         )
+    if source_id in CHINESE_QUERY_SOURCES and not re.search(r"[\u4e00-\u9fff]", value):
+        return QueryValidation(source=source_id, query=value, ok=False,
+                               issue=f"{source_id} queries must use Chinese search terms")
+    if source_id == "nssd" and re.search(r"[A-Za-z_]+\s*=", value):
+        return QueryValidation(source=source_id, query=value, ok=False,
+                               issue="NSSD queries use plain terms and Boolean operators; PaperSeek adds the field codes")
+    if source_id == "yiigle" and (re.search(r"\b(?:AND|OR|NOT)\b|[()]", value) or ":" in value):
+        return QueryValidation(source=source_id, query=value, ok=False,
+                               issue="Yiigle accepts only space-separated terms, without Boolean operators or fields")
     if source_id == "pubmed" and re.search(
         r"(?:^|[\s(])(?:all|ti|abs|cat):", value, flags=re.IGNORECASE
     ):
@@ -449,6 +463,24 @@ def compile_query_view(source: str, view: QueryView) -> CompiledQuery:
         ]
         if exclusions:
             query += f" NOT {exclusions[0] if len(exclusions) == 1 else f'({' OR '.join(exclusions)})'}"
+    elif source_id in {"wanfang", "nssd"}:
+        fields = {"title": "标题", "abstract": "摘要"}
+        clauses = []
+        for group in groups:
+            terms = [_quoted_term(value) for value in group.terms]
+            terms = [term for term in terms if term]
+            if terms:
+                clause = terms[0] if len(terms) == 1 else f"({' OR '.join(terms)})"
+                field = fields.get(group.field_hint) if source_id == "wanfang" else None
+                clauses.append(f"{field}:{clause if clause.startswith('(') else f'({clause})'}" if field else clause)
+        query = " AND ".join(clauses)
+        for exclusion in view.exclusions:
+            term = _quoted_term(exclusion)
+            if term:
+                query += f" NOT {term}"
+    elif source_id == "yiigle":
+        # Every word is ANDed, so one term per required group.
+        query = " ".join(_clean_term(group.terms[0]) for group in groups if group.terms and _clean_term(group.terms[0]))
     elif source_id in {"googlescholar", "paperhub"}:
         clauses = []
         for group in groups:
@@ -495,6 +527,7 @@ def compile_query_view(source: str, view: QueryView) -> CompiledQuery:
 
 
 __all__ = [
+    "CHINESE_QUERY_SOURCES",
     "CompiledQuery",
     "SUPPORTED_QUERY_SOURCES",
     "compile_query_view",

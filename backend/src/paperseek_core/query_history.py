@@ -43,7 +43,7 @@ def repeated_attempt(
 
 
 def refinement_context(
-    history: Sequence[QueryHistoryEntry], top_titles: Sequence[str]
+    history: Sequence[QueryHistoryEntry], top_titles: Sequence[str], language: str = "en"
 ) -> str:
     attempts = executed_attempts(history)
     if not attempts:
@@ -58,6 +58,11 @@ def refinement_context(
         }
         for row in attempts[-6:]
     ]
+    if language == "zh":
+        from paperseek_core.prompts_zh import TEXT_ZH
+
+        return TEXT_ZH["history"].format(rows=json.dumps(rows, ensure_ascii=False),
+                                         titles=json.dumps([title[:300] for title in top_titles[:3]], ensure_ascii=False))
     return (
         "Executed query attempts (source total is not the number of downloaded papers):\n"
         + json.dumps(rows, ensure_ascii=False)

@@ -27,6 +27,7 @@ from paperseek_core.ports import (
     CancellationToken,
     EmbeddingPort,
     DecisionPort,
+    EnrichmentPort,
     LLMPort,
     RerankPort,
     SourcePort,
@@ -49,6 +50,7 @@ class ResearchWorkflow:
         embedding: EmbeddingPort | None = None,
         reranker: RerankPort | None = None,
         decision: DecisionPort | None = None,
+        enrichment: EnrichmentPort | None = None,
         cancellation: CancellationToken = NEVER_CANCELLED,
     ) -> None:
         self.llm = llm
@@ -57,6 +59,7 @@ class ResearchWorkflow:
         self.embedding = embedding
         self.reranker = reranker
         self.decision = decision
+        self.enrichment = enrichment
         self.cancellation = cancellation
 
     async def run(self, request: ResearchWorkflowRequest) -> ResearchResult:
@@ -172,6 +175,8 @@ class ResearchWorkflow:
                 ]
             )
         )
+        annotations = await self._annotations(ranking.items)
+        self.cancellation.raise_if_cancelled()
         result = await asyncio.to_thread(FinalResultAssembler().assemble,
             ResearchAssemblyRequest(
                 bibliometric_corpus=await asyncio.to_thread(
@@ -205,6 +210,7 @@ class ResearchWorkflow:
                 search_state=self._search_state(query, selection.documents, provenance),
                 items=ranking.items,
                 warnings=warnings,
+                annotations_by_uid=annotations,
             )
         )
         self.cancellation.raise_if_cancelled()
@@ -219,6 +225,22 @@ class ResearchWorkflow:
             },
         )
         return result
+
+    async def _annotations(self, items) -> dict[str, dict[str, Any]]:
+        if self.enrichment is None or not items:
+            return {}
+        try:
+            annotations = await self.enrichment.annotate([item.document for item in items])
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # Labels are optional; the ranked results stand without them.
+            self._event("enrichment.failed", {"error": type(exc).__name__})
+            return {}
+        self._event("enrichment.completed", {
+            "journal_matches": sum(1 for value in annotations.values() if value.get("journal_metrics")),
+            "acceptance_matches": sum(1 for value in annotations.values() if value.get("acceptance")),
+        })
+        return annotations
 
     @staticmethod
     def _query_request(

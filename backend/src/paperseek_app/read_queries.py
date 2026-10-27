@@ -9,11 +9,14 @@ from heapq import nsmallest
 
 from paperseek_app.models import HistoryItem, HistoryPage, ResultPage
 from paperseek_app.ports import RunUnitOfWork
+from paperseek_core.acceptance import matches_filter as acceptance_matches
+from paperseek_core.journal_metrics import matches_filter as journal_matches
 
 
 def query_results(
     store: RunUnitOfWork, run_id: str, *, offset: int, limit: int,
     query: str | None, min_score: float | None, metadata: str | None, sort: str,
+    journal: str | None = None, acceptance: str | None = None,
 ) -> ResultPage:
     needle = (query or "").strip().casefold()
     summary = dict(total_count=0, matched_count=0, scored_count=0, high_score_count=0, max_score=None)
@@ -23,6 +26,10 @@ def query_results(
             return False
         field = {"abstract": "abstract", "doi": "doi", "pdf": "pdf_url"}.get(metadata)
         if field and not getattr(record, field).strip():
+            return False
+        if journal and not journal_matches(record.journal_metrics, journal):
+            return False
+        if acceptance and not acceptance_matches(record.acceptance, acceptance):
             return False
         return not needle or needle in " ".join([
             record.title, record.authors_text, record.abstract, record.doi,
@@ -37,6 +44,9 @@ def query_results(
             return -record.citation_count, item.rank
         if sort == "year":
             return -(record.publish_year or record.year or 0), item.rank
+        if sort == "impact":
+            return (-((record.journal_metrics.get("jcr") or {}).get("impact_factor") or -1),
+                    -((record.journal_metrics.get("openalex") or {}).get("two_year_mean_citedness") or -1), item.rank)
         return (item.rank,)
 
     def matching_records():

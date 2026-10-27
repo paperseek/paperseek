@@ -51,7 +51,9 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 
 **自由选择模型。** 支持 OpenAI Responses、OpenAI 兼容 Chat Completions 和 Anthropic Messages。初排序可选本地融合、Embedding + Rerank 或 Jev 决策模型。
 
-**自然衔接下一步。** 筛选、选择和导出文献，重新打开历史，或将一组摘要证据整理为实验性综述项目。
+**知道论文发在哪里。** 结果标注中科院分区、JCR 分区与影响因子、CCF 类别，以及“ICLR 2025 Oral”这样的会议录用信息，并可据此筛选。
+
+**自然衔接下一步。** 筛选、选择文献，导出为 CSV、JSON，或可直接导入 Zotero、EndNote 的 BibTeX、RIS，重新打开历史，或将一组摘要证据整理为实验性综述项目。
 
 ## 1.0.0-beta 的变化
 
@@ -61,6 +63,10 @@ PaperSeek 将研究问题整理为阅读清单：构建并迭代检索式，从�
 - **持久任务**：数据库管理的任务支持恢复、取消和结果保存；最多同时运行 4 个检索和综述任务（`PAPERSEEK_MAX_CONCURRENT_RUNS`）。
 - **检索紧扣问题**：零结果检索最多再尝试两次，每次都先与你的问题核对；打分和排序理由并行生成，分别显示进度。
 - **数据源更稳**：节流在所有运行中的任务之间共享，能正确识别限流，并可让模型或指定数据源通过你自己的网络代理。
+- **期刊分区**：来自 [ShowJCR](https://github.com/hitfyd/ShowJCR) 的中科院分区与 Top、JCR 分区与影响因子、CCF 类别，用于标注和筛选结果，也用于文献计量的“期刊分区”页和综述选文。
+- **会议录用信息**：来自 PaperHub 与 OpenReview 的会议、年份及 Oral / Spotlight / Poster；计算机顶会数据源同时补充 OpenReview 上已录用的论文。
+- **中文数据库**：万方数据、国家哲学社会科学学术期刊数据库、中华医学期刊库，检索计划、提示词和检索式均使用中文。
+- **文献管理器导出**：全部或所选结果可导出为 BibTeX、RIS，直接导入 Zotero、EndNote、JabRef。
 - **初步文献计量**：基于实际获取的完整去重候选集，提供分布、关键词共现、文献耦合与导出。
 - **可核查的综述**：先设定范围，再选择最多 256 篇文献或按主题自动挑选；大纲和正文没有用上的文献会说明理由。引用可追溯到摘要证据，支持 Markdown、Word、BibTeX 导出。
 - **同一核心**：社区版、在线版、CLI、版本化 `/api/v1` 接口和同版本匹配的 `paperseek-mcp` 共用同一套实现。
@@ -94,10 +100,13 @@ PaperSeek 用于文献发现与整理，不保证穷尽式系统检索；相关�
 | Semantic Scholar | 论文与学术图谱信息 | Key 可选 |
 | PubMed | 生物医学与生命科学 | NCBI Key 可选 |
 | Google Scholar / Serper | 通过受支持 API 检索 Scholar | 需要 Serper Key |
-| PaperHub | 计算机顶会文献集合 | 无需 Key |
+| PaperHub | 计算机顶会文献集合，并补充 OpenReview 上已录用的论文 | 无需 Key |
 | Web of Science Starter | WoS 集合检索 | 需要 Clarivate Key |
+| 万方数据 | 中文期刊论文、学位论文和会议论文 | 需要万方 AppKey |
+| 国家哲学社会科学学术期刊数据库 | 中文哲学社会科学期刊 | 无需 Key |
+| 中华医学期刊库 | 中华医学会系列期刊的题录和摘要 | 无需 Key |
 
-OpenAlex 与 Serper 支持多 Key 轮询。元数据覆盖与领域筛选能力因来源而异。配置方式与凭据入口见[数据源指南](https://docs.paperseek.app/zh/guide/sources)。
+三个中文数据库使用中文制定检索计划和构建检索式。OpenAlex 与 Serper 支持多 Key 轮询。元数据覆盖与领域筛选能力因来源而异。配置方式与凭据入口见[数据源指南](https://docs.paperseek.app/zh/guide/sources)。
 
 ## 快速开始
 
@@ -211,7 +220,7 @@ python -m pip install "paperseek-mcp==1.0.0b4"
 paperseek-mcp --transport stdio
 ```
 
-MCP 工具可开始任务、查看状态、读取结果与引用图谱、取消任务和导出。兼容客户端还可使用 Streamable HTTP。
+MCP 工具可开始任务、查看状态、读取结果与引用图谱、取消任务，并导出 JSON、CSV、BibTeX 或 RIS。兼容客户端还可使用 Streamable HTTP。
 
 ### HTTP API
 
@@ -261,6 +270,15 @@ Web / CLI / HTTP / MCP
 
 ## 致谢与许可
 
-PaperSeek 使用 Python、FastAPI、httpx、Vue、Vite，以及上述学术数据提供方的工作。文档站使用 VitePress，界面设计参考 [shadcn/ui](https://ui.shadcn.com/)。分发组件说明见[第三方声明](THIRD_PARTY_NOTICES.md)。
+PaperSeek 使用 Python、FastAPI、httpx、Vue、Vite，以及上述学术数据提供方的工作。文档站使用 VitePress，界面设计参考 [shadcn/ui](https://ui.shadcn.com/)。
+
+PaperSeek 还得益于以下项目：
+
+- [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Apache-2.0）：期刊分区匹配、OpenReview 录用判定，以及国家哲学社会科学学术期刊数据库和中华医学期刊库的检索式写法，参考并改写自该项目的设计。
+- [PaperHub](https://github.com/Yupu-Wang/paper-hub)：计算机顶会文献集合，经作者同意集成。
+- [ShowJCR](https://github.com/hitfyd/ShowJCR)：中科院分区表、JCR 与 CCF 目录，运行时下载，PaperSeek 不再分发。
+- [OpenReview](https://openreview.net/)、[万方数据](https://www.wanfangdata.com.cn/)、[国家哲学社会科学学术期刊数据库](https://www.ncpssd.cn/)、[中华医学期刊库](https://www.yiigle.com/)：会议录用记录与中文文献。
+
+分发组件与署名说明见[第三方声明](THIRD_PARTY_NOTICES.md)。
 
 代码采用 [Apache-2.0](LICENSE) 许可。外部数据与 API 仍适用各自提供方的条款。

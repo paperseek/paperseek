@@ -54,6 +54,7 @@ TERM_COVERAGE_WEIGHT = 0.0875
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_+\-.]{1,}", re.I)
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
 
 
 
@@ -292,11 +293,14 @@ def fuse_citation_candidates(
 
 
 def _tokens(text: str) -> list[str]:
-    return [
+    words = [
         token.lower()
         for token in _TOKEN_RE.findall(text or "")
         if token.lower() not in _STOPWORDS
     ]
+    # Chinese has no spaces between words; overlapping character pairs stand in for words.
+    pairs = [run[index:index + 2] for run in _CJK_RE.findall(text or "") for index in range(max(1, len(run) - 1))]
+    return words + pairs
 
 
 

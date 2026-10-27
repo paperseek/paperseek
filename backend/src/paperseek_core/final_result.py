@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from paperseek_core.reference_export import to_bibtex, to_ris
 from paperseek_core.models import (
     ArtifactDraft,
     FinalPaperResult,
@@ -26,7 +27,8 @@ def _dump(value: Any) -> Any:
 
 class FinalResultAssembler:
     def assemble(self, request: ResearchAssemblyRequest) -> ResearchResult:
-        ranked = [self._paper(index, item) for index, item in enumerate(request.items, 1)]
+        ranked = [self._paper(index, item, request.annotations_by_uid.get(item.document.uid) or {})
+                  for index, item in enumerate(request.items, 1)]
         provenance = {
             item.document.uid: dict(item.provenance)
             for item in request.items
@@ -74,8 +76,10 @@ class FinalResultAssembler:
         return {**citation_map, "nodes": list(nodes.values())}
 
     @staticmethod
-    def _paper(rank: int, item: RankedPaper) -> FinalPaperResult:
+    def _paper(rank: int, item: RankedPaper, annotations: dict[str, Any] | None = None) -> FinalPaperResult:
         document = item.document
+        identifiers = document.identifiers
+        annotations = annotations or {}
         source = document.source
         links_model = document.links
         links = links_model.model_dump(mode="json") if links_model else {}
@@ -123,7 +127,22 @@ class FinalResultAssembler:
             document_types=list(document.types),
             citations=str(citation_count),
             reasoning=item.reasoning,
+            volume=str(source.volume or "") if source else "",
+            issue=str(source.issue or "") if source else "",
+            pages=FinalResultAssembler._pages(source.pages) if source else "",
+            issn=identifiers.issn if identifiers else "",
+            eissn=identifiers.eissn if identifiers else "",
+            arxiv_id=identifiers.arxiv if identifiers else "",
+            journal_metrics=dict(annotations.get("journal_metrics") or {}),
+            acceptance=dict(annotations.get("acceptance") or {}),
         )
+
+    @staticmethod
+    def _pages(value: Any) -> str:
+        if isinstance(value, dict):
+            begin, end = str(value.get("begin") or value.get("first_page") or ""), str(value.get("end") or value.get("last_page") or "")
+            return f"{begin}-{end}" if begin and end and begin != end else begin
+        return str(value or "").strip()
 
     def artifacts_for(self, result: ResearchResult) -> list[ArtifactDraft]:
         """Serialize a final result, including imported history, without rerunning research."""
@@ -175,6 +194,18 @@ class FinalResultAssembler:
                 filename="export.csv",
                 media_type="text/csv",
                 content=self._csv(result.ranked),
+            ),
+            ArtifactDraft(
+                kind="export_bibtex",
+                filename="export.bib",
+                media_type="application/x-bibtex",
+                content=to_bibtex(result.ranked),
+            ),
+            ArtifactDraft(
+                kind="export_ris",
+                filename="export.ris",
+                media_type="application/x-research-info-systems",
+                content=to_ris(result.ranked),
             ),
             ArtifactDraft(
                 kind="candidate_pool",

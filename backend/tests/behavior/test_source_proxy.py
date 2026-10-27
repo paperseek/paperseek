@@ -17,6 +17,7 @@ import httpx
 from paperseek_app.settings import ProxySettingsInput, SettingsError
 from paperseek_community.composition import CommunityExecutionResolver
 from paperseek_community.credentials import EncryptedRunCredentialStore
+from paperseek_community.journal_tables import JournalTableStore
 from paperseek_community.persistence.migrate import migrate_database
 from paperseek_community.settings import CommunityDeploymentSettings
 from paperseek_community.workspace_settings import WorkspaceSettingsStore
@@ -31,7 +32,7 @@ from paperseek_core.sources.proxy import (
     parse_proxy_urls,
     traffic_kind,
 )
-from paperseek_core.sources.rate_limit import reset_source_rate_limits
+from paperseek_core.sources.rate_limit import reset_source_rate_limits, source_rate_limit
 
 
 class ProxyConfigurationTest(unittest.TestCase):
@@ -69,6 +70,24 @@ class ProxyConfigurationTest(unittest.TestCase):
         self.assertEqual(kind("semanticscholar", headers={"x-api-key": "fixture"}), "other_sources")
         for source in ("wos", "googlescholar"):
             self.assertEqual(kind(source), "other_sources", source)
+
+    def test_openreview_and_showjcr_are_paced_sources_inside_the_source_scope(self):
+        self.assertEqual(source_rate_limit("openreview", "https://api2.openreview.net/notes/search", None, {}).interval, 1.0)
+        seen = []
+
+        def handler(request):
+            seen.append(traffic_kind(request))
+            return httpx.Response(200, content="Journal,ISSN/EISSN,大类分区,Top\nNATURE,0028-0836/1476-4687,1 [1/118],是\n".encode())
+
+        async def download(folder):
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                await JournalTableStore(folder).download(client, ["cas"])
+
+        with tempfile.TemporaryDirectory() as folder:
+            asyncio.run(download(folder))
+        self.assertEqual(seen, ["ip_limited_sources"])
+        request = httpx.Request("GET", "https://api2.openreview.net/notes/search", extensions={"paperseek_source": "openreview"})
+        self.assertEqual(traffic_kind(request), "ip_limited_sources")
 
 
 class SavedProxySettingsTest(unittest.TestCase):

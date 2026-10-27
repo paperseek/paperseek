@@ -102,6 +102,7 @@ class RunUnitOfWork(Protocol):
     def query_results(
         self, run_id: str, *, offset: int, limit: int, query: str | None,
         min_score: float | None, metadata: str | None, sort: str,
+        journal: str | None = None, acceptance: str | None = None,
     ) -> ResultPage: ...
 
     def search_history(self, *, query: str, offset: int, limit: int) -> HistoryPage: ...

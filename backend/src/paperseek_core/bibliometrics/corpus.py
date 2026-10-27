@@ -6,6 +6,7 @@ import unicodedata
 
 from paperseek_core.bibliometrics.models import MetricCorpus, MetricPaper
 from paperseek_core.document_identity import document_alias_keys, document_key
+from paperseek_core.journal_metrics import JournalMetricsTable, normalize_issns
 from paperseek_core.models import PaperRecord
 from paperseek_core.retrieval_fusion import dedupe_documents
 from paperseek_core.sources.normalization import normalize_doi
@@ -126,6 +127,7 @@ def compact_paper(record: PaperRecord) -> MetricPaper:
         ),
         citations=max(0, int(citation_value)) if citation_value is not None else None,
         citation_source=record.provider if citation_value is not None else "",
+        issns=normalize_issns(record.identifiers.issn, record.identifiers.eissn) if record.identifiers else [],
     )
 
 
@@ -172,3 +174,18 @@ def merge_corpus(
         ],
         **metadata,
     )
+
+
+def rank_corpus(corpus: MetricCorpus, table: JournalMetricsTable | None) -> MetricCorpus:
+    """Label each paper's venue with its CAS tier, JCR quartile and Impact Factor, and CCF class."""
+    if not table:
+        return corpus
+    papers = []
+    for paper in corpus.papers:
+        labels = table.lookup(paper.issns, paper.venue)
+        cas, jcr, ccf = labels.get("cas") or {}, labels.get("jcr") or {}, labels.get("ccf") or {}
+        papers.append(paper.model_copy(update={
+            "cas_tier": cas.get("tier"), "cas_top": bool(cas.get("top")), "jcr_quartile": jcr.get("quartile") or "",
+            "impact_factor": jcr.get("impact_factor"), "ccf_rank": ccf.get("rank") or "",
+        }))
+    return corpus.model_copy(update={"papers": papers})

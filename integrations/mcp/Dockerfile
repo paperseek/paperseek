@@ -16,8 +16,9 @@ COPY web/package.json web/package-lock.json ./web/
 COPY web/src ./web/src
 COPY web/public ./web/public
 
-RUN python -m pip wheel --wheel-dir /wheels ./backend \
-    && python -m pip wheel --wheel-dir /wheels --find-links /wheels ./integrations/mcp \
+# One resolve: the MCP adapter's paperseek==<version> dependency must be this build's
+# backend, never the published wheel of the same version, which would replace it in /wheels.
+RUN python -m pip wheel --wheel-dir /wheels ./backend ./integrations/mcp \
     && cd /wheels \
     && sha256sum *.whl > SHA256SUMS
 

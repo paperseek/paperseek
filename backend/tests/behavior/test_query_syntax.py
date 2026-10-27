@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import unittest
 from pathlib import Path
 
+from fixtures.query import FixtureLLM
 from paperseek_core import query_compiler, query_parsing
+from paperseek_core.prompts_zh import SYSTEM_SEARCH_INTENT_ANALYSIS_ZH
 from paperseek_core.query_parsing import parse_search_plan
+from paperseek_core.query_planning import QueryPlanner
 
 PARSING_QUESTION = "Compare transparent AI systems without robotics."
 
@@ -192,3 +196,35 @@ class QueryValidationCompilerContract(unittest.TestCase):
             "(AI AND accountability)",
         )
         self.assertEqual(query_compiler.source_safe_query("arxiv", " all:test "), "all:test")
+
+
+class ChineseSourceQueryContract(unittest.TestCase):
+    def test_chinese_databases_are_planned_and_queried_in_chinese(self) -> None:
+        plan_json = json.dumps({
+            "intent": "查找数字治理赋能乡村振兴的文献。", "question_type": "specific_relation",
+            "core_concepts": ["数字治理", "乡村振兴"], "must_have_facets": ["数字治理", "乡村振兴"],
+            "query_views": [{"view_id": "direct", "view_type": "direct_terminology", "purpose": "直接术语",
+                             "concept_groups": [
+                                 {"label": "治理", "terms": ["数字治理", "数字化治理"], "required": True, "field_hint": "title"},
+                                 {"label": "乡村", "terms": ["乡村振兴", "农村振兴"], "required": True, "field_hint": "all"}],
+                             "exclusions": []}],
+        }, ensure_ascii=False)
+        llm = FixtureLLM(plan_json, '{"query": "(数字治理 OR 数字化治理) AND 乡村振兴", "rationale": "核心概念"}')
+        planner = QueryPlanner(llm)
+        plan = asyncio.run(planner.plan("数字治理如何赋能乡村振兴？", portfolio_required=False, language="zh"))
+        proposal = asyncio.run(planner.propose("nssd", "数字治理如何赋能乡村振兴？", plan, operation="generate"))
+        self.assertEqual(proposal.query, "(数字治理 OR 数字化治理) AND 乡村振兴")
+        self.assertEqual(llm.calls[0]["messages"][0]["content"], SYSTEM_SEARCH_INTENT_ANALYSIS_ZH)
+        self.assertIn("国家哲学社会科学文献中心", llm.calls[1]["messages"][0]["content"])
+        self.assertIn("研究问题：", llm.calls[1]["messages"][1]["content"])
+
+        view = plan.query_views[0]
+        self.assertEqual({source: query_compiler.compile_query_view(source, view).query for source in ("wanfang", "nssd", "yiigle")}, {
+            "wanfang": "标题:(数字治理 OR 数字化治理) AND (乡村振兴 OR 农村振兴)",
+            "nssd": "(数字治理 OR 数字化治理) AND (乡村振兴 OR 农村振兴)",
+            "yiigle": "数字治理 乡村振兴",
+        })
+        self.assertFalse(query_compiler.validate_source_query("wanfang", "digital governance").ok)
+        self.assertFalse(query_compiler.validate_source_query("yiigle", "糖尿病 OR 消渴").ok)
+        self.assertFalse(query_compiler.validate_source_query("nssd", 'IKTE="乡村振兴"').ok)
+

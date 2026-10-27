@@ -401,6 +401,53 @@ class M4ResultQueryContractTest(unittest.TestCase):
         self.assertEqual([item["title"] for item in payload["ranked"]], ["Transformer survey"])
         self.assertIsNone(payload["ranked"][0]["score"])
 
+    def test_journal_and_acceptance_filters_agree_in_database_and_batched_reader(self) -> None:
+        from paperseek_app.read_queries import query_results
+
+        run = self._complete([
+            _record(1, title="Top journal", journal_metrics={"cas": {"tier": 1, "top": True}, "jcr": {"quartile_number": 1, "impact_factor": 40.0}}),
+            _record(2, title="Mid journal", journal_metrics={"cas": {"tier": 3, "top": False}, "jcr": {"quartile_number": 2, "impact_factor": 3.1}}),
+            _record(3, title="Oral paper", acceptance={"venue": "ICLR", "year": 2025, "tier": "Oral"},
+                    journal_metrics={"ccf": {"rank": "A", "rank_number": 1}}),
+            _record(4, title="Poster paper", acceptance={"venue": "NeurIPS", "year": 2024, "tier": "Poster"}),
+            _record(5, title="Unlabelled"),
+        ], question="Venue filters")
+        cases = {
+            (("journal", "castop"),): ["Top journal"], (("journal", "jcr2"),): ["Top journal", "Mid journal"],
+            (("journal", "cas2"),): ["Top journal"], (("journal", "ccfa"),): ["Oral paper"],
+            (("journal", "ranked"),): ["Top journal", "Mid journal", "Oral paper"],
+            (("acceptance", "oral"),): ["Oral paper"], (("acceptance", "accepted"),): ["Oral paper", "Poster paper"],
+            (("sort", "impact"),): ["Top journal", "Mid journal", "Oral paper", "Poster paper", "Unlabelled"],
+        }
+        for filters, titles in cases.items():
+            options = dict(offset=0, limit=10, query=None, min_score=None, metadata=None, sort="rank") | dict(filters)
+            with self.subTest(filters=filters):
+                native = self.uow.query_results(run.id, **options)
+                self.assertEqual([item.record.title for item in native.results], titles)
+                self.assertEqual(query_results(self.uow, run.id, **options), native)
+        with self.assertRaises(InvalidResultQuery):
+            self.query_service.get_result_page(run.id, journal="cas9")
+
+    def test_selected_export_bibtex_and_ris_for_reference_managers(self) -> None:
+        run = self._complete([
+            _record(1, title="Graph {Learning} & Retrieval", authors=["Ada Lovelace", "Grace Hopper"], year=2024,
+                    venue="ICLR", document_types=["conference-paper"], doi="10.1/x_y", pages="1-9",
+                    acceptance={"venue": "ICLR", "year": 2024, "tier": "Oral", "label": "ICLR 2024 Oral"}),
+            _record(2, title="Journal study", authors=["Ada Lovelace"], year=2024, venue="Nature",
+                    document_types=["journal-article"]),
+        ], question="Reference exports")
+        bibtex = self.query_service.get_selected_export(run.id, "bibtex", ["paper-1", "paper-2"])
+        self.assertEqual(bibtex.filename, "export-selected.bib")
+        self.assertEqual(bibtex.content.decode(), (
+            "@inproceedings{lovelace2024graph,\n  title = {Graph \\{Learning\\} \\& Retrieval},\n"
+            "  author = {Ada Lovelace and Grace Hopper},\n  year = {2024},\n  booktitle = {ICLR},\n  pages = {1--9},\n"
+            "  doi = {10.1/x_y},\n  note = {ICLR 2024 Oral}\n}\n\n"
+            "@article{lovelace2024journal,\n  title = {Journal study},\n  author = {Ada Lovelace},\n  year = {2024},\n"
+            "  journal = {Nature}\n}\n"
+        ))
+        ris = self.query_service.get_selected_export(run.id, "ris", ["paper-2"]).content.decode()
+        self.assertEqual(ris, "TY  - JOUR\r\nTI  - Journal study\r\nAU  - Ada Lovelace\r\nPY  - 2024\r\nT2  - Nature\r\nER  - \r\n")
+
     def test_selected_export_rejects_empty_or_foreign_selection(self) -> None:
         run = self._seed_results()
         with self.assertRaises(InvalidResultQuery):

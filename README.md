@@ -56,7 +56,9 @@ Run the Community edition on your own machine or server, or use [PaperSeek onlin
 
 **Choose your model stack.** Use OpenAI Responses, OpenAI-compatible Chat Completions, or Anthropic Messages. Start with local preliminary ranking, or configure Embedding + Rerank or the Jev decision model.
 
-**Keep the next step close.** Filter and select papers, export complete results, reopen history, or turn a selected evidence set into an experimental review project.
+**Know where a paper was published.** Results carry CAS tiers, JCR quartiles and Impact Factor, CCF classes, and conference acceptance such as “ICLR 2025 Oral”, and you can filter by them.
+
+**Keep the next step close.** Filter and select papers, export complete results to CSV, JSON, BibTeX, or RIS for Zotero and EndNote, reopen history, or turn a selected evidence set into an experimental review project.
 
 ## What’s new in 1.0.0-beta
 
@@ -66,6 +68,10 @@ The 1.0 line is a complete architectural refactor around durable tasks and a sha
 - **Durable tasks:** database-backed runs with recovery, cancellation, and saved results; up to four searches and reviews run side by side (`PAPERSEEK_MAX_CONCURRENT_RUNS`).
 - **Search that holds your question:** empty searches get up to two more queries checked against your question; scoring and “Why it ranks” run in parallel with separate progress.
 - **Reliable data sources:** pacing is shared across every running task, rate limits are recognized, and an optional network proxy covers models or selected sources.
+- **Venue rankings:** CAS tiers and Top, JCR quartiles and Impact Factor, and CCF classes from [ShowJCR](https://github.com/hitfyd/ShowJCR) label results, filter them, and feed a Venue rankings view in Bibliometrics and the review paper picker.
+- **Conference acceptance:** venue, year, and Oral / Spotlight / Poster from PaperHub and OpenReview; the top-conference source also adds accepted OpenReview papers.
+- **Chinese databases:** Wanfang Data, the National Social Sciences Database, and Chinese Medical Journals, searched with Chinese plans, prompts, and queries.
+- **Reference-manager exports:** complete or selected results as BibTeX and RIS for Zotero, EndNote, and JabRef.
 - **Preliminary bibliometrics** over the full retrieved, deduplicated corpus: distributions, keyword co-occurrence, bibliographic coupling, and exports.
 - **Reviews you can check:** set the scope first, select up to 256 papers or auto-select them by topic, and see which papers the outline or draft leaves out and why. Citations link to their abstract evidence, and exports cover Markdown, Word, and BibTeX.
 - **One core everywhere:** Community, PaperSeek online, CLI, versioned `/api/v1`, and a version-matched `paperseek-mcp` share the same implementation.
@@ -99,10 +105,13 @@ PaperSeek is a discovery and organization tool. It does not guarantee an exhaust
 | Semantic Scholar | Papers and scholarly graph metadata | Optional API key |
 | PubMed | Biomedical and life-science literature | Optional NCBI API key |
 | Google Scholar via Serper | Scholar results through a supported API | Serper key required |
-| PaperHub | Top computer-science conference collections | No key required |
+| PaperHub | Top computer-science conference collections, widened with accepted OpenReview papers | No key required |
 | Web of Science Starter | WoS collection search | Clarivate key required |
+| Wanfang Data | Chinese journal articles, theses, and conference papers | Wanfang AppKey required |
+| National Social Sciences Database (NSSD) | Chinese social sciences and humanities journals | No key required |
+| Chinese Medical Journals (Yiigle) | Chinese Medical Association journals: titles and abstracts | No key required |
 
-OpenAlex and Serper support multi-key rotation. Metadata coverage and field filters vary by source. See the [source guide](https://docs.paperseek.app/guide/sources) for configuration and credential links.
+Searches on the three Chinese databases are planned and queried in Chinese. OpenAlex and Serper support multi-key rotation. Metadata coverage and field filters vary by source. See the [source guide](https://docs.paperseek.app/guide/sources) for configuration and credential links.
 
 ## Quick start
 
@@ -216,7 +225,7 @@ python -m pip install "paperseek-mcp==1.0.0b4"
 paperseek-mcp --transport stdio
 ```
 
-MCP tools start a run, follow its status, read results and citation graphs, cancel work, and export results. Streamable HTTP is available for compatible clients.
+MCP tools start a run, follow its status, read results and citation graphs, cancel work, and export results as JSON, CSV, BibTeX, or RIS. Streamable HTTP is available for compatible clients.
 
 ### HTTP API
 
@@ -266,6 +275,15 @@ Contributions are welcome: improve docs, add a reproducible issue, test a source
 
 ## Acknowledgements and license
 
-PaperSeek is built with Python, FastAPI, httpx, Vue, Vite, and the work of the scholarly data providers listed above. The documentation uses VitePress; the interface takes design inspiration from [shadcn/ui](https://ui.shadcn.com/). See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components.
+PaperSeek is built with Python, FastAPI, httpx, Vue, Vite, and the work of the scholarly data providers listed above. The documentation uses VitePress; the interface takes design inspiration from [shadcn/ui](https://ui.shadcn.com/).
+
+PaperSeek also builds on these projects:
+
+- [paper-search-pro](https://github.com/O0000-code/paper-search-pro) (Apache-2.0): the journal-ranking matching, OpenReview acceptance rules, and the NSSD and Chinese Medical Journals query forms are adapted from its design.
+- [PaperHub](https://github.com/Yupu-Wang/paper-hub): the top computer-science conference collection, integrated with the author's permission.
+- [ShowJCR](https://github.com/hitfyd/ShowJCR): the CAS, JCR, and CCF tables, downloaded at run time and not redistributed.
+- [OpenReview](https://openreview.net/), [Wanfang Data](https://www.wanfangdata.com.cn/), the [National Social Sciences Database](https://www.ncpssd.cn/), and [Chinese Medical Journals](https://www.yiigle.com/) for acceptance records and Chinese literature.
+
+See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components and attributions.
 
 Licensed under [Apache-2.0](LICENSE). External data and APIs remain subject to their respective providers' terms.

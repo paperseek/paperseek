@@ -27,6 +27,9 @@ from paperseek_app.models import (
 from paperseek_app.ports import ArtifactStore, RunUnitOfWork
 from paperseek_app.derived_artifacts import EXPORT_KINDS, derive_exports, export_id
 from paperseek_core.final_result import FinalResultAssembler
+from paperseek_core.acceptance import ACCEPTANCE_FILTERS
+from paperseek_core.journal_metrics import JOURNAL_FILTERS
+from paperseek_core.reference_export import to_bibtex, to_ris
 
 
 class RunQueryService:
@@ -77,8 +80,10 @@ class RunQueryService:
         self.get_run(run_id)
         return self.uow.list_artifacts(run_id)
 
-    _RESULT_SORTS = frozenset({"rank", "score", "citations", "year"})
+    _RESULT_SORTS = frozenset({"rank", "score", "citations", "year", "impact"})
     _RESULT_METADATA_FILTERS = frozenset({"abstract", "doi", "pdf"})
+    _EXPORT_FORMATS = {"json": "export_json", "csv": "export_csv", "bibtex": "export_bibtex", "bib": "export_bibtex",
+                       "ris": "export_ris"}
 
     def get_result_page(
         self,
@@ -90,8 +95,14 @@ class RunQueryService:
         min_score: float | None = None,
         metadata: str | None = None,
         sort: str = "rank",
+        journal: str | None = None,
+        acceptance: str | None = None,
     ) -> ResultPage:
         self._validate_page_size(page_size)
+        if journal and journal not in JOURNAL_FILTERS:
+            raise InvalidResultQuery("The journal filter is unsupported.")
+        if acceptance and acceptance not in ACCEPTANCE_FILTERS:
+            raise InvalidResultQuery("The acceptance filter is unsupported.")
         if sort not in self._RESULT_SORTS:
             raise InvalidResultQuery("The result sort is unsupported.")
         if metadata is not None and metadata not in self._RESULT_METADATA_FILTERS:
@@ -99,7 +110,7 @@ class RunQueryService:
         if min_score is not None and not 0 <= min_score <= 10:
             raise InvalidResultQuery("The minimum score is out of range.")
         self.get_run(run_id)
-        fingerprint = self._result_fingerprint(query, min_score, metadata, sort)
+        fingerprint = self._result_fingerprint(query, min_score, metadata, sort, journal, acceptance)
         offset = 0
         if cursor:
             payload = self._decode_cursor(cursor, "results")
@@ -111,9 +122,11 @@ class RunQueryService:
                 raise InvalidCursor("The result cursor is invalid.") from exc
             if offset < 1:
                 raise InvalidCursor("The result cursor is invalid.")
+        # Only passed when set, so stores written before these filters keep working.
+        venue_filters = {key: value for key, value in (("journal", journal), ("acceptance", acceptance)) if value}
         page = self.uow.query_results(
             run_id, offset=offset, limit=page_size, query=query,
-            min_score=min_score, metadata=metadata, sort=sort,
+            min_score=min_score, metadata=metadata, sort=sort, **venue_filters,
         )
         next_cursor = None
         if page.matched_count > offset + page_size:
@@ -133,6 +146,8 @@ class RunQueryService:
         min_score: float | None,
         metadata: str | None,
         sort: str,
+        journal: str | None = None,
+        acceptance: str | None = None,
     ) -> str:
         return json.dumps(
             {
@@ -140,6 +155,8 @@ class RunQueryService:
                 "min_score": min_score,
                 "metadata": metadata or "",
                 "sort": sort,
+                **({"journal": journal} if journal else {}),
+                **({"acceptance": acceptance} if acceptance else {}),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -269,9 +286,9 @@ class RunQueryService:
         return self._artifact_content(artifact)
 
     def get_export(self, run_id: str, export_format: str) -> ArtifactContent:
-        kind = {"json": "export_json", "csv": "export_csv"}.get(export_format.casefold())
+        kind = self._EXPORT_FORMATS.get(export_format.casefold())
         if kind is None:
-            raise ValueError("The export format must be json or csv.")
+            raise ValueError("The export format must be json, csv, bibtex or ris.")
         return self._read_user_artifact_by_kind(run_id, kind)
 
     def get_selected_export(self, run_id: str, export_format: str, uids: list[str]) -> ArtifactContent:
@@ -289,6 +306,14 @@ class RunQueryService:
             content = FinalResultAssembler._csv(records).encode("utf-8")
             filename = "export-selected.csv"
             media_type = "text/csv"
+        elif export_format.casefold() in {"bibtex", "bib"}:
+            content = to_bibtex(records).encode("utf-8")
+            filename = "export-selected.bib"
+            media_type = "application/x-bibtex"
+        elif export_format.casefold() == "ris":
+            content = to_ris(records).encode("utf-8")
+            filename = "export-selected.ris"
+            media_type = "application/x-research-info-systems"
         elif export_format.casefold() == "json":
             content = (
                 json.dumps(
@@ -304,7 +329,7 @@ class RunQueryService:
             filename = "export-selected.json"
             media_type = "application/json"
         else:
-            raise InvalidResultQuery("The export format must be json or csv.")
+            raise InvalidResultQuery("The export format must be json, csv, bibtex or ris.")
         return ArtifactContent(
             id="selected-export",
             filename=filename,

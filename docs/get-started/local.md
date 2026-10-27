@@ -53,7 +53,7 @@ Select **Start search**, or press **Ctrl+Enter / ⌘+Enter**. Follow the stages 
 
 ## 5. Read the results
 
-Open **Results**, inspect abstracts and relevance explanations, and export CSV or JSON. Community saves history locally.
+Open **Results**, inspect abstracts and relevance explanations, and export CSV, JSON, BibTeX, or RIS. Community saves history locally.
 
 Reopen a run from **Search history** in the sidebar, or click **All** beside that heading for the full list. Use **Citation evidence** to explore available citation data, or select papers for an [experimental review](../guide/reviews.md). Open [Bibliometrics](../guide/bibliometrics.md) from the sidebar to analyze the full retrieved candidate corpus.
 

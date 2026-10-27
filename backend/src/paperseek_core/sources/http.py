@@ -62,6 +62,7 @@ class AsyncHttpTransport:
         *,
         params: Mapping[str, Any] | None = None,
         json: Any = None,
+        data: Mapping[str, Any] | None = None,
         headers: Mapping[str, str] | Callable[[int], Mapping[str, str]] | None = None,
         timeout: float | httpx.Timeout = 45,
         query: str = "",
@@ -94,6 +95,7 @@ class AsyncHttpTransport:
             kwargs = {
                 "params": dict(params) if params is not None else None,
                 "json": json,
+                **({"data": dict(data)} if data is not None else {}),
                 "headers": dict((headers(attempt) if callable(headers) else headers) or {}),
                 "timeout": timeout,
             }

@@ -32,6 +32,7 @@ from paperseek_core.query_planning import (
     QueryLoopController,
     QueryPlanner,
     normalize_query,
+    query_language,
     _title_drift,
 )
 from paperseek_core.query_portfolio import QueryPortfolioExecutor
@@ -101,6 +102,7 @@ class QueryLoopPipeline:
                 request.question,
                 portfolio_required=budget.query_portfolio_enabled,
                 source_context=self.source_context,
+                language=query_language(self.source.name),
             )
             self.cancellation.raise_if_cancelled()
             proposal = await self.planner.propose(

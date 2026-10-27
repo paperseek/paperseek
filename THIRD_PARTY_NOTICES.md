@@ -1,8 +1,8 @@
 # Third-party notices / 第三方声明
 
-PaperSeek is distributed under the Apache License 2.0. This page identifies direct Python runtime dependencies, bundled interface and documentation assets, and the external computer-science conference index. Transitive Python dependencies retain notices in their separately installed distributions.
+PaperSeek is distributed under the Apache License 2.0. This page identifies direct Python runtime dependencies, bundled interface and documentation assets, adapted designs, and the external data PaperSeek reads at run time. Transitive Python dependencies retain notices in their separately installed distributions.
 
-PaperSeek 使用 Apache License 2.0 发布。本页说明直接 Python 运行依赖、随产品和文档站交付的界面资源，以及计算机顶会外部索引。间接 Python 依赖保留各自独立安装包中的声明。
+PaperSeek 使用 Apache License 2.0 发布。本页说明直接 Python 运行依赖、随产品和文档站交付的界面资源、参考改写的设计，以及运行时读取的外部数据。间接 Python 依赖保留各自独立安装包中的声明。
 
 ## Runtime dependencies / 运行依赖
 
@@ -27,6 +27,24 @@ These packages are installed as separate Python distributions and retain their o
 [Yupu-Wang/paper-hub](https://github.com/Yupu-Wang/paper-hub) provides the manifest and content-addressed shards used by the computer-science top-conference source. PaperSeek integrates this source with the author's permission and reads the published index at runtime.
 
 [Yupu-Wang/paper-hub](https://github.com/Yupu-Wang/paper-hub) 为计算机顶会数据源提供 manifest 和内容哈希 shard。PaperSeek 经作者同意集成该数据源，并在运行时读取公开索引。
+
+## paper-search-pro / 设计来源
+
+Portions of PaperSeek are adapted from [paper-search-pro](https://github.com/O0000-code/paper-search-pro), Copyright 2026 Bo, licensed under the [Apache License 2.0](https://github.com/O0000-code/paper-search-pro/blob/main/LICENSE.txt): the journal-ranking table parsing and ISSN matching (`paperseek_core/journal_metrics.py`), the OpenReview acceptance rules and venue labels (`paperseek_core/acceptance.py`, `paperseek_core/sources/openreview.py`), and the NSSD and Chinese Medical Journals query forms (`paperseek_core/sources/nssd.py`, `paperseek_core/sources/yiigle.py`). The code was rewritten for PaperSeek; the adapted files say so in their module notes.
+
+PaperSeek 的部分功能参考并改写自 [paper-search-pro](https://github.com/O0000-code/paper-search-pro)（Copyright 2026 Bo，[Apache License 2.0](https://github.com/O0000-code/paper-search-pro/blob/main/LICENSE.txt)）：期刊分区表解析与 ISSN 匹配、OpenReview 录用判定与会议标签，以及国家哲学社会科学学术期刊数据库和中华医学期刊库的检索式写法。相关代码已为 PaperSeek 重写，并在模块说明中注明来源。
+
+## Runtime data sources / 运行时数据
+
+| Source | What PaperSeek reads | Terms |
+| --- | --- | --- |
+| [ShowJCR](https://github.com/hitfyd/ShowJCR) | CAS Journal Ranking, JCR quartiles and Impact Factor, and the CCF recommended list, downloaded into the local workspace on first use | ShowJCR is GPL-3.0. PaperSeek bundles none of its code or data. CAS rankings © 中科院文献情报中心, JCR © Clarivate, CCF list © China Computer Federation. |
+| [OpenReview](https://openreview.net/) | Public search results for accepted papers | OpenReview terms of use |
+| [Wanfang Data](https://www.wanfangdata.com.cn/) | Search API with the user's AppKey | Wanfang API terms |
+| [National Social Sciences Database](https://www.ncpssd.cn/) | Public search results: metadata and abstracts | Site terms; full text is not downloaded |
+| [Chinese Medical Journals](https://www.yiigle.com/) | Public search results: metadata and abstracts | Site terms; full text is not downloaded |
+
+上述数据在运行时按用户的检索请求读取，PaperSeek 不随产品分发这些数据。ShowJCR 采用 GPL-3.0，PaperSeek 未包含其代码或数据；中科院分区、JCR、CCF 目录的权利分别归中科院文献情报中心、Clarivate 和中国计算机学会所有。
 
 ## Community interface assets
 

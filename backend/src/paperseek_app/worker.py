@@ -116,6 +116,7 @@ class RunExecutor:
                     embedding=execution.embedding,
                     reranker=execution.reranker,
                     decision=execution.decision,
+                    enrichment=execution.enrichment,
                     cancellation=cancellation,
                     cancellation_poll_seconds=self.cancellation_poll_seconds,
                     lease_seconds=self.lease_seconds,

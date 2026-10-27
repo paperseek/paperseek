@@ -18,6 +18,7 @@ from paperseek_app.bibliometrics.services import AnalysisService
 from paperseek_app.errors import ArtifactError, RunNotFound
 from paperseek_community.api_dependencies import ApiError, open_query_service
 from paperseek_community.artifacts import FileArtifactStore
+from paperseek_community.journal_tables import JournalTableStore
 from paperseek_community.persistence.sqlite_bibliometrics import SQLiteAnalysisStore
 from paperseek_core.bibliometrics.models import MetricNetwork, NetworkRequest
 
@@ -32,12 +33,13 @@ def cleanup_analyses(database: Path) -> None:
 
 def register_bibliometric_routes(app: FastAPI, *, database: Path) -> None:
     computation = BoundedSemaphore(1)
+    rankings = JournalTableStore(database.parent)
 
     def service():
         store = SQLiteAnalysisStore(database)
         runs, run_store = open_query_service(database)
         try:
-            yield AnalysisService(store, FileArtifactStore(database.parent), runs)
+            yield AnalysisService(store, FileArtifactStore(database.parent), runs, rankings=rankings.table)
         except AnalysisError as exc:
             raise ApiError(exc.status, exc.code, exc.code) from exc
         except RunNotFound as exc:

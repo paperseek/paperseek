@@ -19,7 +19,24 @@ export interface ResultPageQuery {
   query?: string;
   minScore?: number | null;
   metadata?: "abstract" | "doi" | "pdf" | "";
-  sort?: "rank" | "score" | "citations" | "year";
+  journal?: JournalFilter | "";
+  acceptance?: AcceptanceFilter | "";
+  sort?: "rank" | "score" | "citations" | "year" | "impact";
+}
+
+export type JournalFilter = "cas1" | "cas2" | "cas3" | "castop" | "jcr1" | "jcr2" | "ccfa" | "ccfb" | "ccfc" | "ranked";
+export type AcceptanceFilter = "accepted" | "oral" | "spotlight";
+export type ExportFormat = "csv" | "json" | "bibtex" | "ris";
+export type JournalPlatform = "cas" | "jcr" | "ccf";
+
+export interface JournalTableStatus {
+  platform: JournalPlatform;
+  imported: boolean;
+  journals: number;
+  year: number | null;
+  filename: string;
+  source: "showjcr" | "file";
+  imported_at: string | null;
 }
 
 export interface HistoryQuery {
@@ -104,6 +121,8 @@ export const api = {
     if (options.query) params.set("query", options.query);
     if (options.minScore !== undefined && options.minScore !== null) params.set("min_score", String(options.minScore));
     if (options.metadata) params.set("metadata", options.metadata);
+    if (options.journal) params.set("journal", options.journal);
+    if (options.acceptance) params.set("acceptance", options.acceptance);
     if (options.sort && options.sort !== "rank") params.set("sort", options.sort);
     const suffix = params.size ? `?${params.toString()}` : "";
     return json<ResultPage>(`/api/v1/runs/${runId}/results${suffix}`, { signal });
@@ -130,7 +149,7 @@ export const api = {
     return json<HistoryPage>(`/api/v1/history${suffix}`, { signal });
   },
 
-  async exportSelected(runId: string, format: "csv" | "json", uids: string[], signal?: AbortSignal): Promise<DownloadedFile> {
+  async exportSelected(runId: string, format: ExportFormat, uids: string[], signal?: AbortSignal): Promise<DownloadedFile> {
     const response = await request(`${apiBase}/api/v1/runs/${runId}/export-selected`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -143,7 +162,7 @@ export const api = {
     }
     const disposition = response.headers.get("Content-Disposition") || "";
     const match = /filename="?([^";]+)"?/.exec(disposition);
-    return { blob: await response.blob(), filename: match?.[1] || `export-selected.${format}` };
+    return { blob: await response.blob(), filename: match?.[1] || `export-selected.${format === "bibtex" ? "bib" : format}` };
   },
 
   renameHistory(runId: string, title: string): Promise<void> {
@@ -154,8 +173,25 @@ export const api = {
     return json<DeletionReceipt>(`/api/v1/history/${runId}`, { method: "DELETE", signal });
   },
 
-  exportUrl(runId: string, format: "csv" | "json"): string {
+  exportUrl(runId: string, format: ExportFormat): string {
     return `${apiBase}/api/v1/runs/${runId}/export?format=${format}`;
+  },
+
+  async journalTables(signal?: AbortSignal): Promise<JournalTableStatus[]> {
+    return (await json<{ tables: JournalTableStatus[] }>("/api/v1/journal-metrics", { signal })).tables;
+  },
+
+  async refreshJournalTables(): Promise<JournalTableStatus[]> {
+    return (await json<{ tables: JournalTableStatus[] }>("/api/v1/journal-metrics/refresh", { method: "POST" })).tables;
+  },
+
+  importJournalTable(platform: JournalPlatform, file: File): Promise<JournalTableStatus> {
+    const params = new URLSearchParams({ filename: file.name });
+    return json<JournalTableStatus>(`/api/v1/journal-metrics/${platform}?${params.toString()}`, {
+      method: "PUT",
+      headers: { "Content-Type": "text/csv" },
+      body: file,
+    });
   },
 
   logUrl(runId: string): string {

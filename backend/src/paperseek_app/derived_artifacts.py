@@ -9,7 +9,7 @@ from paperseek_core.final_result import FinalResultAssembler
 from paperseek_core.models import ResearchResult
 
 
-EXPORT_KINDS = frozenset({"export_json", "export_csv", "candidate_pool", "citation_map"})
+EXPORT_KINDS = frozenset({"export_json", "export_csv", "export_bibtex", "export_ris", "candidate_pool", "citation_map"})
 
 
 def export_id(primary: StoredArtifact, kind: str) -> str:

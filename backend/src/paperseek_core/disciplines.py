@@ -470,6 +470,9 @@ def source_filter_label(source: str) -> str:
         "googlescholar": "Google Scholar field/context hint",
         "paperhub": "Computer science field/context hint",
         "crossref": "Bibliographic field/context hint",
+        "wanfang": "Field/context hint",
+        "nssd": "Social sciences field/context hint",
+        "yiigle": "Medical field/context hint",
     }
     return labels.get(source, "Field/context hint")
 
@@ -635,6 +638,8 @@ def discipline_prompt_context(values: object, source: str, text_hint: str = "") 
             f"The final source request will apply {arxiv_category_clause(native_values)}. "
             "Keep the search terms consistent with those categories, but do not add another cat: clause."
         )
+    if hint and source in {"wanfang", "nssd", "yiigle"}:
+        return f"\n研究领域提示：{hint}。\n该数据库在 PaperSeek 中没有可靠的学科过滤，只用这条提示选择更合适的中文检索词。"
     if hint:
         return (
             f"\nResearch field/context hint: {hint}.\n"

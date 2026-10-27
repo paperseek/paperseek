@@ -19,6 +19,7 @@
 | `PAPERSEEK_WOS_API_KEY` | Web of Science Starter Key |
 | `PAPERSEEK_WOS_DB` | WoS 集合，例如 `WOS` |
 | `PAPERSEEK_GOOGLE_SCHOLAR_API_KEY` | Serper Key 或 Key 池 |
+| `PAPERSEEK_WANFANG_API_KEY` | 万方数据 AppKey |
 | `PAPERSEEK_CONTACT_EMAIL` | 支持联系邮箱的数据源客户端使用的邮箱 |
 | `PAPERSEEK_PROXY_URLS` | HTTP(S) 代理池，每行一个或用逗号分隔；设置后取代设置页中保存的代理 |
 | `PAPERSEEK_PROXY_SCOPE` | 哪些请求走代理：`models`、`ip_limited_sources`、`other_sources`，默认三项都走 |
@@ -46,7 +47,7 @@ paperseek serve
 
 ### 网络代理
 
-当你的网络无法直接访问模型或数据源，或者数据源对你的网络地址限速时，可以使用代理。在 **设置 › 数据源 › 网络代理** 中填写；服务器部署也可以使用 `PAPERSEEK_PROXY_URLS`。环境变量优先，此时设置页中的代理只读。修改后需要重启服务端和 worker。
+当你的网络无法直接访问模型或数据源，或者数据源对你的网络地址限速时，可以使用代理。在 **设置 › 通用 › 网络代理** 中填写；服务器部署也可以使用 `PAPERSEEK_PROXY_URLS`。环境变量优先，此时设置页中的代理只读。修改后需要重启服务端和 worker。
 
 ```powershell
 $env:PAPERSEEK_PROXY_URLS = "http://user:password@proxy-a.example:8080,http://user:password@proxy-b.example:8080"
@@ -58,8 +59,8 @@ $env:PAPERSEEK_PROXY_SCOPE = "ip_limited_sources"
 | 范围 | 包括 | 什么时候有用 |
 | --- | --- | --- |
 | `models` | 大模型、嵌入、重排和决策模型 | 无法直接访问模型服务时。本机和局域网地址始终直连。 |
-| `ip_limited_sources` | arXiv、Crossref、PaperHub，以及未填写密钥的 PubMed 和 OpenAlex | 这些数据源按网络地址计算请求次数。网络地址与他人共用或已被限速时，换一个出口会有帮助。 |
-| `other_sources` | Semantic Scholar、Web of Science、Google Scholar，以及已填写密钥的数据源 | 这些数据源按密钥或共享额度计算，代理不会增加额度，只在无法直接访问时需要。 |
+| `ip_limited_sources` | arXiv、Crossref、PaperHub、OpenReview、国家哲学社会科学学术期刊数据库、中华医学期刊库、ShowJCR 分区表下载，以及未填写密钥的 PubMed 和 OpenAlex | 这些数据源按网络地址计算请求次数。网络地址与他人共用或已被限速时，换一个出口会有帮助。 |
+| `other_sources` | Semantic Scholar、Web of Science、Google Scholar、万方数据，以及已填写密钥的数据源 | 这些数据源按密钥或共享额度计算，代理不会增加额度，只在无法直接访问时需要。 |
 
 未选中的请求按系统代理设置（`HTTPS_PROXY`、`NO_PROXY`）发送。填写多个代理时，请求（包括重试）会轮流使用它们。请求间隔、冷却时间和 `Retry-After` 对整个代理池统一生效，代理池发送请求的速度不会超过单个地址。
 

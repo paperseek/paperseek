@@ -51,6 +51,6 @@ def register_run_artifact_routes(app: FastAPI, *, database: Path) -> None:
         except ArtifactNotFound as exc:
             raise ApiError(404, "artifact_not_found", "Export not found.") from exc
         except ValueError as exc:
-            raise ApiError(400, "invalid_export_format", "Export format must be csv or json.") from exc
+            raise ApiError(400, "invalid_export_format", "Export format must be csv, json, bibtex or ris.") from exc
         finally:
             uow.close()

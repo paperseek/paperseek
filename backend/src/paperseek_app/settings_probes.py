@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 import httpx
 
+from paperseek_core.query_compiler import CHINESE_QUERY_SOURCES
 from paperseek_core.decision_prompt import decision_question, decision_state
 from paperseek_core.execution import RequestContext
 from paperseek_core.models import PaperRecord
@@ -98,7 +99,8 @@ async def probe_source(
                 step_key="settings.source_test", deadline_at=time.monotonic() + 30,
             ))
             source = source_factory(transport)
-            await source.search(SourceSearchRequest(query="machine learning", limit=1))
+            query = "机器学习" if getattr(source, "name", "") in CHINESE_QUERY_SOURCES else "machine learning"
+            await source.search(SourceSearchRequest(query=query, limit=1))
     except SourceError as exc:
         code = f"http_{exc.status}" if exc.status else str(getattr(exc, "failure_kind", "") or "request_failed")
         return {"ok": False, "latency_ms": int((time.perf_counter() - started) * 1000), "code": code}

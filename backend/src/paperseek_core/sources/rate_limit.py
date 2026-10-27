@@ -30,13 +30,16 @@ class _Window:
 
 _lock = threading.Lock()
 _windows: dict[tuple[str, str, bytes], _Window] = {}
-PACED_SOURCES = frozenset({'arxiv', 'pubmed', 'semanticscholar', 'openalex', 'crossref', 'wos', 'googlescholar', 'paperhub'})
+PACED_SOURCES = frozenset({'arxiv', 'pubmed', 'semanticscholar', 'openalex', 'crossref', 'wos', 'googlescholar', 'paperhub',
+                           'wanfang', 'nssd', 'yiigle', 'openreview', 'showjcr'})
 # arXiv also requires a single connection; another request waits for the current one in short steps.
 _BUSY_POLL = 0.05
 
 
 def _interval(source: str, credential: str) -> float:
-    return {'arxiv': 3.1, 'semanticscholar': 1.2, 'pubmed': 0.11 if credential else 0.34}.get(source, 0.0)
+    # NSSD, Yiigle and OpenReview publish no limits; a gentle pace keeps their public search pages usable.
+    return {'arxiv': 3.1, 'semanticscholar': 1.2, 'pubmed': 0.11 if credential else 0.34,
+            'nssd': 0.5, 'yiigle': 0.5, 'openreview': 1.0}.get(source, 0.0)
 
 
 def rate_limit_backoff(source: str) -> float:

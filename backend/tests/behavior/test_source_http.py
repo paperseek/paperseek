@@ -15,11 +15,15 @@ from paperseek_core.sources.arxiv import ArxivSource
 from paperseek_core.sources.crossref import CrossrefSource
 from paperseek_core.sources.google_scholar import GoogleScholarSource
 from paperseek_core.sources.http import AsyncHttpTransport
+from paperseek_core.sources.nssd import NssdSource, nssd_expression
 from paperseek_core.sources.openalex import OpenAlexSource
+from paperseek_core.sources.openreview import OpenReviewClient
 from paperseek_core.sources.paperhub import PaperHubSource
 from paperseek_core.sources.pubmed import PubMedSource
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
+from paperseek_core.sources.wanfang import WanfangSource
 from paperseek_core.sources.wos import WosSource
+from paperseek_core.sources.yiigle import YiigleSource
 
 FIXTURES = Path(__file__).parents[3] / "tests" / "fixtures" / "providers"
 
@@ -348,6 +352,77 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record.source.source_title, "ICLR")
         self.assertEqual(record.source.publish_year, 2023)
         self.assertEqual(record.names.authors[0].display_name, "Grace Hopper")
+
+    async def test_paperhub_unites_accepted_openreview_papers_and_keeps_rejected_out(self) -> None:
+        def note(forum: str, title: str, venue_id: str, venue: str) -> dict[str, Any]:
+            return {"id": forum, "forum": forum, "content": {
+                "title": {"value": title}, "abstract": {"value": "Graph retrieval study."},
+                "authors": {"value": ["Ada Lovelace"]}, "venueid": {"value": venue_id}, "venue": {"value": venue}}}
+
+        notes = [
+            note("shared", "Graph Retrieval Evidence", "ICLR.cc/2025/Conference", "ICLR 2025 Oral"),
+            note("extra", "Graph Retrieval at Scale", "NeurIPS.cc/2024/Conference", "NeurIPS 2024 spotlight"),
+            note("rejected", "Graph Retrieval Rejected", "ICLR.cc/2025/Conference/Rejected_Submission", "Submitted to ICLR 2025"),
+            note("workshop", "Graph Retrieval Workshop", "ICLR.cc/2025/Workshop/GRaM", "GRaM 2025 Oral"),
+        ]
+        transport, _ = self.transport({
+            PaperHubSource.MANIFEST_URL: json_route("paperhub_manifest.json"),
+            f"{PaperHubSource.RAW_BASE_URL}/shards/iclr.fixture.json": json_route("paperhub_shard.json"),
+            OpenReviewClient.SEARCH_URL: (200, json.dumps({"notes": notes}).encode(), "application/json"),
+        })
+        PaperHubSource.reset_cache()
+        result = await PaperHubSource(transport=transport, openreview=OpenReviewClient(transport=transport)).search(
+            SourceSearchRequest(query='"graph retrieval"', limit=10))
+
+        labels = {hit.title: (hit.raw["acceptance"]["label"], hit.raw["acceptance"]["sources"]) for hit in result.hits}
+        self.assertEqual(labels, {
+            "Graph Retrieval Evidence": ("ICLR 2025 Oral", ["paperhub", "openreview"]),
+            "Graph Retrieval Baseline": ("ICLR 2023 Poster", ["paperhub"]),
+            "Graph Retrieval at Scale": ("NeurIPS 2024 Spotlight", ["openreview"]),
+        })
+
+    async def test_chinese_databases_send_their_own_query_form_and_map_records(self) -> None:
+        # The live API puts the record under its resource type and leaves "fields" empty.
+        wanfang_body = {"numFound": 1, "msg": "", "documents": [{"resourceType": "Periodical", "fields": {}, "Periodical": {
+            "Id": "jsjxb201706001", "Type": "Periodical", "Title": ["卷积神经网络研究综述", "Review of CNN"],
+            "Creator": ["周飞燕", "Zhou Feiyan"], "PeriodicalTitle": ["计算机学报", "Chinese Journal of Computers"],
+            "PublishYear": 2017, "Page": "1229-1251", "DOI": "10.11897/SP.J.1016.2017.01229", "CitedCount": 12}}]}
+        nssd_body = {"code": 200, "data": {"total": 1, "rows": [{
+            "id": "NYJJ2026002031", "title": "乡村数字治理的难点与对策", "creator": "周格林[1];刘博[2]", "cbw_name": "农业经济",
+            "years": "2026", "issn": "1001-6139", "subject": "乡村振兴;数字治理", "remark": "摘要"}]}}
+        yiigle_body = {"code": 200, "data": {"result": {"searchTotal": 1, "infos": [{
+            "artId": "1073309", "artTitle": "SGLT2抑制剂在糖尿病肾病中的作用", "artAbstract": "<p>随着糖尿病患病率上升</p>",
+            "authorNames": ["徐鲁斌", "陈丽萌"], "journalCn": "中华肾脏病杂志", "artPubYear": "2018",
+            "artDoi": "10.3760/cma.j.issn.1001-7097.2018.06.015", "startPage": "467", "endPage": "471"}]}}}
+        transport, client = self.transport({
+            WanfangSource.BASE_URL: (200, json.dumps(wanfang_body).encode(), "application/json"),
+            NssdSource.BASE_URL: (200, json.dumps(nssd_body).encode(), "application/json"),
+            YiigleSource.BASE_URL: (200, json.dumps(yiigle_body).encode(), "application/json"),
+        })
+        query = "(数字治理 OR 数字化治理) AND 乡村振兴"
+        wanfang = await WanfangSource(transport=transport, api_key="fixture-key").search(SourceSearchRequest(query=query, lane="impact"))
+        nssd = await NssdSource(transport=transport).search(SourceSearchRequest(query=query))
+        yiigle = await YiigleSource(transport=transport).search(SourceSearchRequest(query=query))
+
+        sent = {call["url"]: call for call in client.calls}
+        self.assertEqual(sent[WanfangSource.BASE_URL]["headers"]["X-Ca-AppKey"], "fixture-key")
+        self.assertEqual(sent[WanfangSource.BASE_URL]["json"]["sort"], {"sorts": [{"by": "CitedCount", "order": "DESC"}]})
+        self.assertEqual(nssd_expression(query), '( (IKTE="数字治理" OR IKST="数字治理" OR IKSE="数字治理") OR '
+                         '(IKTE="数字化治理" OR IKST="数字化治理" OR IKSE="数字化治理") ) AND (IKTE="乡村振兴" OR IKST="乡村振兴" OR IKSE="乡村振兴")')
+        self.assertEqual(sent[YiigleSource.BASE_URL]["json"]["queryString"], "数字治理 乡村振兴")
+        self.assertEqual(sent[YiigleSource.BASE_URL]["json"]["isAggregations"], "N")
+
+        paper = wanfang.hits[0]
+        self.assertEqual((paper.title, paper.source.source_title, paper.source.publish_year, paper.citations[0].count),
+                         ("卷积神经网络研究综述", "计算机学报", 2017, 12))
+        self.assertEqual([author.display_name for author in paper.names.authors], ["周飞燕"])
+        self.assertEqual(paper.links.record, "https://d.wanfangdata.com.cn/periodical/jsjxb201706001")
+        paper = nssd.hits[0]
+        self.assertEqual(([author.display_name for author in paper.names.authors], paper.identifiers.issn, paper.keywords.author_keywords),
+                         (["周格林", "刘博"], "1001-6139", ["乡村振兴", "数字治理"]))
+        paper = yiigle.hits[0]
+        self.assertEqual((paper.abstract, paper.source.pages, paper.identifiers.doi),
+                         ("随着糖尿病患病率上升", "467-471", "10.3760/cma.j.issn.1001-7097.2018.06.015"))
 
     async def test_wos_exact_request_limit_cap_and_mapping(self) -> None:
         transport, client = self.transport({WosSource.BASE_URL: json_route("wos.json")})

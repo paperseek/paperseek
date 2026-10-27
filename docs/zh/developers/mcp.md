@@ -39,7 +39,7 @@ MCP 进程与 CLI 使用相同的 `PAPERSEEK_*` 环境变量。只在 Web 表单
 | `get_search_results` | 分页读取结果 |
 | `get_citation_graph` | 读取引用图谱 |
 | `cancel_search` | 请求取消 |
-| `export_results` | 导出完整 JSON 或 CSV 结果 |
+| `export_results` | 导出完整结果，格式为 JSON、CSV、BibTeX 或 RIS |
 
 连接会话不等于检索任务的生命周期。保存返回的 `run_id`，用它继续检查状态与读取结果；结果分页时跟随返回的游标，不要把第一页当成全部文献。
 
@@ -48,7 +48,7 @@ MCP 进程与 CLI 使用相同的 `PAPERSEEK_*` 环境变量。只在 Web 表单
 1. 用 `list_sources` 和 `get_source_capabilities` 获取数据源与筛选项 ID。
 2. 调用 `start_search`，提供问题、数据源和预算（`fast`、`medium`、`high` 或 `max`），立即获得 `run_id` 和 `status`。重试提交时，复用非空的 `idempotency_key` 和相同参数，避免重复创建任务。
 3. 每隔几秒调用 `get_search_status`。`completed`、`completed_with_warnings`、`failed`、`cancelled` 表示任务已结束；事件页为空不代表完成。
-4. 用 `get_search_results` 读取结果，直到 `next_cursor` 为 `null`。事件和结果每页可取 1–200 项；完整 JSON 或 CSV 使用 `export_results` 导出。
+4. 用 `get_search_results` 读取结果，直到 `next_cursor` 为 `null`。事件和结果每页可取 1–200 项；完整的 JSON、CSV、BibTeX 或 RIS 使用 `export_results` 导出。
 
 检索期间应保持 MCP 进程运行，其内置 worker 才能推进任务。断开连接不会主动取消检索，需要停止时调用 `cancel_search`。任务保存在本地数据库中，重启后使用同一数据库即可继续读取。默认路径为 `~/.paperseek/paperseek.db`，可通过 `--database` 或 `PAPERSEEK_DATABASE` 修改。
 

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { api, ApiError } from "../../api/client";
+import { api, ApiError, type JournalFilter } from "../../api/client";
 import type { HistoryItem } from "../../api/types";
 import AppDialog from "../../components/AppDialog.vue";
 import Icon from "../../components/Icon.vue";
 import UiSelect, { type SelectOption } from "../../components/UiSelect.vue";
 import { useLocale } from "../../locales";
 import { useUi } from "../../locales/ui";
+import { venueBadges } from "../results/venue-labels";
 import { connectionById, connectionOptions, loadSettings, workspaceSettings } from "../settings/store";
 import SourceRunPicker from "../workspace/SourceRunPicker.vue";
 import { invalidateHistory, listPaths, setHeader } from "../workspace/state";
@@ -21,7 +22,7 @@ const router = useRouter();
 const { t, runMessage, language } = useLocale();
 const u = useUi();
 initializeReviewDraft(language.value);
-const { step, source, papers, cursor, query, busy, error, created, loadedFor, moreOpen, suggesting, reasons } = toRefs(reviewDraft);
+const { step, source, papers, cursor, query, journal, busy, error, created, loadedFor, moreOpen, suggesting, reasons } = toRefs(reviewDraft);
 const { form, selected } = reviewDraft;
 const loading = ref(false);
 const openAbstracts = ref(new Set<string>());
@@ -78,8 +79,12 @@ const sizeOptions = computed<SelectOption<SizeChoice>[]>(() => {
   ];
 });
 const canContinue = computed(() => selected.size >= 2 && selected.size <= MAX_REVIEW_PAPERS && !loading.value && !suggesting.value);
+const journalOptions = computed<SelectOption<string>[]>(() => [
+  { value: "all", label: u("journalAll") },
+  ...(["cas1", "cas2", "castop", "jcr1", "jcr2", "ccfa", "ccfb", "ccfc", "ranked"] as JournalFilter[]).map((value) => ({ value, label: u(`journal_${value}`) })),
+]);
 // Keep selected records from later pages visible when returning to this draft.
-const visiblePapers = computed(() => query.value.trim() ? papers.value : [
+const visiblePapers = computed(() => query.value.trim() || journal.value !== "all" ? papers.value : [
   ...papers.value, ...[...selected.values()].filter(paper => !papers.value.some(item => item.uid === paper.uid)),
 ]);
 // Papers a review of this size can use well: about 2–4 per planned paragraph, within the corpus limit.
@@ -112,6 +117,7 @@ async function choose(id: string, restore: string[] = []) {
   selected.clear();
   cursor.value = null;
   query.value = "";
+  journal.value = "all";
   try {
     const detail = await api.run(id, controller.signal);
     if (own !== generation || revision !== reviewDraft.revision) return;
@@ -146,7 +152,10 @@ async function loadPapers(more = false) {
   loading.value = true;
   error.value = "";
   try {
-    const page = await api.resultPage(source.value.id, { query: query.value.trim(), cursor: more ? cursor.value || undefined : undefined }, controller.signal);
+    const page = await api.resultPage(source.value.id, {
+      query: query.value.trim(), journal: journal.value === "all" ? "" : (journal.value as JournalFilter),
+      cursor: more ? cursor.value || undefined : undefined,
+    }, controller.signal);
     if (own !== generation || revision !== reviewDraft.revision) return;
     papers.value = more ? [...papers.value, ...usable(page.results)] : usable(page.results);
     cursor.value = page.next_cursor ?? null;
@@ -156,7 +165,7 @@ async function loadPapers(more = false) {
     if (own === generation) loading.value = false;
   }
 }
-watch(query, () => {
+watch([query, journal], () => {
   if (!source.value || step.value !== 3) return;
   clearTimeout(timer);
   timer = setTimeout(() => void loadPapers(), 200);
@@ -358,12 +367,15 @@ if (typeof route.query.source === "string" && !busy.value) {
         </div>
         <div class="field">
           <div class="row" style="justify-content: space-between"><span class="label">{{ u("papers") }}</span><span class="row" style="gap: 2px"><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="loading || suggesting || busy || !!created" @click="selectWithAbstract">{{ u("selectWithAbstract") }}</button><button class="btn btn-ghost btn-sm" type="button" style="height: 28px" :disabled="!selected.size || suggesting || busy || !!created" @click="selected.clear()">{{ u("clearSelection") }}</button></span></div>
-          <div class="ig"><Icon name="search" /><input v-model="query" type="search" :placeholder="u('searchPapers')" :aria-label="u('searchPapers')" /></div>
+          <div class="row" style="gap: 8px; flex-wrap: nowrap">
+            <div class="ig grow"><Icon name="search" /><input v-model="query" type="search" :placeholder="u('searchPapers')" :aria-label="u('searchPapers')" /></div>
+            <UiSelect v-model="journal" :options="journalOptions" :label="u('journalFilter')" :prefix="u('journalFilter')" size="sm" chevron="down" />
+          </div>
           <div class="pick" style="max-height: 360px; overflow-y: auto; scrollbar-gutter: stable" :aria-busy="loading">
             <div v-for="paper in visiblePapers" :key="paper.uid" class="paper-pick" :class="{ off: !abstract(paper) }">
               <label v-if="abstract(paper)" class="cb" style="margin-top: 2px" :aria-label="u('selectPaper')"><input type="checkbox" :checked="selected.has(paper.uid)" :disabled="busy || suggesting || !!created || (!selected.has(paper.uid) && selected.size >= MAX_REVIEW_PAPERS)" @change="toggle(paper)" /><span class="box"><Icon name="check" /></span></label>
               <label v-else class="cb" style="margin-top: 2px; opacity: .5" :aria-label="u('noAbstractCannotSelect')"><input type="checkbox" disabled /><span class="box"></span></label>
-              <div class="stack" style="min-width: 0"><span class="t sm medium">{{ paper.title }}</span><span class="xs muted">{{ [paper.authors?.slice(0, 3).join(", "), paper.year, paper.score != null ? `${paper.score}/10` : u("unscored")].filter(Boolean).join(" · ") }}</span><span v-if="selected.has(paper.uid) && reasons.get(paper.uid)" class="xs muted">{{ reasons.get(paper.uid) }}</span></div>
+              <div class="stack" style="min-width: 0"><span class="t sm medium">{{ paper.title }}</span><span class="xs muted">{{ [paper.authors?.slice(0, 3).join(", "), paper.year, paper.score != null ? `${paper.score}/10` : u("unscored")].filter(Boolean).join(" · ") }}</span><span v-if="venueBadges(u, paper.journal_metrics).length || paper.acceptance?.label" class="row" style="gap: 4px; margin-top: 2px"><span v-if="paper.acceptance?.label" class="badge badge-outline">{{ paper.acceptance.label }}</span><span v-for="badge in venueBadges(u, paper.journal_metrics)" :key="badge" class="badge badge-outline">{{ badge }}</span></span><span v-if="selected.has(paper.uid) && reasons.get(paper.uid)" class="xs muted">{{ reasons.get(paper.uid) }}</span></div>
               <button v-if="abstract(paper)" class="btn btn-ghost btn-sm" type="button" style="height: 24px; padding: 0 6px" :aria-expanded="openAbstracts.has(paper.uid)" @click="toggleAbstract(paper.uid)">{{ u("abstract") }}</button>
               <span v-else class="xs muted" style="white-space: nowrap">{{ u("noAbstractShort") }}</span>
               <p v-if="openAbstracts.has(paper.uid)" class="abs">{{ abstract(paper) }}</p>

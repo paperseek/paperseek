@@ -17,6 +17,8 @@ from paperseek_community.persistence.sqlite_support import (
     parse_datetime as _datetime,
     timestamp as _timestamp,
 )
+from paperseek_core.acceptance import ACCEPTANCE_FILTERS
+from paperseek_core.journal_metrics import JOURNAL_FILTERS, PLATFORMS
 from paperseek_core.models import FinalPaperResult, ResearchResult
 
 
@@ -218,6 +220,7 @@ class SQLiteResultHistoryRepository(SQLiteRepositoryBase):
     def query_results(
         self, run_id: str, *, offset: int, limit: int, query: str | None,
         min_score: float | None, metadata: str | None, sort: str,
+        journal: str | None = None, acceptance: str | None = None,
     ) -> ResultPage:
         fields = ("title", "authors_text", "abstract", "doi", "venue", "source", "keywords_text")
         search_text = " || ' ' || ".join(f"COALESCE(json_extract(record_json, '$.{field}'), '')" for field in fields)
@@ -239,12 +242,28 @@ class SQLiteResultHistoryRepository(SQLiteRepositoryBase):
         if metadata:
             field = {"abstract": "abstract", "doi": "doi", "pdf": "pdf_url"}[metadata]
             conditions.append(f"paperseek_strip(COALESCE(json_extract(record_json, '$.{field}'), '')) != ''")
+        if journal:
+            platform, value_field, best = JOURNAL_FILTERS[journal]
+            if not platform:
+                conditions.append("(" + " OR ".join(
+                    f"json_extract(record_json, '$.journal_metrics.{name}') IS NOT NULL" for name in PLATFORMS) + ")")
+            elif value_field == "top":
+                conditions.append(f"json_extract(record_json, '$.journal_metrics.{platform}.top') = 1")
+            else:
+                conditions.append(f"json_extract(record_json, '$.journal_metrics.{platform}.{value_field}') <= :journal_best")
+                parameters["journal_best"] = best
+        if acceptance:
+            conditions.append("COALESCE(json_extract(record_json, '$.acceptance.venue'), '') != ''"
+                              " AND COALESCE(json_extract(record_json, '$.acceptance.tier'), '') IN (SELECT value FROM json_each(:tiers))")
+            parameters["tiers"] = _json_dump(list(ACCEPTANCE_FILTERS[acceptance]))
         where = " AND ".join(conditions) or "1"
         ordering = {
             "rank": "rank",
             "score": "score IS NULL, score DESC, rank",
             "citations": "COALESCE(json_extract(record_json, '$.citation_count'), 0) DESC, rank",
             "year": "COALESCE(NULLIF(json_extract(record_json, '$.publish_year'), 0), json_extract(record_json, '$.year'), 0) DESC, rank",
+            "impact": "COALESCE(json_extract(record_json, '$.journal_metrics.jcr.impact_factor'), -1) DESC, "
+                      "COALESCE(json_extract(record_json, '$.journal_metrics.openalex.two_year_mean_citedness'), -1) DESC, rank",
         }[sort]
         try:
             with self.engine.connect() as connection:

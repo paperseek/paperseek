@@ -33,11 +33,17 @@ from paperseek_core.sources.arxiv import ArxivSource
 from paperseek_core.sources.crossref import CrossrefSource
 from paperseek_core.sources.google_scholar import GoogleScholarSource
 from paperseek_core.sources.openalex import OpenAlexSource
+from paperseek_core.enrichment import OpenAlexVenueMetrics, ResultEnricher
+from paperseek_core.sources.nssd import NssdSource
+from paperseek_core.sources.openreview import OpenReviewClient
 from paperseek_core.sources.paperhub import PaperHubSource
+from paperseek_community.journal_tables import JournalTableStore
 from paperseek_core.sources.pubmed import PubMedSource
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
 from paperseek_core.sources.proxy import ProxyPolicy
+from paperseek_core.sources.wanfang import WanfangSource
 from paperseek_core.sources.wos import WosSource
+from paperseek_core.sources.yiigle import YiigleSource
 
 
 def community_static_dir() -> Path:
@@ -51,9 +57,11 @@ class CommunityExecutionResolver:
         credentials: EncryptedRunCredentialStore,
         *,
         proxy: Callable[[], ProxyPolicy] | None = None,
+        journal_tables: JournalTableStore | None = None,
     ) -> None:
         self.settings = settings
         self.credentials = credentials
+        self.journal_tables = journal_tables
         # Read for each run, so a proxy saved in Settings applies without a restart.
         self.proxy = proxy or (lambda: settings.proxy)
 
@@ -129,8 +137,19 @@ class CommunityExecutionResolver:
                 **decision_route, api_key=model_keys["decision"],
             )
 
+        tables = self.journal_tables
+        enrichment = ResultEnricher(
+            journals=(lambda: tables.ensure(client)) if tables else None,
+            openalex=OpenAlexVenueMetrics(
+                transport=transport,
+                email=contacts.get("openalex_email") or self.settings.contact_email,
+                api_key=self.settings.openalex_api_key,
+            ),
+            openreview=OpenReviewClient(transport=transport),
+        )
         return WorkflowExecution(
             decision=decision,
+            enrichment=enrichment,
             llm=llm,
             source=source,
             embedding=embedding,
@@ -172,6 +191,7 @@ def deployment_source_key(name: str, settings: CommunityDeploymentSettings) -> s
         "pubmed": settings.pubmed_api_key,
         "wos": settings.wos_api_key,
         "googlescholar": settings.google_scholar_api_key,
+        "wanfang": settings.wanfang_api_key,
     }.get(name, "")
 
 
@@ -205,7 +225,10 @@ def build_source(
         ),
         "wos": lambda: WosSource(transport=transport, api_key=key, db=wos_db),
         "googlescholar": lambda: GoogleScholarSource(transport=transport, api_key=key),
-        "paperhub": lambda: PaperHubSource(transport=transport),
+        "paperhub": lambda: PaperHubSource(transport=transport, openreview=OpenReviewClient(transport=transport)),
+        "wanfang": lambda: WanfangSource(transport=transport, api_key=key),
+        "nssd": lambda: NssdSource(transport=transport),
+        "yiigle": lambda: YiigleSource(transport=transport),
     }
     try:
         return factories[name]()

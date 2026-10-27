@@ -29,7 +29,7 @@ PaperSeek works in four visible stages: it interprets your question, iterates so
 
 ## 4. Read the results
 
-Open **Results** when the run finishes. Each paper shows its abstract, a relevance score with a written reason, and a link to the original record. Export the list as CSV or JSON.
+Open **Results** when the run finishes. Each paper shows its abstract, a relevance score with a written reason, and a link to the original record. Export the list as CSV, JSON, BibTeX, or RIS.
 
 The run is saved to your account. Reopen it from **Search history** in the sidebar. From here you can also open a [citation map](../guide/citation-map.md), run a [bibliometric analysis](../guide/bibliometrics.md), or start an [experimental review](../guide/reviews.md).
 

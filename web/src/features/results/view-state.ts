@@ -4,6 +4,8 @@ export interface ResultViewState {
   query: string;
   minScore: string;
   availability: string;
+  journal?: string;
+  acceptance?: string;
   sort: ResultPageQuery["sort"];
   selected: string[];
   uids: [string, string][];
