@@ -1327,6 +1327,12 @@ const en: Record<keyof typeof zh, string> = {
 
 export type UiKey = keyof typeof zh;
 
+/** Replace shared text for a deployment (such as who supplies a source key) before the app mounts. */
+export function extendUi(entries: Record<"zh" | "en", Partial<Record<UiKey, string>>>): void {
+  Object.assign(zh, entries.zh);
+  Object.assign(en, entries.en);
+}
+
 export function useUi() {
   const { language } = useLocale();
   return (key: UiKey, values: Record<string, string | number> = {}): string =>
