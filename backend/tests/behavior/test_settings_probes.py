@@ -6,6 +6,7 @@ import httpx
 
 from paperseek_app.settings_probes import probe_connection, probe_source
 from paperseek_core.sources.contracts import SourceError
+from paperseek_core.sources.wos import WosSource
 
 
 class SettingsProbesTest(unittest.IsolatedAsyncioTestCase):
@@ -41,6 +42,18 @@ class SettingsProbesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(requests), 1)
         self.assertEqual(requests[0].limit, 1)
         self.assertEqual(requests[0].query, "machine learning")
+
+    async def test_wos_probe_sends_a_field_tagged_query(self):
+        params = []
+
+        class Transport:
+            async def request(self, _source, _method, _url, **kwargs):
+                params.append(kwargs["params"])
+                return httpx.Response(200, json={"metadata": {}, "hits": []}), {}
+
+        result = await probe_source(lambda _transport: WosSource(transport=Transport(), api_key="fixture-wos-key"))
+        self.assertTrue(result["ok"])
+        self.assertEqual(params[0]["q"], "TS=(machine learning)")
 
     async def test_source_probe_reports_failure_without_the_sensitive_message(self):
         class Source:

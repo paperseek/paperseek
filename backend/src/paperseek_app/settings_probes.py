@@ -99,7 +99,11 @@ async def probe_source(
                 step_key="settings.source_test", deadline_at=time.monotonic() + 30,
             ))
             source = source_factory(transport)
-            query = "机器学习" if getattr(source, "name", "") in CHINESE_QUERY_SOURCES else "machine learning"
+            name = getattr(source, "name", "")
+            query = "机器学习" if name in CHINESE_QUERY_SOURCES else "machine learning"
+            if name == "wos":
+                # WoS Starter answers HTTP 400 to a query without a field tag.
+                query = f"TS=({query})"
             await source.search(SourceSearchRequest(query=query, limit=1))
     except SourceError as exc:
         code = f"http_{exc.status}" if exc.status else str(getattr(exc, "failure_kind", "") or "request_failed")
