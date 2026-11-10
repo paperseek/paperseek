@@ -248,6 +248,7 @@ class QueryPortfolioExecutor:
         added_unique: int = 0,
     ) -> QueryPortfolioExecution:
         return QueryPortfolioExecution(
+            source=selection.source,
             view_id=selection.view.view_id,
             view_type=selection.view.view_type,
             purpose=selection.view.purpose,

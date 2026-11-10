@@ -334,7 +334,7 @@ class RunQueryService:
             id="selected-export",
             filename=filename,
             media_type=media_type,
-            sha256=hashlib.sha256(content).hexdigest().upper(),
+            sha256=hashlib.sha256(content).hexdigest(),
             size=len(content),
             content=content,
         )
