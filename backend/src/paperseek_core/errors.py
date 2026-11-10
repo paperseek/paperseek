@@ -1,7 +1,3 @@
-class SourceStepError(RuntimeError):
-    """The selected source could not produce the required base result."""
-
-
 class RetrievalSourceError(RuntimeError):
     """The primary retrieval lane could not produce a recoverable base pool."""
 
