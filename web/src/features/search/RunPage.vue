@@ -18,7 +18,7 @@ import WorkflowStages from "./WorkflowStages.vue";
 const props = defineProps<{ externalRecovery?: boolean }>();
 const route = useRoute();
 const router = useRouter();
-const { t, runMessage, sourceName } = useLocale();
+const { runMessage, sourceName } = useLocale();
 const u = useUi();
 const runId = computed(() => String(route.params.runId || ""));
 const pageState = ref<"loading" | "error" | "loaded">("loading");
@@ -104,7 +104,7 @@ async function rerun() {
     <div v-else-if="!run && pageState === 'error'" class="alert" role="alert">
       <Icon name="fail" />
       <p class="alert-title">{{ u("loadError") }}</p>
-      <p class="alert-desc">{{ t(runState.error || "run_unavailable") }}</p>
+      <p class="alert-desc">{{ runMessage(runState.error || "run_unavailable", "error") }}</p>
       <div class="alert-act"><button class="btn btn-outline btn-sm" type="button" @click="load(runId)">{{ u("retry") }}</button></div>
     </div>
     <template v-else-if="run">
@@ -128,7 +128,7 @@ async function rerun() {
         @update="(value) => { if (runState.run?.id === value.id && runState.run.status === 'queued' && !runState.cancelPending) runState.run = value; }"
       />
       <WorkflowStages v-else @rerun="rerun" />
-      <p v-if="runState.error" class="xs danger-text" role="alert">{{ t(runState.error) }}</p>
+      <p v-if="runState.error" class="xs danger-text" role="alert">{{ runMessage(runState.error, "error") }}</p>
     </template>
 
     <AppDialog

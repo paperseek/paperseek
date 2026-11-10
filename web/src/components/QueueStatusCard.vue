@@ -23,7 +23,8 @@ function stop() {
   controller?.abort();
   if (timer) clearTimeout(timer);
 }
-watch(() => [props.run.id, props.run.status] as const, ([id, status]) => {
+// Separate sources: an array getter would fire on every replaced run object and restart the poll.
+watch([() => props.run.id, () => props.run.status], ([id, status]) => {
   stop();
   snapshot.value = props.run;
   disconnected.value = false;

@@ -72,7 +72,7 @@ watch(review, (value) => {
   const requested = String(route.query.tab || "");
   tab.value = (tabs as readonly string[]).includes(requested) ? (requested as Tab) : stage.value === 3 ? "document" : stage.value === 2 ? "outline" : "papers";
 });
-watch(() => [review.value?.id, review.value?.version, latest.value?.status], () => invalidateHistory("reviews"));
+watch([() => review.value?.id, () => review.value?.version, () => latest.value?.status], () => invalidateHistory("reviews"));
 watch(() => route.query.tab, (value) => {
   if ((tabs as readonly string[]).includes(String(value))) tab.value = value as Tab;
 });

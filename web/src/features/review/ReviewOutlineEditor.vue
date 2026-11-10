@@ -23,7 +23,11 @@ const { pending, decide } = useUnsavedChanges(dirty);
 const section = computed(() => draft.value.sections[current.value]);
 
 watch(() => props.review.version, () => {
-  if (version && dirty.value) return;
+  if (version && dirty.value) {
+    // A section edit moves the review version but not the outline; keep the draft saveable.
+    if ((props.review.content.outline_revision || 0) === revision) version = props.review.version;
+    return;
+  }
   draft.value = JSON.parse(JSON.stringify(props.review.content.outline || { sections: [] }));
   original.value = JSON.stringify(draft.value);
   version = props.review.version;
