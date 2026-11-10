@@ -21,7 +21,7 @@
 paperseek search "How does open-source funding affect maintenance?" --source openalex --search-budget medium --output json
 ```
 
-数据源 ID：`openalex`、`arxiv`、`crossref`、`semanticscholar`、`pubmed`、`wos`、`googlescholar`、`paperhub`。
+数据源 ID：`openalex`、`arxiv`、`crossref`、`semanticscholar`、`pubmed`、`wos`、`googlescholar`、`paperhub`、`wanfang`、`nssd`、`yiigle`。
 
 预算使用 `fast`、`medium`、`high`、`max`。支持学科筛选的数据源使用 `--field-id`；文本范围提示使用 `--field-hint`；支持引用扩展时，可用 `--citation-enabled` 或 `--no-citation-enabled` 控制。
 

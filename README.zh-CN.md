@@ -226,19 +226,19 @@ MCP 工具可开始任务、查看状态、读取结果与引用图谱、取消�
 
 本地 API 位于 `/api/v1`，当前安装的 schema 位于 `/openapi.json`。
 
-[CLI 指南](https://docs.paperseek.app/zh/integrations/cli) · [MCP 配置](https://docs.paperseek.app/zh/integrations/mcp) · [HTTP API](https://docs.paperseek.app/zh/integrations/api)
+[CLI 指南](https://docs.paperseek.app/zh/developers/cli) · [MCP 配置](https://docs.paperseek.app/zh/developers/mcp) · [HTTP API](https://docs.paperseek.app/zh/developers/api)
 
 ## Agent Skill
 
 将 [PaperSeek Skill](integrations/skills/paperseek) 添加到兼容的 Agent，即可指导它检查本地安装、在缺失时安装独立社区版环境、配置并检索文献，以及读取已保存的结果。通过 CLI 使用不需要安装 MCP。
 
-[安装与使用 Skill →](https://docs.paperseek.app/zh/integrations/skill)
+[安装与使用 Skill →](https://docs.paperseek.app/zh/developers/skill)
 
 ## 文档导航
 
 | 开始使用 | 进一步了解 |
 | --- | --- |
-| [快速开始](https://docs.paperseek.app/zh/guide/quick-start) | [模型与排序](https://docs.paperseek.app/zh/guide/models) |
+| [快速开始](https://docs.paperseek.app/zh/get-started/local) | [模型与排序](https://docs.paperseek.app/zh/guide/models) |
 | [检索流程](https://docs.paperseek.app/zh/guide/search) | [引用图谱](https://docs.paperseek.app/zh/guide/citation-map) |
 | [结果与历史](https://docs.paperseek.app/zh/guide/results) | [综述 · 实验性](https://docs.paperseek.app/zh/guide/reviews) |
 | [在线账户](https://docs.paperseek.app/zh/online/account) | [自托管与升级](https://docs.paperseek.app/zh/self-hosting/) |
@@ -264,7 +264,7 @@ Web / CLI / HTTP / MCP
 - **`paperseek_community`**：提供 SQLite、本地产物、FastAPI 与 CLI。一个 `paperseek` wheel 包含这三个 Python 包和已构建的网页。
 - **在线版**：基于同一套包和 Vue 源码，另行提供账户认证与存储适配。公共功能修复统一进入社区版。
 
-社区版的 API 与内嵌 worker 可以作为一个服务运行；在线版将 API 和 worker 分进程部署，继续复用同一应用层。执行流程与依赖边界见[架构与贡献说明](https://docs.paperseek.app/zh/contributing#architecture)。
+社区版的 API 与内嵌 worker 可以作为一个服务运行；在线版将 API 和 worker 分进程部署，继续复用同一应用层。执行流程与依赖边界见[架构与贡献说明](https://docs.paperseek.app/zh/developers/contributing#architecture)。
 
 欢迎改进文档、提供可复现问题、验证数据源集成或提交聚焦改动。开发与验证见 [CONTRIBUTING.md](CONTRIBUTING.md)，社区规范见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)，私密漏洞报告见 [SECURITY.md](SECURITY.md)。
 

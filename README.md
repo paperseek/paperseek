@@ -231,19 +231,19 @@ MCP tools start a run, follow its status, read results and citation graphs, canc
 
 The local API is under `/api/v1`, with its installed schema at `/openapi.json`.
 
-[CLI guide](https://docs.paperseek.app/integrations/cli) · [MCP setup](https://docs.paperseek.app/integrations/mcp) · [HTTP API](https://docs.paperseek.app/integrations/api)
+[CLI guide](https://docs.paperseek.app/developers/cli) · [MCP setup](https://docs.paperseek.app/developers/mcp) · [HTTP API](https://docs.paperseek.app/developers/api)
 
 ## Agent Skill
 
 Add the [PaperSeek Skill](integrations/skills/paperseek) to a compatible agent for local literature research. It guides installation checks, isolated Community installation when missing, configuration, searches, and saved results. CLI use does not require MCP.
 
-[Install and use the Skill →](https://docs.paperseek.app/integrations/skill)
+[Install and use the Skill →](https://docs.paperseek.app/developers/skill)
 
 ## Documentation
 
 | Start here | Go deeper |
 | --- | --- |
-| [Quick start](https://docs.paperseek.app/guide/quick-start) | [Models & ranking](https://docs.paperseek.app/guide/models) |
+| [Quick start](https://docs.paperseek.app/get-started/local) | [Models & ranking](https://docs.paperseek.app/guide/models) |
 | [Search workflow](https://docs.paperseek.app/guide/search) | [Citation maps](https://docs.paperseek.app/guide/citation-map) |
 | [Results & history](https://docs.paperseek.app/guide/results) | [Reviews · Experimental](https://docs.paperseek.app/guide/reviews) |
 | [Online accounts](https://docs.paperseek.app/online/account) | [Self-hosting & upgrades](https://docs.paperseek.app/self-hosting/) |
@@ -269,7 +269,7 @@ Web / CLI / HTTP / MCP
 - **`paperseek_community`** supplies SQLite, local artifacts, FastAPI, and CLI. A single `paperseek` wheel includes these three packages and the built Web UI.
 - **PaperSeek online** builds on the same packages and Vue sources, adding its own authentication and storage adapters. Shared fixes belong in Community.
 
-Community can run its API and embedded worker as one service. The online edition runs them as separate processes on the same application layer. See the [architecture and contribution notes](https://docs.paperseek.app/contributing#architecture) for execution and dependency boundaries.
+Community can run its API and embedded worker as one service. The online edition runs them as separate processes on the same application layer. See the [architecture and contribution notes](https://docs.paperseek.app/developers/contributing#architecture) for execution and dependency boundaries.
 
 Contributions are welcome: improve docs, add a reproducible issue, test a source integration, or propose a focused change. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and checks, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations, and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
