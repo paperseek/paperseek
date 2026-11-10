@@ -17,7 +17,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 
-from paperseek_app.errors import ActiveRunExists, IdempotencyConflict
+from paperseek_app.errors import IdempotencyConflict
 from paperseek_app.execution import WorkflowExecution
 from paperseek_app.services import RunQueryService, RunSubmissionService
 from paperseek_community.api import create_app
@@ -93,7 +93,7 @@ class M4SubmissionProductEntryContractTest(unittest.TestCase):
                 {"subject", "idempotency_key", "request_digest", "run_id", "created_at"},
             )
 
-    def test_submission_is_atomic_idempotent_and_enforces_one_public_active_run(self) -> None:
+    def test_submission_is_atomic_idempotent_and_queues_beside_an_active_run(self) -> None:
         first = self.submission_service.submit_run(
             subject="community",
             idempotency_key="submit-1",
@@ -120,15 +120,15 @@ class M4SubmissionProductEntryContractTest(unittest.TestCase):
                 question="Different request",
                 source="arxiv",
             )
-        with self.assertRaises(ActiveRunExists) as raised:
-            self.submission_service.submit_run(
-                subject="community",
-                idempotency_key="submit-2",
-                request_digest="digest-2",
-                question="Another request",
-                source="arxiv",
-            )
-        self.assertEqual(raised.exception.run_id, first.id)
+        second = self.submission_service.submit_run(
+            subject="community",
+            idempotency_key="submit-2",
+            request_digest="digest-2",
+            question="Another request",
+            source="arxiv",
+        )
+        self.assertNotEqual(second.id, first.id)
+        self.assertEqual(second.status, "queued")
 
     def test_browser_credentials_are_encrypted_outside_run_state_and_deleted(self) -> None:
         run = self.submission_service.create_run("Credential boundary", "openalex")

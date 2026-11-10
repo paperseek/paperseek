@@ -1,1 +1,0 @@
-import{Y as e,ft as t,nt as n}from"./state-DxjFosMJ.js";import{t as r}from"./SavedRecordList-CKLQZMUq.js";var i=n({__name:`ReviewList`,setup(n){return(n,i)=>(t(),e(r,{module:`reviews`}))}});export{i as default};

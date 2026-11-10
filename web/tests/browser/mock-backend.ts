@@ -280,8 +280,6 @@ export async function mockBackend(page: Page, state: MockState = createState()):
     }
     if (path === "/runs" && method === "POST") {
       state.submissions.push(body as Json);
-      if (Object.values(state.runs).some((run) => ["queued", "running"].includes(run.status)))
-        return respond(route, { error: { code: "active_run_exists", message: "", request_id: "t", details: { run_id: Object.values(state.runs).find((run) => ["queued", "running"].includes(run.status))!.id } } }, 409);
       const created = runDetail("abababab-abab-4bab-8bab-abababababab", (body as Json).question, "queued", { queue: { ahead: 2, running: 1 } });
       state.runs[created.id] = created;
       return respond(route, created, 202);

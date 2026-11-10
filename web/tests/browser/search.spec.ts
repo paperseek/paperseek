@@ -62,16 +62,13 @@ test("first run without an LLM connection shows setup steps and blocks submissio
   await expect(page.getByRole("dialog", { name: "添加连接" })).toBeVisible();
 });
 
-test("an active run is announced with view and stop; Ctrl+Enter submits", async ({ page }) => {
+test("a running search does not block the next one; Ctrl+Enter submits", async ({ page }) => {
   const state = createState();
   state.runs[ids.running] = { ...state.runs[ids.done], id: ids.running, question: "Running search", status: "running", result_count: 0 };
   await open(page, "/search", state);
-  await expect(page.getByText("已有检索正在运行")).toBeVisible();
   await page.getByLabel("研究问题").fill("next question");
-  await expect(page.getByRole("button", { name: "开始检索" })).toBeDisabled();
-  await page.getByRole("button", { name: "停止" }).click();
   await expect(page.getByText("已有检索正在运行")).toHaveCount(0);
-  expect(requestsTo(state, "POST", `/runs/${ids.running}/cancel`)).toHaveLength(1);
+  await expect(page.getByRole("button", { name: "开始检索" })).toBeEnabled();
   await page.getByLabel("研究问题").press("Control+Enter");
   await expect(page).toHaveURL(/\/runs\/abababab/);
 });

@@ -9,7 +9,6 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from paperseek_app.errors import (
-    ActiveRunExists,
     IdempotencyConflict,
     RunNotFound,
     RunOwnershipLost,
@@ -99,9 +98,6 @@ class SQLiteRunLeaseRepository(SQLiteRepositoryBase):
                         raise IdempotencyConflict("The idempotency key belongs to another request.")
                     run_id = prior["run_id"]
                 else:
-                    active = self._active_run_for_subject(connection, subject)
-                    if active is not None:
-                        raise ActiveRunExists(active)
                     run_id = self._insert_run(
                         connection,
                         question=question,
@@ -154,28 +150,8 @@ class SQLiteRunLeaseRepository(SQLiteRepositoryBase):
                     if prior["request_digest"] != request_digest:
                         raise IdempotencyConflict("The idempotency key belongs to another request.") from exc
                     return self.get_run(prior["run_id"])
-                active = self._active_run_for_subject(connection, subject)
-                if active is not None:
-                    raise ActiveRunExists(active) from exc
             raise
         return self.get_run(run_id)
-
-    @staticmethod
-    def _active_run_for_subject(connection: Connection, subject: str) -> str | None:
-        row = connection.execute(
-            text(
-                """
-                SELECT id FROM runs
-                WHERE owner_subject = :subject
-                  AND deleted_at IS NULL
-                  AND status IN ('queued', 'running', 'cancelling')
-                ORDER BY created_at, id
-                LIMIT 1
-                """
-            ),
-            {"subject": subject},
-        ).mappings().one_or_none()
-        return row["id"] if row is not None else None
 
     @classmethod
     def _insert_run(

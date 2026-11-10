@@ -135,7 +135,8 @@ def register_review_routes(app: FastAPI, *, database: Path, settings: CommunityD
                 or url.query or url.fragment or not route["model"]):
             raise ReviewError("review_model_configuration_invalid", status=422)
         temporary = {"llm": request.credential.model_dump()}
-        if not resolve_model_credentials(settings, route, {}, temporary)["llm"]:
+        # A local Ollama server takes no key, as in search.
+        if route["provider"] != "ollama" and not resolve_model_credentials(settings, route, {}, temporary)["llm"]:
             raise ReviewError("review_credential_required", status=422)
         return request, route, temporary
 

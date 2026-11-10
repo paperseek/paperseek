@@ -6,7 +6,6 @@ from pathlib import Path
 from fastapi import FastAPI, Header
 
 from paperseek_app.errors import (
-    ActiveRunExists,
     IdempotencyConflict,
     RunNotFound,
     RunStateError,
@@ -85,15 +84,6 @@ def register_run_submission_and_status_routes(
             ) from exc
         except IdempotencyConflict as exc:
             raise ApiError(409, "idempotency_conflict", "The idempotency key belongs to another request.") from exc
-        except ActiveRunExists as exc:
-            if uow.get_run(exc.run_id).kind == "review":
-                raise ApiError(409, "community_task_active", "A review task is already active.") from exc
-            raise ApiError(
-                409,
-                "active_run_exists",
-                "A run is already active.",
-                {"run_id": exc.run_id},
-            ) from exc
         finally:
             uow.close()
 
