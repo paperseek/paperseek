@@ -223,7 +223,7 @@ class WorkspaceSettingsStore:
             (json.dumps(defaults, sort_keys=True),),
         )
 
-    def defaults(self) -> dict[str, str]:
+    def defaults(self, deployment: CommunityDeploymentSettings | None = None) -> dict[str, str]:
         """Stored choices, falling back to the first saved connection of each kind."""
         stored = self._stored_defaults()
         rows = self._connection_rows()
@@ -233,7 +233,7 @@ class WorkspaceSettingsStore:
             value = stored.get(name, "")
             return value if value in ids[kind] else (ids[kind][0] if ids[kind] else "")
 
-        usable = [source["id"] for source in self.sources() if source["usable"]]
+        usable = [source["id"] for source in self.sources(deployment) if source["usable"]]
         source = stored.get("source", "")
         if source not in usable:
             source = "openalex" if "openalex" in usable else (usable[0] if usable else "")
@@ -248,7 +248,8 @@ class WorkspaceSettingsStore:
             "source": source,
         }
 
-    def save_defaults(self, request: DefaultsInput) -> dict[str, str]:
+    def save_defaults(self, request: DefaultsInput,
+                      deployment: CommunityDeploymentSettings | None = None) -> dict[str, str]:
         stored = self._stored_defaults()
         rows = {row["id"]: row["kind"] for row in self._connection_rows()}
         kinds = {"search_llm": "llm", "review_llm": "llm", "embedding": "embedding",
@@ -256,13 +257,13 @@ class WorkspaceSettingsStore:
         for name, value in request.model_dump(exclude_none=True).items():
             if name in kinds and value and rows.get(value) != kinds[name]:
                 raise SettingsError("connection_not_found", 404)
-            if name == "source" and value and not any(item["id"] == value and item["usable"] for item in self.sources()):
+            if name == "source" and value and not any(item["id"] == value and item["usable"] for item in self.sources(deployment)):
                 raise SettingsError("source_unavailable")
             stored[name] = value
         with closing(self._connect()) as connection:
             self._write_defaults(connection, stored)
             connection.commit()
-        return self.defaults()
+        return self.defaults(deployment)
 
     # -- data sources ------------------------------------------------------
     def _source_rows(self) -> dict[str, sqlite3.Row]:
@@ -393,7 +394,7 @@ class WorkspaceSettingsStore:
         return {
             "connections": [self._public_connection(row) for row in self._connection_rows()],
             "sources": self.sources(deployment),
-            "defaults": self.defaults(),
+            "defaults": self.defaults(deployment),
             "proxy": self.proxy(deployment),
         }
 

@@ -102,7 +102,7 @@ def register_settings_routes(
 
     @app.put("/api/v1/settings/defaults", response_model=DefaultsOutput)
     async def save_defaults(request: DefaultsInput) -> dict:
-        return await call(store.save_defaults, request)
+        return await call(store.save_defaults, request, settings)
 
     @app.put("/api/v1/settings/sources/{source_id}", status_code=204)
     async def save_source(source_id: str, request: SourceSettingsInput) -> Response:

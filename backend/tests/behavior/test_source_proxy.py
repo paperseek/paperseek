@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 
-from paperseek_app.settings import ProxySettingsInput, SettingsError
+from paperseek_app.settings import DefaultsInput, ProxySettingsInput, SettingsError
 from paperseek_community.composition import CommunityExecutionResolver
 from paperseek_community.credentials import EncryptedRunCredentialStore
 from paperseek_community.journal_tables import JournalTableStore
@@ -130,6 +130,13 @@ class SavedProxySettingsTest(unittest.TestCase):
         with self.assertRaises(SettingsError) as caught:
             self.store.save_proxy(ProxySettingsInput(urls=""), deployment)
         self.assertEqual(caught.exception.code, "proxy_set_by_environment")
+
+    def test_source_with_an_environment_key_can_be_the_default(self):
+        with patch.dict("os.environ", {"PAPERSEEK_WOS_API_KEY": "environment-key"}, clear=True):
+            deployment = CommunityDeploymentSettings.from_environment()
+        saved = self.store.save_defaults(DefaultsInput(source="wos"), deployment)
+        self.assertEqual(saved["source"], "wos")
+        self.assertEqual(self.store.snapshot(deployment)["defaults"]["source"], "wos")
 
 
 def proxy_factory(calls, response=None):

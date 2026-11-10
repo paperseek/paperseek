@@ -106,7 +106,7 @@ async def probe_source(
                 query = f"TS=({query})"
             await source.search(SourceSearchRequest(query=query, limit=1))
     except SourceError as exc:
-        code = f"http_{exc.status}" if exc.status else str(getattr(exc, "failure_kind", "") or "request_failed")
+        code = f"http_{exc.status}" if exc.status else (exc.failure_kind.value if exc.failure_kind else "request_failed")
         return {"ok": False, "latency_ms": int((time.perf_counter() - started) * 1000), "code": code}
     except Exception as exc:  # noqa: BLE001 - every failure is reported, never raised
         return {"ok": False, "latency_ms": int((time.perf_counter() - started) * 1000), "code": _probe_code(exc)}
