@@ -27,7 +27,7 @@ A typical client's configuration is:
 
 Ensure the client can find the installed executable. Supply model and source environment variables using the client's secret/environment configuration. Do not publish a client config containing real keys.
 
-The MCP process reads the same `PAPERSEEK_*` environment variables as the CLI. Values entered only in the Web form do not configure this separate process, and it does not automatically load `.env`. See [configuration](../reference/configuration.md). Run `paperseek doctor --json` in that environment before connecting; no Web server or PaperSeek account is required.
+The MCP process reads the same `PAPERSEEK_*` environment variables as the CLI. Model connections and source keys entered only in the Web form do not configure this separate process; the proxy saved in Settings does. It does not automatically load `.env`. See [configuration](../reference/configuration.md). Run `paperseek doctor --json` in that environment before connecting; no Web server or PaperSeek account is required.
 
 ## Available tools
 

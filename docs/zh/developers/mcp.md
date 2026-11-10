@@ -27,7 +27,7 @@ python -m pip install "paperseek-mcp==1.0.0b5"
 
 确保客户端能够找到已安装的命令。通过客户端的环境或密钥配置提供模型与数据源凭据，不要公开包含真实 Key 的配置文件。
 
-MCP 进程与 CLI 使用相同的 `PAPERSEEK_*` 环境变量。只在 Web 表单中填写的配置不会自动传给这个独立进程，它也不会自动加载 `.env`，详见[配置参考](../reference/configuration.md)。连接前可在相同环境运行 `paperseek doctor --json`，不需要启动 Web 服务或登录 PaperSeek 账户。
+MCP 进程与 CLI 使用相同的 `PAPERSEEK_*` 环境变量。只在 Web 表单中填写的模型连接和数据源密钥不会传给这个独立进程，设置中保存的代理则会生效；它也不会自动加载 `.env`，详见[配置参考](../reference/configuration.md)。连接前可在相同环境运行 `paperseek doctor --json`，不需要启动 Web 服务或登录 PaperSeek 账户。
 
 ## 可用工具
 
