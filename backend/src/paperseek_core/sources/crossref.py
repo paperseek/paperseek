@@ -21,7 +21,7 @@ from paperseek_core.sources.normalization import normalize_doi
 class CrossrefSource:
     name = "crossref"
     BASE_URL = "https://api.crossref.org/works"
-    SELECT = ",".join(("DOI", "title", "author", "published-print", "published-online", "issued", "container-title", "type", "is-referenced-by-count", "URL", "abstract", "ISSN", "ISBN"))
+    SELECT = ",".join(("DOI", "title", "author", "published-print", "published-online", "issued", "container-title", "type", "is-referenced-by-count", "URL", "abstract", "ISSN", "ISBN", "volume", "issue", "page"))
 
     def __init__(self, *, transport: AsyncHttpTransport, email: str = "") -> None:
         self.transport = transport

@@ -17,7 +17,7 @@ from paperseek_core.sources.paperhub import PaperHubSource
 
 # Venues worth an OpenReview title lookup: preprints and machine-learning conferences.
 _REVIEWED_VENUES = re.compile(
-    r"arxiv|corr|openreview|\b(iclr|neurips|nips|icml|colm|tmlr|corl|aistats|uai|emnlp|acl|naacl|coling|cvpr|iccv|"
+    r"arxiv|openreview|\b(corr|iclr|neurips|nips|icml|colm|tmlr|corl|aistats|uai|emnlp|acl|naacl|coling|cvpr|iccv|"
     r"eccv|aaai|ijcai|kdd|www|sigir|learning representations|neural information processing|machine learning)\b",
     re.I,
 )

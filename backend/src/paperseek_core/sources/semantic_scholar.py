@@ -149,7 +149,7 @@ class SemanticScholarSource:
         citation_count = int(item.get("citationCount") or 0)
         publication_types = [str(value) for value in item.get("publicationTypes") or [] if value]
         return PaperRecord(
-            uid=paper_id or f"CorpusId:{corpus_id}" or title,
+            uid=paper_id or (f"CorpusId:{corpus_id}" if corpus_id else title),
             title=title,
             types=publication_types,
             source_types=publication_types,
