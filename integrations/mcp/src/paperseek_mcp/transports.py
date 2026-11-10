@@ -45,7 +45,7 @@ class StaticTokenVerifier(TokenVerifier):
         self._resource = resource
 
     async def verify_token(self, token: str) -> AccessToken | None:
-        if not hmac.compare_digest(token, self._token):
+        if not hmac.compare_digest(token.encode("utf-8"), self._token.encode("utf-8")):
             return None
         return AccessToken(
             token=token,

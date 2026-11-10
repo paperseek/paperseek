@@ -40,7 +40,7 @@ def _call_application(operation: Callable[..., dict], **values: Any) -> dict[str
     except ValueError as exc:
         raise ToolError(
             "Invalid arguments or local configuration. Check the tool parameters "
-            "and run paperseek doctor --local."
+            "and run paperseek doctor --json."
         ) from exc
     except Exception as exc:
         logger.exception("MCP application operation failed: %s", operation.__name__)
