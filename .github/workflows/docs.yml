@@ -68,7 +68,7 @@ jobs:
         working-directory: web
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium || npx playwright install chromium
           npx playwright test --config playwright.docs.config.ts scrolling.spec.ts
 
       - name: Publish to gh-pages
