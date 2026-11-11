@@ -65,6 +65,7 @@ class RunExecutor:
         """
         stop = stop or asyncio.Event()
         running: set[asyncio.Task] = set()
+        claim_failing = False
 
         async def finish(lease) -> None:
             try:
@@ -80,9 +81,12 @@ class RunExecutor:
                 if not max_concurrent or len(running) < max_concurrent:
                     try:
                         lease = await self.claim()
+                        claim_failing = False
                     except Exception:
-                        # Retried after the poll interval below.
-                        logger.exception("Claiming the next run failed.")
+                        # Retried after the poll interval below; an outage is logged once, not on every poll.
+                        if not claim_failing:
+                            logger.exception("Claiming the next run failed; retrying.")
+                        claim_failing = True
                 if lease is not None:
                     running.add(asyncio.create_task(finish(lease)))
                     continue

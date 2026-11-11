@@ -184,7 +184,7 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record.source.source_title, "Journal of AI Governance")
         self.assertEqual(record.source.publish_year, 2023)
         self.assertEqual(record.abstract, "Crossref abstract.")
-        self.assertEqual(CrossrefSource._to_record({"title": ["Science &amp; Society"]}).title, "Science & Society")
+        self.assertEqual(CrossrefSource._to_record({"title": ["Science &amp;amp; Society"]}).title, "Science & Society")
         self.assertEqual(record.identifiers.issn, "1234-5678")
         self.assertEqual(record.citations[0].count, 9)
 
