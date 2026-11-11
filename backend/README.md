@@ -54,4 +54,4 @@ For Docker, separate workers, and 0.2 migration, see [self-hosting](https://docs
 
 The source distribution uses `paperseek_core` for research behavior, `paperseek_app` for use cases and ports, and `paperseek_community` for local adapters. Hosted consumes a fixed Community distribution. Common Vue sources are included for Hosted builds; installed Community serves the prebuilt assets.
 
-[Development guide](https://docs.paperseek.app/contributing) · [Report an issue](https://github.com/paperseek/paperseek/issues) · [Apache-2.0 license](https://github.com/paperseek/paperseek/blob/main/LICENSE)
+[Development guide](https://docs.paperseek.app/developers/contributing) · [Report an issue](https://github.com/paperseek/paperseek/issues) · [Apache-2.0 license](https://github.com/paperseek/paperseek/blob/main/LICENSE)

@@ -5,8 +5,10 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "README.md"
-      - "README.zh-CN.md"
+      - "*.md"
+      - ".markdownlint-cli2.jsonc"
+      - "scripts/check-docs.mjs"
+      - "backend/pyproject.toml"
       - "package.json"
       - "package-lock.json"
       - "web/package*.json"
@@ -17,8 +19,10 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "README.md"
-      - "README.zh-CN.md"
+      - "*.md"
+      - ".markdownlint-cli2.jsonc"
+      - "scripts/check-docs.mjs"
+      - "backend/pyproject.toml"
       - "package.json"
       - "package-lock.json"
       - "web/package*.json"
@@ -46,7 +50,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22.14.0"
           cache: npm
 
       - name: Install dependencies

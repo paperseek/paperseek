@@ -4,8 +4,8 @@ PaperSeek welcomes focused changes to source adapters, application services, dia
 
 ## Development setup
 
-See the [English development guide](https://docs.paperseek.app/contributing) or
-[中文开发指南](https://docs.paperseek.app/zh/contributing) for the repository map,
+See the [English development guide](https://docs.paperseek.app/developers/contributing) or
+[中文开发指南](https://docs.paperseek.app/zh/developers/contributing) for the repository map,
 shared frontend build, and documentation workflow.
 
 ```bash

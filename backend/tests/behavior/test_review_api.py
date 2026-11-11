@@ -206,8 +206,8 @@ class ReviewApiTest(unittest.TestCase):
         self.assertEqual(client.delete(f"{root}?version={review['version']}").status_code, 409)
         search = client.post("/api/v1/runs", headers={"Idempotency-Key": str(uuid4())}, json={
             "question": "Test search", "source": "openalex", "llm": ROUTE, "credentials": {"llm": {"api_key": "x"}}})
-        self.assertEqual(search.status_code, 409, search.text)
-        self.assertEqual(search.json()["error"]["code"], "community_task_active")
+        # A search queues beside the review task; only the same review stays single-task.
+        self.assertEqual(search.status_code, 202, search.text)
         cancelled = client.post(f"{root}/jobs/{job['id']}/cancel")
         self.assertEqual(cancelled.status_code, 202)
         self.assertEqual(cancelled.json()["status"], "cancelled")
@@ -273,3 +273,11 @@ class ReviewApiTest(unittest.TestCase):
                                json={"action": "prepare_outline", "expected_version": review["version"], "llm": ROUTE})
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["code"], "review_credential_required")
+
+    def test_local_ollama_route_starts_a_review_task_without_a_key(self):
+        client = self.client(worker=False)
+        review = self.create(client).json()
+        route = {"provider": "ollama", "api_type": "openai_chat", "base_url": "http://127.0.0.1:11434/v1", "model": "local"}
+        response = client.post(f"/api/v1/reviews/{review['id']}/jobs", headers={"Idempotency-Key": str(uuid4())},
+                               json={"action": "prepare_outline", "expected_version": review["version"], "llm": route})
+        self.assertEqual(response.status_code, 202, response.text)

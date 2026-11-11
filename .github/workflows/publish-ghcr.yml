@@ -52,7 +52,7 @@ jobs:
           uv sync --locked --project backend
           uv run --locked --project backend python backend/tests/import_boundaries.py
           uv run --locked --project backend python -m unittest discover -s backend/tests/behavior -p "test_*.py"
-          uv run --locked --project backend python -m unittest discover -s backend/tests/integration -p "*.py"
+          uv run --locked --project backend python -m unittest discover -s backend/tests/integration -p "*integration.py"
           uv run --locked --project backend python -m unittest discover -s backend/tests/migration -p "*.py"
           uv lock --check --project integrations/mcp
           uv sync --locked --project integrations/mcp

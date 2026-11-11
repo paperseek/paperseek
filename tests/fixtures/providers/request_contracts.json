@@ -26,7 +26,7 @@
       "rows": 25,
       "offset": 50,
       "order": "desc",
-      "select": "DOI,title,author,published-print,published-online,issued,container-title,type,is-referenced-by-count,URL,abstract,ISSN,ISBN",
+      "select": "DOI,title,author,published-print,published-online,issued,container-title,type,is-referenced-by-count,URL,abstract,ISSN,ISBN,volume,issue,page",
       "sort": "is-referenced-by-count",
       "mailto": "fixture@example.org"
     },
@@ -79,7 +79,7 @@
           "retmode": "json",
           "retmax": 1,
           "retstart": 1,
-          "sort": "pub+date",
+          "sort": "pub_date",
           "tool": "paperseek-fixture",
           "email": "fixture@example.org",
           "api_key": "fixture-pubmed-key"

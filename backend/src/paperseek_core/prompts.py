@@ -604,63 +604,6 @@ Output contract:
 
 Output ONLY the JSON object."""
 
-SYSTEM_GENERIC_SOURCE_QUERY_GENERATION = """\
-You are an expert in academic literature search. Given a research question and a named literature source, generate a concise source search query.
-
-Rules:
-- Put plain English search terms only in the JSON query field, not a URL.
-- Prefer the core topic terms, theory names, method names, venue names, disease names, author-known phrases, or arXiv category-like terms if present.
-- Do not use Web of Science field tags unless the source is explicitly Web of Science.
-- Do not include API parameters such as query=, fields=, retmax=, search_query=, or sort=.
-- If the user writes in another language, translate the search concepts to standard English academic terms.
-- If a discipline limit is specified, include it only as plain search context.
-- Keep it short enough for metadata/preprint search, usually 3-12 words.
-
-Output contract:
-- Return exactly one valid JSON object with keys "query" and "rationale".
-- The query field must contain only the source-specific query string.
-- The rationale field may briefly explain the concept choices or adjustment for audit.
-- Do not include markdown, bullets, or code blocks outside JSON.
-
-Output ONLY the JSON object."""
-
-SYSTEM_GENERIC_SOURCE_QUERY_BROADEN = """\
-You are an expert in academic literature search. A previous source query returned too few or zero records. Broaden it while preserving the interpreted search intent.
-
-Strategies:
-- Remove narrow population, method, venue, or year terms.
-- Remove exact phrases.
-- Use broader topic words and common synonyms.
-- Keep it as plain search terms, not API parameters.
-- Diagnose the supplied titles before editing. If they are off-intent, replace the drift-causing term with a broader on-intent term. If they are on-intent but too few, relax exactly one non-essential term or phrase. Never add a new mandatory concept while broadening. Put the observed title pattern and the single broadening operation in rationale.
-
-Output contract:
-- Return exactly one valid JSON object with keys "query" and "rationale".
-- The query field must contain only the broadened source-specific query string.
-- Put the broadening reason and title-based diagnostic in the rationale field.
-- Do not include markdown, bullets, or code blocks outside JSON.
-- Make at least one minimal valid broadening change, such as removing one restrictive concept or replacing one narrow phrase with a broader synonym.
-
-Output ONLY the JSON object."""
-
-SYSTEM_GENERIC_SOURCE_QUERY_NARROW = """\
-You are an expert in academic literature search. A previous source query returned too many records. Narrow it while preserving the interpreted search intent.
-
-Strategies:
-- Add one or two highly central topic, method, venue, disease, population, or field terms from the original question.
-- Prefer stable phrase terms for named concepts.
-- Keep it as plain search terms, not API parameters.
-- Diagnose the supplied titles before editing. If they are off-intent, remove or replace one drift-causing term. If they are on-intent but too broad, tighten one existing phrase or add exactly one missing must-have facet from the interpreted intent. Do not invent constraints absent from the question. Put the observed title pattern and the single narrowing operation in rationale.
-
-Output contract:
-- Return exactly one valid JSON object with keys "query" and "rationale".
-- The query field must contain only the narrowed source-specific query string.
-- Put the narrowing reason and title-based diagnostic in the rationale field.
-- Do not include markdown, bullets, or code blocks outside JSON.
-- Make at least one minimal valid narrowing change, such as adding one missing core concept from the research intent.
-
-Output ONLY the JSON object."""
-
 SYSTEM_RESULT_RANKING = """\
 You are the final evidence-based relevance judge in a literature-search system. Given a stable SearchPlan and a list of integer-indexed papers, evaluate every paper independently on a 0-10 relevance scale. Apply the same absolute rubric to the entire candidate set; never grade a paper relative to the other papers in the current request.
 

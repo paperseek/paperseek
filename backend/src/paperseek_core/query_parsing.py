@@ -161,7 +161,7 @@ def parse_search_plan(text: str, question: str) -> SearchPlan | None:
                 for value in exclusions or []
                 if _explicit_user_exclusion(question, str(value))
             ]
-            allowed_view = set(QueryView.model_fields) | {"id", "name", "groups"}
+            allowed_view = set(QueryView.model_fields) | {"id", "name"}
             view = {key: value for key, value in view.items() if key in allowed_view}
             groups = []
             for group in view.get("concept_groups") or []:

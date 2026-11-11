@@ -122,7 +122,7 @@ function analysisRecord(item: Analysis) {
             <td class="r num">{{ item.paper_count.toLocaleString() }}</td>
             <td><RouterLink class="link muted" :to="`/runs/${item.source_run_id}/results`">{{ u("viewSearch") }}</RouterLink></td>
             <td class="num muted">{{ short(item.created_at) }}</td>
-            <td><RecordMenu module="bibliometrics" :record="analysisRecord(item)" @changed="load()" /></td>
+            <td><RecordMenu module="bibliometrics" :record="analysisRecord(item)" /></td>
           </tr>
         </tbody>
       </table>
@@ -143,7 +143,7 @@ function analysisRecord(item: Analysis) {
             </td>
             <td><span class="badge badge-outline muted"><Icon v-if="reviewStatus(item).icon" :name="reviewStatus(item).icon!" />{{ reviewStatus(item).label }}</span></td>
             <td class="num muted">{{ short(item.updated_at) }}</td>
-            <td><RecordMenu module="reviews" :record="reviewRecord(item)" @changed="load()" /></td>
+            <td><RecordMenu module="reviews" :record="reviewRecord(item)" /></td>
           </tr>
         </tbody>
       </table>

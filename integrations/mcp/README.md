@@ -27,6 +27,6 @@ The legacy SSE transport exists only for clients that have not migrated to Strea
 
 The local database defaults to `~/.paperseek/paperseek.db`. Override it with `--database` or `PAPERSEEK_DATABASE`.
 
-See the [MCP guide](https://docs.paperseek.app/integrations/mcp) for client configuration, the nine tools, polling, pagination, and troubleshooting. Provider credentials come from the MCP process environment, as with the CLI; run `paperseek doctor --json` in that environment first.
+See the [MCP guide](https://docs.paperseek.app/developers/mcp) for client configuration, the nine tools, polling, pagination, and troubleshooting. Provider credentials come from the MCP process environment, as with the CLI; run `paperseek doctor --json` in that environment first.
 
 HTTP is a private, shared Community workspace. `PAPERSEEK_MCP_SERVICE_TOKEN` enables a pre-shared Bearer token, not OAuth login or per-user isolation. Non-loopback bindings also require an HTTPS public URL and explicit Host/Origin allowlists. Prefer stdio for local agents.

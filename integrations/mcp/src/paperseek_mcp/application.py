@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from paperseek_app.execution import WorkflowExecution
-from paperseek_app.models import RunStatus
+from paperseek_app.models import RunDetail, RunStatus
 from paperseek_app.services import (
     RunExecutionService,
     RunQueryService,
@@ -20,6 +20,7 @@ from paperseek_community.journal_tables import JournalTableStore
 from paperseek_community.credentials import EncryptedRunCredentialStore
 from paperseek_community.persistence import SQLiteRunUnitOfWork, migrate_database
 from paperseek_community.settings import CommunityDeploymentSettings
+from paperseek_community.workspace_settings import WorkspaceSettingsStore
 from paperseek_app.submission import RunSubmission, prepare_run_submission
 from paperseek_app.source_catalog import (
     SOURCE_BY_ID,
@@ -52,9 +53,12 @@ class CommunityMCPApplication:
         migrate_database(self.database)
         self.settings = deployment_settings or CommunityDeploymentSettings.from_environment()
         self.credentials = credential_store or EncryptedRunCredentialStore(self.database)
+        # The proxy saved in Settings applies here as it does to the CLI and the Web server.
+        workspace = WorkspaceSettingsStore(self.database, self.credentials)
         self.execution_resolver = execution_resolver or CommunityExecutionResolver(
             self.settings,
             self.credentials,
+            proxy=lambda: workspace.proxy_policy(self.settings),
             journal_tables=JournalTableStore(self.database.parent),
         )
 
@@ -68,18 +72,12 @@ class CommunityMCPApplication:
         )
         stop = asyncio.Event()
 
-        async def work() -> None:
-            while not stop.is_set():
-                detail = await executor.run_once()
-                if detail is not None and detail.status in TERMINAL_STATUSES:
-                    self.credentials.delete(detail.id)
-                if detail is None:
-                    try:
-                        await asyncio.wait_for(stop.wait(), timeout=0.05)
-                    except TimeoutError:
-                        pass
+        async def finished(detail: RunDetail) -> None:
+            if detail.status in TERMINAL_STATUSES:
+                await asyncio.to_thread(self.credentials.delete, detail.id)
 
-        worker_task = asyncio.create_task(work())
+        worker_task = asyncio.create_task(executor.serve(
+            max_concurrent=self.settings.max_concurrent_runs, poll_seconds=0.05, stop=stop, on_finished=finished))
         try:
             yield
         finally:

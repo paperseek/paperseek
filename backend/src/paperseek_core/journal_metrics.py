@@ -26,10 +26,9 @@ import csv
 import io
 import re
 import unicodedata
-from typing import Any, Iterable, Literal
+from typing import Any, Iterable
 
 PLATFORMS = ("cas", "jcr", "ccf", "cn_core")
-Platform = Literal["cas", "jcr", "ccf", "cn_core"]
 
 _SHOWJCR = ("https://raw.githubusercontent.com/hitfyd/ShowJCR/master/"
             "%E4%B8%AD%E7%A7%91%E9%99%A2%E5%88%86%E5%8C%BA%E8%A1%A8%E5%8F%8AJCR%E5%8E%9F%E5%A7%8B%E6%95%B0%E6%8D%AE%E6%96%87%E4%BB%B6/")

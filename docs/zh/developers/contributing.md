@@ -38,7 +38,7 @@
 
 Vue 3 + TypeScript 页面通过 `/api/v1` 工作；OpenAPI 生成脚本同时产生 API 类型和模型预设。修改后端契约时，需要同步生成前端表示。
 
-各版本的变化见[更新日志](../changelog.md)，已有本地安装请按[升级指南](../self-hosting/upgrade.md)迁移。新模块的文件职责和验证入口见[工作区维护说明（英文）](../../developers/architecture.md)。
+各版本的变化见[更新日志](../changelog.md)，已有本地安装请按[升级指南](../self-hosting/upgrade.md)迁移。新模块的文件职责和验证入口见[工作区维护说明](architecture.md)。
 
 ## 开发环境
 

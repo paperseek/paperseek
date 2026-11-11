@@ -1,7 +1,6 @@
 .git
 .github
 .cutover-*
-.cutover-tmp
 .venv
 venv
 env
@@ -23,9 +22,6 @@ web/dist
 !.env.example
 .DS_Store
 Thumbs.db
-paperseek
-paperseek_core
-skills
 tests
 docs
 

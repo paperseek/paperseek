@@ -54,7 +54,7 @@ class PubMedSource:
                 "retmode": "json",
                 "retmax": page_size,
                 "retstart": max(0, (int(request.page or 1) - 1) * page_size),
-                "sort": "pub+date" if request.lane == "recent" else "relevance",
+                "sort": "pub_date" if request.lane == "recent" else "relevance",
             },
             query,
         )

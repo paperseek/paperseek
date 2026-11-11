@@ -14,7 +14,8 @@ import FieldSelector from "./FieldSelector.vue";
 import { applyDefaults, type PreRankingMode } from "./search-draft";
 import { useSearchConfiguration } from "./use-search-configuration";
 
-const props = withDefaults(defineProps<{ submissionEnabled?: boolean }>(), { submissionEnabled: true });
+// singleRun: the deployment accepts one active search at a time, so an active one blocks the form.
+const props = withDefaults(defineProps<{ submissionEnabled?: boolean; singleRun?: boolean }>(), { submissionEnabled: true });
 const router = useRouter();
 const { t, sourceName } = useLocale();
 const u = useUi();
@@ -33,7 +34,7 @@ onMounted(async () => {
   await loadSettings(true);
   if (workspaceSettings.defaults) applyDefaults(workspaceSettings.defaults);
   if (!connectionById(form.llmConnection)) form.llmConnection = workspaceSettings.defaults?.search_llm || "";
-  void findActiveRun();
+  if (props.singleRun) void findActiveRun();
 });
 async function findActiveRun() {
   const run = runState.run;

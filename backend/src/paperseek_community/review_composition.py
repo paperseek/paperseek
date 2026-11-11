@@ -26,7 +26,7 @@ class CommunityReviewResolver:
     def __call__(self, run: RunDetail, cancellation: CancellationToken) -> ReviewExecution:
         route = resolve_llm_route(self.settings, dict(run.config_snapshot.get("llm") or {}))
         key = resolve_model_credentials(self.settings, route, {}, self.credentials.resolve(run.id))["llm"]
-        if not key:
+        if not key and route["provider"] != "ollama":
             raise ReviewError("review_credential_required", status=422)
         client = create_http_client([route], self.proxy())
         return ReviewExecution(

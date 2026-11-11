@@ -21,7 +21,7 @@ Use `paperseek <command> --help` for the installed command's options.
 paperseek search "How does open-source funding affect maintenance?" --source openalex --search-budget medium --output json
 ```
 
-Supported source IDs: `openalex`, `arxiv`, `crossref`, `semanticscholar`, `pubmed`, `wos`, `googlescholar`, and `paperhub`.
+Supported source IDs: `openalex`, `arxiv`, `crossref`, `semanticscholar`, `pubmed`, `wos`, `googlescholar`, `paperhub`, `wanfang`, `nssd`, and `yiigle`.
 
 Budgets are `fast`, `medium`, `high`, and `max`. Use `--field-id` for supported source fields, `--field-hint` for a textual scope, and `--citation-enabled` or `--no-citation-enabled` to select citation expansion where supported.
 

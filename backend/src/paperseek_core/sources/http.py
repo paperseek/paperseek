@@ -10,7 +10,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import httpx
 
 from paperseek_core.execution import RequestContext
-from paperseek_core.http_retry import TRANSIENT_STATUSES, cancellable_request, failure_details, request_with_retries, wait_for_retry
+from paperseek_core.http_retry import TRANSIENT_STATUSES, cancellable_request, failure_details, request_with_retries
 from paperseek_core.sources.contracts import SourceError, SourceFailureKind
 from paperseek_core.sources.rate_limit import rate_limit_backoff, source_rate_limit
 
@@ -49,10 +49,6 @@ class AsyncHttpTransport:
         if self._owned_client and self._client is not None:
             await self._client.aclose()
             self._client = None
-
-    async def wait(self, seconds: float) -> None:
-        await wait_for_retry(seconds, self._context.cancellation,
-                             lambda delay: self._wait_with_context(delay, self._context, "source", "", 0))
 
     async def request(
         self,

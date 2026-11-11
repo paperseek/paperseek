@@ -32,8 +32,6 @@ class SQLiteReviewUnitOfWork(SQLiteReviewRepository, SQLiteRunUnitOfWork):
                     raise ReviewError("idempotency_conflict")
                 return self._get_run_in_transaction(connection, prior["run_id"])
             review = self._reserve_edit(connection, review_id, request.expected_version)
-            if self._active_run_for_subject(connection, "community"):
-                raise ReviewError("community_task_active")
             content = review.content
             if request.action != "prepare_outline":
                 if not content.outline or request.outline_revision != content.outline_revision:
