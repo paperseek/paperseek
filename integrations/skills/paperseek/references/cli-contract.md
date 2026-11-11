@@ -1,6 +1,6 @@
 # PaperSeek CLI Contract
 
-The v1.0.0-beta5 Community distribution exposes exactly six product commands:
+The v1.0.0-beta6 Community distribution exposes exactly six product commands:
 
 ```text
 paperseek search

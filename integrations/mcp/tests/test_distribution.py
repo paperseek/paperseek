@@ -8,8 +8,8 @@ import unittest
 
 MCP_ROOT = Path(__file__).resolve().parents[1]
 COMMUNITY_ROOT = MCP_ROOT.parents[1]
-VERSION = "1.0.0b5"
-RELEASE = "1.0.0-beta5"
+VERSION = "1.0.0b6"
+RELEASE = "1.0.0-beta6"
 SERVER_NAME = "io.github.paperseek/paperseek"
 
 

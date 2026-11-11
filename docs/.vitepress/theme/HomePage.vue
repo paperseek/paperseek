@@ -41,7 +41,7 @@ onBeforeUnmount(() => stripObserver?.disconnect())
       <HeroPainting />
       <div class="ps-hero-body ps-container">
         <div>
-          <a class="ps-release" :href="link('changelog')"><span class="ps-release-dot" />{{ t('Introducing PaperSeek 1.0.0-beta5', '认识 PaperSeek 1.0.0-beta5') }}<span aria-hidden="true">↗</span></a>
+          <a class="ps-release" :href="link('changelog')"><span class="ps-release-dot" />{{ t('Introducing PaperSeek 1.0.0-beta6', '认识 PaperSeek 1.0.0-beta6') }}<span aria-hidden="true">↗</span></a>
           <h1 id="hero-heading">{{ t('Follow the question.', '从问题出发，') }}<br>{{ t('Find the evidence.', '找到研究的线索。') }}</h1>
         </div>
         <div class="ps-hero-side">

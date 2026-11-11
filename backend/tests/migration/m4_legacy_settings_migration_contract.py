@@ -165,7 +165,7 @@ class M4LegacySettingsMigrationContract(unittest.TestCase):
             target = root / "paperseek-v0.3.env"
             source.write_text("LLM_API_KEY=legacy-secret\n", encoding="utf-8")
             target.write_text(
-                "PAPERSEEK_VERSION=1.0.0-beta5\nPAPERSEEK_WANFANG_API_KEY=wanfang\nPAPERSEEK_PROXY_URLS=http://proxy.example:80\n"
+                "PAPERSEEK_VERSION=1.0.0-beta6\nPAPERSEEK_WANFANG_API_KEY=wanfang\nPAPERSEEK_PROXY_URLS=http://proxy.example:80\n"
                 "PAPERSEEK_PROXY_SCOPE=models\nPAPERSEEK_MAX_CONCURRENT_RUNS=2\n",
                 encoding="utf-8",
             )
@@ -176,7 +176,7 @@ class M4LegacySettingsMigrationContract(unittest.TestCase):
             self.assertIn("PAPERSEEK_LLM_API_KEY", written)
             self.assertIn("PAPERSEEK_PROXY_URLS", written)
             # Docker Compose keeps its own variables in the same file.
-            self.assertIn('PAPERSEEK_VERSION="1.0.0-beta5"', written)
+            self.assertIn('PAPERSEEK_VERSION="1.0.0-beta6"', written)
 
     def test_unknown_target_setting_is_rejected_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

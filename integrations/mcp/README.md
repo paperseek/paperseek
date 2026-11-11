@@ -7,7 +7,7 @@
 Install the matched release:
 
 ```text
-pip install paperseek-mcp==1.0.0b5
+pip install paperseek-mcp==1.0.0b6
 ```
 
 The default local transport is stdio:
