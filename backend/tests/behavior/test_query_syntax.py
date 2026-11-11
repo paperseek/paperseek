@@ -119,6 +119,16 @@ class QueryValidationCompilerContract(unittest.TestCase):
                 self.assertEqual(compiled.query, query)
                 self.assertTrue(query_compiler.validate_source_query(source, query).ok)
 
+    def test_broad_landscape_plan_may_cover_any_three_landscape_view_types(self) -> None:
+        payload = json.loads((ROOT / "tests" / "fixtures" / "llm" / "intent_search_plan.json").read_text(encoding="utf-8"))
+        payload["question_type"] = "broad_landscape"
+        for types, complete in ((("direct_terminology", "mechanism_method", "application_benchmark"), True),
+                                (("direct_terminology", "mechanism_method", "evidence_synthesis"), False)):
+            for view, view_type in zip(payload["query_views"], types, strict=True):
+                view["view_type"] = view_type
+            plan = parse_search_plan(json.dumps(payload), "question")
+            self.assertEqual(not plan.coverage_gaps(), complete)
+
     def test_validation_failure_codes_and_openalex_length_boundary_remain_exact(self) -> None:
         cases = (
             ("openalex", "", "missing query field in JSON response"),
@@ -174,6 +184,13 @@ class QueryValidationCompilerContract(unittest.TestCase):
                 result = query_compiler.validate_source_query(source, query)
                 self.assertFalse(result.ok)
                 self.assertEqual(result.issue, issue)
+
+        # Lowercase and/or/not are ordinary words, not operators.
+        for source in ("crossref", "googlescholar", "openalex"):
+            with self.subTest(source=source):
+                self.assertTrue(query_compiler.validate_source_query(source, "research and development or policy").ok)
+        self.assertEqual(query_compiler.source_safe_query("openalex", "research and development policy"),
+                         "research and development policy")
 
         long_query = " ".join(f"term{index}" for index in range(600))
         result = query_compiler.validate_source_query("openalex", long_query)

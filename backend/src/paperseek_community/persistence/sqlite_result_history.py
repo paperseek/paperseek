@@ -116,6 +116,8 @@ class SQLiteResultHistoryRepository(SQLiteRepositoryBase):
             )
             if updated.rowcount != 1:
                 raise RunOwnershipLost("The run lease was lost before completion.")
+            # The per-run key copies end with the run, in the same transaction as its terminal state.
+            connection.execute(text("DELETE FROM run_credentials WHERE run_id = :run_id"), {"run_id": lease.run_id})
         return self.get_run(lease.run_id)
 
     def fail_run(
@@ -170,6 +172,8 @@ class SQLiteResultHistoryRepository(SQLiteRepositoryBase):
             )
             if updated.rowcount != 1:
                 raise RunOwnershipLost("The run lease was lost before failure was committed.")
+            # The per-run key copies end with the run, in the same transaction as its terminal state.
+            connection.execute(text("DELETE FROM run_credentials WHERE run_id = :run_id"), {"run_id": lease.run_id})
         return self.get_run(lease.run_id)
 
 

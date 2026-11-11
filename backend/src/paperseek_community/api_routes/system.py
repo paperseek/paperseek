@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from paperseek_app.api_schemas import DiagnosticOutput, SourceListOutput
+from paperseek_app.build_info import VERSION
 from paperseek_app.settings import (
     SettingsError,
 )
@@ -27,7 +28,7 @@ def register_system_routes(
 ) -> None:
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok", "version": "1.0.0b5"}
+        return {"status": "ok", "version": VERSION}
 
     @app.get("/ready")
     def ready() -> dict:

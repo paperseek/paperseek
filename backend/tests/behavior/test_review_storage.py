@@ -268,15 +268,15 @@ class ReviewWorkflowTest(unittest.IsolatedAsyncioTestCase):
             expected_revision=saved.content.outline_revision, outline=outline))
         self.submit("write")
         finished = await self.executor.run_once()
-        self.assertEqual(finished.status.value, "completed_with_warnings")
+        # The manual text is kept as written and counts as current, so the review can complete.
+        self.assertEqual(finished.status.value, "completed")
         retained = next(s for s in self.store.get_review(saved.id).content.sections if s.section_id == "theme")
         self.assertEqual(retained.author, "user")
         self.assertEqual(retained.revision, 2)
-        self.assertTrue(retained.stale)
+        self.assertFalse(retained.stale)
         summary = self.store.summary(self.store.get_review(saved.id))
         self.assertEqual(summary.completed_sections, 5)
-        self.assertGreater(summary.pending_sections, 0)
-        self.assertEqual(summary.phase, "needs_attention")
+        self.assertEqual(summary.pending_sections, 0)
 
     async def test_bad_quote_preserves_other_papers_and_retry_only_processes_missing_evidence(self):
         original = self.llm.chat_json

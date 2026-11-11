@@ -243,6 +243,27 @@ class M2QueryLoopContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.retrieval_request.primary_page.raw_count, len(records))
         self.assertEqual(result.retrieval_request.primary_page.limit, source.requests[0].limit)
 
+    async def test_view_that_repeats_a_selected_view_is_not_searched(self) -> None:
+        plan = json.loads(read_text("llm/intent_search_plan.json"))
+        # The same terms in another order compile to a different query that finds the same papers.
+        again = json.loads(json.dumps(plan["query_views"][1]))
+        again["view_id"] = "audit_again"
+        for group in again["concept_groups"]:
+            group["terms"].reverse()
+        plan["query_views"].append(again)
+        records = golden_records()
+        source = SequenceSource(*(source_result(records, total=5) for _ in range(4)))
+        llm = FixtureLLM(json.dumps(plan), read_text("golden_search/llm_query.json"))
+
+        result = await QueryLoopPipeline(llm, source, RecordingObserver()).run(
+            QueryLoopRequest(question=QUESTION, budget=QueryLoopBudget(query_portfolio_max=4))
+        )
+
+        statuses = {item.view_id: item.status for item in result.query_portfolio}
+        self.assertEqual(sorted(statuses[name] for name in ("audit_mechanisms", "audit_again")),
+                         ["completed", "skipped_duplicate"])
+        self.assertEqual(len(source.requests), 4)
+
     async def test_broadened_query_and_iteration_memory_feed_retrieval_without_repeating_final_query(self) -> None:
         recovered = PaperRecord(uid="recovered", title="Recovered evidence", provider="openalex")
         source = SequenceSource(

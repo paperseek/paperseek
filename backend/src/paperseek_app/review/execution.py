@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from paperseek_app.errors import RunOwnershipLost, RunPersistenceError, RunStateError
 from paperseek_app.execution import CancellationScope, run_blocking
 from paperseek_app.leased_task import run_leased_task
-from paperseek_app.models import LeaseToken, PendingEvent, RunDetail, RunStatus
+from paperseek_app.models import LeaseToken, PendingEvent, RunDetail
 from paperseek_app.review.models import ReviewError
 from paperseek_app.review.ports import ReviewStore
 from paperseek_app.review.workflow import ReviewStageWorkflow
@@ -53,14 +53,11 @@ class ReviewExecutor:
             await run_leased_task(perform(), uow=self.runs.uow, lease=lease, scope=scope,
                                   poll_seconds=poll_seconds, lease_seconds=lease_seconds,
                                   heartbeat_seconds=heartbeat_seconds)
-        except asyncio.CancelledError:
-            detail = await run_blocking(self.runs.get_run, run.id)
-            if detail.status == RunStatus.CANCELLING:
-                return await run_blocking(self.runs.complete_cancel, lease)
-            if detail.status == RunStatus.CANCELLED:
-                return detail
-            raise
-        except RunOwnershipLost:
+        except (asyncio.CancelledError, RunOwnershipLost):
+            # A cancel request fences every leased write, so a write racing it surfaces as lost ownership.
+            cancelled = await run_blocking(self.runs.finish_requested_cancel, lease)
+            if cancelled is not None:
+                return cancelled
             raise
         except Exception as exc:
             events = []
@@ -69,6 +66,9 @@ class ReviewExecutor:
             while isinstance(failure, ExceptionGroup):
                 failure = failure.exceptions[0]
             if isinstance(failure, RunOwnershipLost):
+                cancelled = await run_blocking(self.runs.finish_requested_cancel, lease)
+                if cancelled is not None:
+                    return cancelled
                 raise failure from exc
             if isinstance(failure, ReviewError):
                 code = failure.code

@@ -10,7 +10,8 @@
         "sourceTitle": "Governance Journal",
         "publishYear": 2024,
         "volume": "5",
-        "issue": "2"
+        "issue": "2",
+        "pages": {"range": "61-102", "begin": "61", "end": "102", "count": 42}
       },
       "names": {
         "authors": [

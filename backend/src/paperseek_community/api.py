@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from paperseek_app.api_schemas import ErrorResponse
+from paperseek_app.build_info import VERSION
 from paperseek_app.execution import WorkflowExecution, run_blocking
 from paperseek_app.models import RunDetail
 from paperseek_app.review.execution import ReviewExecution, ReviewExecutor
@@ -137,7 +138,7 @@ def create_app(
 
     app = FastAPI(
         title="PaperSeek Community API",
-        version="1.0.0b5",
+        version=VERSION,
         responses={status: {"model": ErrorResponse} for status in (400, 404, 409, 422, 500, 503)},
         lifespan=lifespan,
     )

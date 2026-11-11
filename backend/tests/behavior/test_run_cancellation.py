@@ -280,6 +280,22 @@ class M3CancellationRequestLifecycleContractTest(unittest.IsolatedAsyncioTestCas
             ["run.cancelling", "run.cancelled"],
         )
 
+    async def test_write_fenced_by_a_cancel_request_finishes_the_cancellation(self) -> None:
+        run = self._create_run()
+        lease = self.uow.claim_run(run.id, "worker-a", timedelta(seconds=60))
+
+        async def fenced_lane(*_args, **_kwargs):
+            # The request lands between two status polls; a concurrent lane's write is then rejected.
+            await asyncio.to_thread(self.submission_service.request_cancel, run.id)
+            raise ExceptionGroup("lanes", [RunOwnershipLost("The run no longer accepts this lease.")])
+
+        with patch.object(self.execution_service, "_run_cancellable_workflow", fenced_lane):
+            detail = await self.execution_service.execute_claimed_workflow(
+                lease, llm=None, source=None, request=ResearchWorkflowRequest(question=run.question),
+                cancellation_poll_seconds=30,
+            )
+        self.assertEqual(detail.status, RunStatus.CANCELLED)
+
     async def test_cancel_api_acknowledges_queued_and_running_states(self) -> None:
         app = create_app(self.database)
         transport = httpx.ASGITransport(app=app)

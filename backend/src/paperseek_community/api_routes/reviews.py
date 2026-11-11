@@ -37,6 +37,7 @@ from paperseek_community.api_dependencies import (
     ApiError,
     content_response,
     drain_cleanup_jobs,
+    worker_stopped,
 )
 from paperseek_community.artifacts import FileArtifactStore
 from paperseek_community.credential_resolution import resolve_model_credentials
@@ -165,8 +166,7 @@ def register_review_routes(app: FastAPI, *, database: Path, settings: CommunityD
     @app.post("/api/v1/reviews/{review_id}/jobs", status_code=202, response_model=RunDetail)
     def submit_job(review_id: str, request: ReviewJobRequest,
                    idempotency_key: str = Header(alias="Idempotency-Key", min_length=1, max_length=200)):
-        task = app.state.worker_task
-        if not accept_jobs or (app.state.worker_required and task is not None and task.done()):
+        if not accept_jobs or worker_stopped(app):
             raise ApiError(503, "executor_unavailable", "The worker is unavailable.")
         with open_reviews(database, credentials) as store:
             review = store.get_review(review_id)

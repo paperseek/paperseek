@@ -176,6 +176,9 @@ class BibliometricAlgorithmsTest(unittest.TestCase):
         self.assertEqual(corpus.papers[0].citations, 0)
         self.assertTrue(corpus.papers[0].references_available)
         self.assertEqual(corpus.papers[0].institutions, ["Institute"])
+        # PubMed's "references" are errata and comments, not a reference list.
+        pubmed = PaperRecord(uid="PMID:1", title="Trial", provider="pubmed", raw={"references": []})
+        self.assertFalse(build_corpus([pubmed]).papers[0].references_available)
         self.assertNotIn("abstract_inverted_index", corpus.model_dump_json())
 
     def test_citation_alias_does_not_double_count_a_retrieved_paper(self):
@@ -368,6 +371,11 @@ class BibliometricApiTest(unittest.TestCase):
                 ).json(),
                 response.json(),
             )
+        # More parameter sets than the cache keeps are still answered.
+        for nodes in range(10, 32):
+            more = self.client.post(url, json={"kind": "keywords", "min_occurrences": 1, "max_nodes": nodes})
+            self.assertEqual(more.status_code, 200, more.text)
+        self.assertEqual(len(self.store.get_analysis(identity).networks), 20)
 
     def test_old_history_explicitly_reports_scored_subset(self):
         with self.store.engine.begin() as connection:

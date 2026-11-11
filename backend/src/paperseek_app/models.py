@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from paperseek_core.models import FinalPaperResult, ProgressPayload
+from paperseek_app.build_info import VERSION
 from paperseek_app.configuration import RunConfigurationSnapshot
 
 
@@ -64,7 +65,7 @@ class RunStatus(str, Enum):
 
 class RunVersions(AppModel):
     workflow_version: str = "m2.research-workflow.v2"
-    engine_version: str = "1.0.0b5"
+    engine_version: str = VERSION
     prompt_version: str = "m2.search-history.v2"
     config_schema_version: int = 1
     artifact_schema_version: int = 1

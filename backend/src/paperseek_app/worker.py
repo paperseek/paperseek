@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,8 @@ from paperseek_core.ports import CancellationToken
 
 if TYPE_CHECKING:
     from paperseek_app.review.execution import ReviewExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class RunExecutor:
@@ -55,21 +58,31 @@ class RunExecutor:
         stop: asyncio.Event | None = None,
         on_finished: Callable[[RunDetail], Awaitable[None]] | None = None,
     ) -> None:
-        """Claim queued runs and execute up to ``max_concurrent`` at once (0 means no limit)."""
+        """Claim queued runs and execute up to ``max_concurrent`` at once (0 means no limit).
+
+        One failing claim or task is logged and the loop carries on: a stopped loop would leave
+        every later submission queued forever. A run whose task failed is recovered once its lease expires.
+        """
         stop = stop or asyncio.Event()
         running: set[asyncio.Task] = set()
 
         async def finish(lease) -> None:
-            detail = await self.execute(lease)
-            if detail is not None and on_finished is not None:
-                await on_finished(detail)
+            try:
+                detail = await self.execute(lease)
+                if detail is not None and on_finished is not None:
+                    await on_finished(detail)
+            except Exception:
+                logger.exception("A claimed run stopped with an unexpected error.")
 
         try:
             while not stop.is_set():
-                if max_concurrent and len(running) >= max_concurrent:
-                    lease = None
-                else:
-                    lease = await self.claim()
+                lease = None
+                if not max_concurrent or len(running) < max_concurrent:
+                    try:
+                        lease = await self.claim()
+                    except Exception:
+                        # Retried after the poll interval below.
+                        logger.exception("Claiming the next run failed.")
                 if lease is not None:
                     running.add(asyncio.create_task(finish(lease)))
                     continue
@@ -77,9 +90,7 @@ class RunExecutor:
                 done, _ = await asyncio.wait(waiters, timeout=poll_seconds, return_when=asyncio.FIRST_COMPLETED)
                 for task in waiters - running:
                     task.cancel()
-                for task in done & running:
-                    running.discard(task)
-                    task.result()
+                running -= done
         finally:
             for task in running:
                 task.cancel()

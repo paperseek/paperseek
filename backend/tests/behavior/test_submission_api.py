@@ -140,7 +140,9 @@ class M4SubmissionProductEntryContractTest(unittest.TestCase):
         self.assertNotIn(secret, self.database.read_bytes().decode("latin-1"))
         self.assertNotIn("api_key", json.dumps(self.query_service.get_run(run.id).config_snapshot))
 
-        store.delete(run.id)
+        # The terminal transaction removes the keys; nothing depends on a later callback.
+        lease = self.uow.claim_run(run.id, "worker", timedelta(seconds=60))
+        self.uow.fail_run(lease, [], "research_workflow_failed")
         self.assertEqual(store.resolve(run.id), {})
 
     def test_run_and_credentials_become_visible_together_and_retries_do_not_overwrite(self) -> None:

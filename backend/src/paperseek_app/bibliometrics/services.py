@@ -183,8 +183,6 @@ class AnalysisService:
             return MetricNetwork.model_validate_json(
                 gzip.decompress(self.files.read(record.networks[key]))
             )
-        if len(record.networks) >= 20:
-            raise AnalysisError("analysis_network_cache_full", 422)
         try:
             result = network(self._corpus(record), request)
         except NetworkTooDense as exc:
@@ -194,8 +192,11 @@ class AnalysisService:
         )
         try:
             saved = self.store.cache_network(identity, key, artifact)
-        except Exception:
+        except Exception as exc:
             self.files.delete(artifact)
+            # A full cache only means this result is not kept; the analysis stays usable.
+            if isinstance(exc, AnalysisError) and exc.code == "analysis_network_cache_full":
+                return result
             raise
         if saved.id != artifact.id:
             self.files.delete(artifact)

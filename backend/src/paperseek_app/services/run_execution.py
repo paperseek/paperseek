@@ -274,7 +274,8 @@ class RunExecutionService:
                 poll_seconds=cancellation_poll_seconds, lease_seconds=lease_seconds,
                 heartbeat_seconds=heartbeat_seconds, flush_progress=observer.flush_progress,
             )
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, RunOwnershipLost):
+            # A cancel request fences every leased write, so a write racing it surfaces as lost ownership.
             cancelled = await run_blocking(self._finish_cancel_if_requested, lease)
             if cancelled is not None:
                 return cancelled
@@ -291,6 +292,10 @@ class RunExecutionService:
         scope: CancellationScope,
     ):
         return await execution.run(observer, scope)
+
+    def finish_requested_cancel(self, lease: LeaseToken) -> RunDetail | None:
+        """The cancelled run when cancellation was requested or has finished; otherwise nothing."""
+        return self._finish_cancel_if_requested(lease)
 
     def _finish_cancel_if_requested(
         self,
@@ -322,14 +327,17 @@ class RunExecutionService:
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
+        # The content digest keeps a step that reruns after a lost lease from colliding with the
+        # file its first attempt left behind: the same key can then carry different state.
         name_digest = hashlib.sha256(checkpoint.idempotency_key.encode("utf-8")).hexdigest()
+        content_digest = hashlib.sha256(content).hexdigest()[:16]
         artifact = self.artifact_store.put(
             ArtifactWrite(
                 run_id=lease.run_id,
                 kind="checkpoint",
                 role=ArtifactRole.RECOVERY,
                 visibility=ArtifactVisibility.INTERNAL,
-                filename=f"state-{name_digest}.json",
+                filename=f"state-{name_digest}-{content_digest}.json",
                 media_type="application/json",
                 schema_version=checkpoint.schema_version,
                 content=content,

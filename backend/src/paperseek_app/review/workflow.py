@@ -181,10 +181,18 @@ class ReviewStageWorkflow:
             if rewrite and previous.job_id == self.lease.run_id:
                 return
             if not rewrite and previous.author == "user":
+                # The user's own text is never overwritten. Writing the rest of the review accepts it
+                # as current, so an outline change no longer leaves the review waiting on this section.
+                if previous.stale:
+                    def keep(value: ReviewContent) -> None:
+                        for body in value.sections:
+                            if body.section_id == section.id:
+                                body.stale = False
+
+                    await self.persist(keep, "review.section.kept", {"section_id": section.id})
                 return
-            if not rewrite and not previous.stale and previous.validation != "needs_revision" and (
-                previous.author == "user" or previous.signature == signature
-            ):
+            if (not rewrite and not previous.stale and previous.validation != "needs_revision"
+                    and previous.signature == signature):
                 return
         themes = {s.id for s in content.outline.sections if s.kind == "theme"}
         summaries = [{"section_id": body.section_id, "paragraphs": [p.model_dump() for p in body.body.paragraphs]}

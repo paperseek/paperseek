@@ -1,5 +1,5 @@
 """Storage-independent review summary and edit rules shared by both editions."""
-from paperseek_app.review.models import OutlineSave, ReviewDetail, ReviewError, ReviewSummary, SectionSave
+from paperseek_app.review.models import OutlineSave, ReviewContent, ReviewDetail, ReviewError, ReviewSummary, SectionSave
 from paperseek_core.review.evidence import fingerprint, validate_body, validate_outline
 from paperseek_core.review.models import WrittenSection
 
@@ -7,7 +7,15 @@ from paperseek_core.review.models import WrittenSection
 class ReviewEdits:
     @staticmethod
     def summary(review: ReviewDetail) -> ReviewSummary:
-        content = review.content
+        return ReviewEdits.summarize(
+            review.content, review_id=review.id, display_title=review.display_title, updated_at=review.updated_at,
+            latest_status=review.latest_job.status.value if review.latest_job else "",
+            active=review.active_job is not None)
+
+    @staticmethod
+    def summarize(content: ReviewContent, *, review_id: str, display_title: str, updated_at,
+                  latest_status: str, active: bool) -> ReviewSummary:
+        """The list row for a review, from its document and the status of its latest task."""
         sections = content.outline.sections if content.outline else []
         current = {section.section_id: section for section in content.sections}
         complete = sum(section.id in current for section in sections)
@@ -20,14 +28,14 @@ class ReviewEdits:
             phase = "needs_attention"
         if content.consistency_findings:
             phase = "needs_attention"
-        if review.active_job:
+        if active:
             phase = "writing" if content.approved_outline_revision else "outline"
-        elif review.latest_job and review.latest_job.status.value in {"failed", "cancelled"}:
+        elif latest_status in {"failed", "cancelled"}:
             phase = "needs_attention"
-        return ReviewSummary(id=review.id, display_title=review.display_title, topic=content.topic, paper_count=len(content.papers),
+        return ReviewSummary(id=review_id, display_title=display_title, topic=content.topic, paper_count=len(content.papers),
                              abstract_count=sum(p.has_abstract for p in content.papers),
                              completed_sections=complete, pending_sections=pending, section_count=len(sections), phase=phase,
-                             active=review.active_job is not None, updated_at=review.updated_at)
+                             active=active, updated_at=updated_at)
 
     def save_outline(self, review_id: str, request: OutlineSave) -> ReviewDetail:
         with self._transaction() as connection:
