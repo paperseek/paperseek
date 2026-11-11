@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import Icon from "./Icon.vue";
 import { dismiss, toasts } from "./toast";
+import { useUi } from "../locales/ui";
+
+const u = useUi();
 </script>
 
 <template>
-  <section class="toasts" aria-live="polite" aria-label="Notifications">
+  <section class="toasts" aria-live="polite" :aria-label="u('notifications')">
     <div v-for="item in toasts" :key="item.id" class="toast" role="status">
       <Icon v-if="item.tone !== 'default'" :name="item.tone" />
       <span class="grow">{{ item.message }}</span>

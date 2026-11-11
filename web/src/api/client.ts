@@ -1,11 +1,8 @@
 import type {
   CitationMap,
-  DiagnosticResult,
-  DiagnosticSubmission,
   ErrorResponse,
   DeletionReceipt,
   HistoryPage,
-  PaperResult,
   ResultPage,
   RunDetail,
   RunAudit,
@@ -87,14 +84,6 @@ export const api = {
     return (await json<{ sources: SourceDescriptor[] }>("/api/v1/sources")).sources;
   },
 
-  diagnostics(payload: DiagnosticSubmission): Promise<DiagnosticResult> {
-    return json<DiagnosticResult>("/api/v1/diagnostics", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  },
-
   submit(payload: SearchSubmission, idempotencyKey: string): Promise<RunDetail> {
     return json<RunDetail>("/api/v1/runs", {
       method: "POST",
@@ -126,10 +115,6 @@ export const api = {
     if (options.sort && options.sort !== "rank") params.set("sort", options.sort);
     const suffix = params.size ? `?${params.toString()}` : "";
     return json<ResultPage>(`/api/v1/runs/${runId}/results${suffix}`, { signal });
-  },
-
-  async results(runId: string, signal?: AbortSignal): Promise<PaperResult[]> {
-    return (await this.resultPage(runId, {}, signal)).results || [];
   },
 
   citationMap(runId: string, signal?: AbortSignal): Promise<CitationMap> {
@@ -192,10 +177,6 @@ export const api = {
       headers: { "Content-Type": "text/csv" },
       body: file,
     });
-  },
-
-  logUrl(runId: string): string {
-    return `${apiBase}/api/v1/runs/${runId}/logs`;
   },
 
   events(runId: string, afterSequence: number, onEvent: (event: RunEvent) => void, signal?: AbortSignal): Promise<void> {

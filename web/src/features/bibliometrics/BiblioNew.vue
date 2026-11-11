@@ -60,7 +60,7 @@ async function create() {
       <div class="cf">
         <RouterLink class="btn btn-ghost btn-sm" :to="listPaths.bibliometrics">{{ u("cancel") }}</RouterLink>
         <div class="row" style="gap: 12px">
-          <slot name="cost" />
+          <slot name="cost" :source-run="source" />
           <button class="btn btn-sm" type="submit" :disabled="!submissionEnabled || !source || busy"><Icon v-if="busy" name="loader" />{{ busy ? u("creating") : u("startAnalysis") }}</button>
         </div>
       </div>

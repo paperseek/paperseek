@@ -1,5 +1,6 @@
 // Regenerates the README screenshots from the real UI against the in-memory API:
-//   node tests/browser/run.mjs --config playwright.docs.config.ts
+//   node tests/browser/run.mjs --config playwright.docs.config.ts screenshots.spec.ts
+// Name the file: scrolling.spec.ts in this folder needs the documentation site instead.
 // The papers below are illustrative, not real publications.
 import { test } from "@playwright/test";
 import { createState, ids, paper } from "../browser/mock-backend";

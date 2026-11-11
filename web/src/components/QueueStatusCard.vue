@@ -5,13 +5,14 @@ import type { RunDetail } from "../api/types";
 import Icon from "./Icon.vue";
 import { useUi } from "../locales/ui";
 
-const props = defineProps<{ run: RunDetail; busy?: boolean; cancelLabel?: string }>();
+// poll: refresh the queue position from the search-run endpoint. A caller with its own event stream turns it off.
+const props = withDefaults(defineProps<{ run: RunDetail; busy?: boolean; cancelLabel?: string; poll?: boolean }>(), { poll: true });
 const emit = defineEmits<{ cancel: []; update: [run: RunDetail] }>();
 const u = useUi();
 const snapshot = ref(props.run);
 const disconnected = ref(false);
 const now = ref(Date.now());
-const queue = computed(() => snapshot.value.queue);
+const queue = computed(() => (props.poll ? snapshot.value : props.run).queue);
 const waited = computed(() => {
   const seconds = Math.max(0, Math.floor((now.value - Date.parse(props.run.created_at)) / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -28,7 +29,7 @@ watch([() => props.run.id, () => props.run.status], ([id, status]) => {
   stop();
   snapshot.value = props.run;
   disconnected.value = false;
-  if (status !== "queued") return;
+  if (status !== "queued" || !props.poll) return;
   const current = new AbortController();
   controller = current;
   async function poll() {

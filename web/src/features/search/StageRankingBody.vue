@@ -7,7 +7,7 @@ import type { RunAudit, RunEvent } from "../../api/types";
 import { useLocale } from "../../locales";
 import { localizedFailure, progressRows } from "./workflow-format";
 
-type StepStatus = "pending" | "current" | "done" | "degraded" | "failed" | "skipped";
+type StepStatus = "current" | "done" | "degraded" | "failed" | "skipped";
 
 interface StepRow {
   id: string;
@@ -190,7 +190,7 @@ const rankingSteps = computed<StepRow[]>(() => {
 });
 
 function stepIcon(status: StepStatus): IconName {
-  return ({ done: "ok", current: "loader", failed: "fail", degraded: "warn", skipped: "circle-minus", pending: "circle-minus" } as const)[status];
+  return ({ done: "ok", current: "loader", failed: "fail", degraded: "warn", skipped: "circle-minus" } as const)[status];
 }
 
 function stepStatusText(status: StepStatus): string {
@@ -222,7 +222,7 @@ const recoveryJson = computed(() => JSON.stringify({
       </div>
       <ol v-if="rankingSteps.length" class="list">
         <li v-for="step in rankingSteps" :key="step.id" class="list-row" style="padding-left: 0; flex-wrap: wrap">
-          <Icon :name="stepIcon(step.status)" :class="{ muted: step.status === 'skipped' || step.status === 'pending' }" />
+          <Icon :name="stepIcon(step.status)" :class="{ muted: step.status === 'skipped' }" />
           <span class="grow sm" :class="{ medium: step.status === 'current' }">{{ t(step.id) }}</span>
           <span class="sm num" :class="{ muted: step.status !== 'current' }">{{ step.detail || stepStatusText(step.status) }}</span>
           <span v-if="step.progress && step.progress.total" class="progress thin" style="flex-basis: 100%; margin-left: 26px" role="progressbar" :aria-valuenow="step.progress.current" :aria-valuemax="step.progress.total"><span :style="{ width: `${Math.min(100, (step.progress.current / step.progress.total) * 100)}%` }"></span></span>

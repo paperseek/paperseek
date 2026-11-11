@@ -40,7 +40,16 @@ function toggle(key: StageKey) {
 }
 
 const now = ref(Date.now());
-const timer = setInterval(() => (now.value = Date.now()), 1000);
+// The clock only ticks while a stage is running; a finished run shows fixed durations.
+const ticking = computed(() => !terminal.value && stages.some((key) => runState.stages[key] === "active"));
+let timer: ReturnType<typeof setInterval> | undefined;
+watch(ticking, (value) => {
+  clearInterval(timer);
+  timer = undefined;
+  if (!value) return;
+  now.value = Date.now();
+  timer = setInterval(() => (now.value = Date.now()), 1000);
+}, { immediate: true });
 onBeforeUnmount(() => clearInterval(timer));
 function clock(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -54,9 +63,14 @@ function elapsed(key: StageKey): string {
   return next ? clock(Math.max(0, Math.floor((next - started) / 1000))) : "";
 }
 
-function eventsFor(key: StageKey) {
-  return runState.events.filter((event) => eventStage(event) === key);
-}
+const stageEvents = computed(() => {
+  const lists: Record<StageKey, typeof runState.events> = { query: [], search: [], ranking: [], results: [] };
+  for (const event of runState.events) {
+    const key = eventStage(event);
+    if (key) lists[key].push(event);
+  }
+  return lists;
+});
 function lastPayload(prefix: string): Record<string, unknown> | null {
   for (let index = runState.events.length - 1; index >= 0; index -= 1) {
     if (runState.events[index].event_type.startsWith(prefix)) return runState.events[index].payload || {};
@@ -133,10 +147,10 @@ watchEffect(() => {
         <Icon name="chevron-down" class="muted" :style="{ transform: isOpen(key) ? 'rotate(180deg)' : undefined }" />
       </summary>
       <div class="stack" style="gap: 12px; padding: 4px 16px 16px 52px">
-        <StageQueryBody v-if="key === 'query'" :events="eventsFor('query')" :source="runState.run?.source || ''" />
-        <StageSearchBody v-else-if="key === 'search'" :events="eventsFor('search')" :audit="runState.audit" :stage-active="runState.stages.search === 'active' && !terminal" />
+        <StageQueryBody v-if="key === 'query'" :events="stageEvents.query" :source="runState.run?.source || ''" />
+        <StageSearchBody v-else-if="key === 'search'" :events="stageEvents.search" :audit="runState.audit" :stage-active="runState.stages.search === 'active' && !terminal" />
         <StageRankingBody v-else-if="key === 'ranking'" :events="runState.events" :audit="runState.audit" />
-        <StageResultsBody v-else :run="runState.run" :events="eventsFor('results')" />
+        <StageResultsBody v-else :run="runState.run" :events="stageEvents.results" />
         <p v-if="cancelled && runState.stages[key] !== 'complete'" class="help">{{ t("stageCancelledNote") }}</p>
         <div v-if="runState.stages[key] === 'failed'" class="row" style="margin-left: -12px">
           <button class="btn btn-ghost btn-sm" type="button" @click="emit('rerun')">{{ u("rerun") }}</button>

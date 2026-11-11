@@ -13,7 +13,7 @@ import { GRAPH_HEIGHT, GRAPH_WIDTH, fitCitationViewport, layoutCitationMap, node
 
 type NodeRole = "result" | "seed" | "forward" | "backward";
 
-const props = defineProps<{ snapshot?: { run: RunDetail; citationMap: CitationMap }; sourceRunId?: string; embedded?: boolean; savedMap?: CitationMap; sourceTitle?: string }>();
+const props = defineProps<{ snapshot?: { run: RunDetail; citationMap: CitationMap }; sourceRunId?: string; embedded?: boolean; savedMap?: CitationMap }>();
 const { sourceName, t } = useLocale();
 const u = useUi();
 const route = useRoute();
@@ -76,12 +76,7 @@ function primaryRole(node: CitationNode): NodeRole {
   return "result";
 }
 
-const legend: Array<{ role: NodeRole; label: string }> = [
-  { role: "result", label: "resultNode" },
-  { role: "seed", label: "seedNode" },
-  { role: "forward", label: "forwardNode" },
-  { role: "backward", label: "backwardNode" },
-];
+const legend: NodeRole[] = ["result", "seed", "forward", "backward"];
 
 function radius(node: CitationNode): number {
   return nodeRadius(node.citations);
@@ -260,12 +255,12 @@ onBeforeUnmount(() => {
       <section class="card flush" style="flex: 999 1 560px" :aria-label="u('relations')">
         <div class="toolbar" style="padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border)">
           <ul class="legend" :aria-label="u('legend')">
-            <li v-for="entry in legend" :key="entry.role" class="row" style="gap: 6px">
+            <li v-for="role in legend" :key="role" class="row" style="gap: 6px">
               <svg width="12" height="12" viewBox="-8 -8 16 16" aria-hidden="true">
-                <circle v-if="entry.role === 'result'" r="6" :fill="roleColor.result.fill" />
-                <rect v-else-if="entry.role === 'seed'" x="-6" y="-6" width="12" height="12" rx="2" :fill="roleColor.seed.fill" />
-                <path v-else :d="shapePath(entry.role, 7)" :fill="roleColor[entry.role].fill" :stroke="entry.role === 'backward' ? roleColor.backward.stroke : undefined" stroke-width="1.5" />
-              </svg>{{ u(`node_${entry.role}`) }}
+                <circle v-if="role === 'result'" r="6" :fill="roleColor.result.fill" />
+                <rect v-else-if="role === 'seed'" x="-6" y="-6" width="12" height="12" rx="2" :fill="roleColor.seed.fill" />
+                <path v-else :d="shapePath(role, 7)" :fill="roleColor[role].fill" :stroke="role === 'backward' ? roleColor.backward.stroke : undefined" stroke-width="1.5" />
+              </svg>{{ u(`node_${role}`) }}
             </li>
           </ul>
           <div class="row end" style="gap: 6px">

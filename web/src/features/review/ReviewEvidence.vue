@@ -13,7 +13,7 @@ const u = useUi();
   <div class="stack" style="gap: 16px">
     <template v-if="view === 'relations'">
       <p class="xs muted">{{ u("mapScope", { n: review.content.papers.length }) }}</p>
-      <CitationMapView :source-run-id="review.source_run_id" :source-title="review.content.source_question" :saved-map="(review.content.citation_map || undefined) as CitationMap | undefined" embedded />
+      <CitationMapView :source-run-id="review.source_run_id" :saved-map="(review.content.citation_map || undefined) as CitationMap | undefined" embedded />
     </template>
     <template v-else>
       <div v-if="!review.document?.sections?.length" class="empty">
