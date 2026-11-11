@@ -9,10 +9,8 @@ head:
       content: noindex
 ---
 
-# 文档已更新
+# This page has moved
 
-此入口已整理到新的 1.0.0-beta1 文档中。
+[Read the new documentation →](/guide/reviews)
 
-[阅读新版文档 →](/zh/guide/reviews)
-
-[English documentation](/guide/) · [中文文档](/zh/guide/)
+[English documentation](/guide/reviews) · [中文文档](/zh/guide/reviews)

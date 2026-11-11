@@ -13,4 +13,4 @@ head:
 
 [阅读新版文档 →](/zh/guide/reviews)
 
-[English documentation](/guide/reviews) · [中文文档](/zh/guide/)
+[English documentation](/guide/reviews) · [中文文档](/zh/guide/reviews)

@@ -13,4 +13,4 @@ head:
 
 [阅读新版文档 →](/zh/reference/troubleshooting)
 
-[English documentation](/reference/troubleshooting) · [中文文档](/zh/guide/)
+[English documentation](/reference/troubleshooting) · [中文文档](/zh/reference/troubleshooting)

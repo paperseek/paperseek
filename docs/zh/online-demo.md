@@ -13,4 +13,4 @@ head:
 
 [阅读新版文档 →](/zh/online/)
 
-[English documentation](/online/) · [中文文档](/zh/guide/)
+[English documentation](/online/) · [中文文档](/zh/online/)
