@@ -13,7 +13,9 @@ export function useReview(id: Ref<string>, citationStyle: Ref<CitationStyle>) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastPayload = "", key = "", modelLoaded = false;
   const cursors = new Map<string, number>();
-  function report(e: unknown) { error.value = e instanceof ApiError ? e.code : "reviewError"; }
+  // A failed background refresh clears itself on the next good one; an error from a user action stays.
+  let refreshFailed = false;
+  function report(e: unknown) { refreshFailed = false; error.value = e instanceof ApiError ? e.code : "reviewError"; }
   async function load() {
     const own = generation, target = id.value, style = citationStyle.value;
     const value = await reviewApi.get(target, style);
@@ -31,7 +33,12 @@ export function useReview(id: Ref<string>, citationStyle: Ref<CitationStyle>) {
   watch(() => workspaceSettings.connections, () => {
     if (modelLoaded && workspaceSettings.loaded && !connectionById(connection.value)) connection.value = workspaceSettings.defaults?.review_llm || "";
   });
-  async function refresh() { try { await load(); } catch (e) { report(e); } }
+  async function refresh() {
+    try {
+      await load();
+      if (refreshFailed) { refreshFailed = false; error.value = ""; }
+    } catch (e) { report(e); refreshFailed = true; }
+  }
   watch(citationStyle, refresh);
   function scheduleRefresh() {
     if (timer) return;
@@ -58,14 +65,14 @@ export function useReview(id: Ref<string>, citationStyle: Ref<CitationStyle>) {
   });
   watch(id, async (value) => {
     generation++; stream?.abort(); if (timer) clearTimeout(timer); timer = undefined;
-    review.value = null; error.value = ""; modelLoaded = false; operation.value = null;
+    review.value = null; error.value = ""; refreshFailed = false; modelLoaded = false; operation.value = null;
     loading.value = Boolean(value);
     if (!value) return;
     try { await load(); } catch (e) { report(e); } finally { loading.value = false; }
   }, { immediate: true });
   async function action(operation: () => Promise<unknown>) {
     if (busy.value) return;
-    busy.value = true; error.value = "";
+    busy.value = true; error.value = ""; refreshFailed = false;
     try { await operation(); await load(); } catch (e) { report(e); } finally { busy.value = false; }
   }
   async function submit(actionType: JobRequest["action"], extra: Partial<JobRequest> = {}) {

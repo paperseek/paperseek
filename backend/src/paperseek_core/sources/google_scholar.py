@@ -5,10 +5,10 @@ import re
 import time
 from typing import Any
 
-from paperseek_core.key_pool import RequestKeys
+from paperseek_core.key_pool import RequestKeys, split_api_keys
 from paperseek_core.models import PaperAuthor, PaperCitation, PaperIdentifiers, PaperKeywords, PaperLinks, PaperNames, PaperRecord, PaperSource
 from paperseek_core.sources.contracts import SourceCapabilities, SourceError, SourceSearchMetadata, SourceSearchRequest, SourceSearchResult
-from paperseek_core.sources.http import AsyncHttpTransport, split_api_keys
+from paperseek_core.sources.http import AsyncHttpTransport
 
 
 class GoogleScholarSource:
@@ -38,7 +38,7 @@ class GoogleScholarSource:
         if not query:
             raise SourceError(self.name, "Google Scholar search query is empty.")
         if not self.api_keys:
-            raise SourceError(self.name, "SERPER_API_KEY or SERPER_API_KEYS is required for Google Scholar searches.", query=query)
+            raise SourceError(self.name, "SERPER_API_KEY or SERPER_API_KEYS is required for Google Scholar searches.", status=401, query=query)
         requested_limit = max(1, min(int(request.limit or 10), 100))
         page_size = 10
         page_number = max(1, int(request.page or 1))
@@ -75,7 +75,8 @@ class GoogleScholarSource:
                     break
             else:
                 empty_pages += 1
-                if empty_pages >= (3 if hits else 5):
+                # Each page is a billed request: an empty first page already means no results.
+                if not hits or empty_pages >= 3:
                     break
             page_number += 1
             self.last_response_info = info
@@ -252,10 +253,12 @@ class GoogleScholarSource:
             "â€™": "’",
             "鈥�": "...",
             "鈥?": "...",
-            "\u0431\u043d": "...",
         }
         for bad, good in replacements.items():
             text = text.replace(bad, good)
+        # A truncation mark mis-decoded as Cyrillic: only where it ends a non-Cyrillic string,
+        # so Russian and Ukrainian words that contain the same two letters stay intact.
+        text = re.sub(r"(?<![\u0400-\u04ff])\u0431\u043d$", "...", text)
 
         def replace_pair(match: re.Match[str]) -> str:
             token = match.group(0)

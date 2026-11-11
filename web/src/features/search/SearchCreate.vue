@@ -59,7 +59,7 @@ const freeSources = computed(() => workspaceSettings.sources.filter((source) => 
 const needsSetup = computed(() => workspaceSettings.loaded && !llms.value.length);
 const selectedSource = computed(() => sources.value.find((source) => source.id === form.source));
 const filter = computed(() => selectedSource.value?.capabilities.filter);
-const filterLabel = computed(() => (filter.value?.mode === "native" ? u("fieldFilter") : u("fieldFilter")));
+const filterLabel = computed(() => u("fieldFilter"));
 const supportsCitation = computed(() => Boolean(selectedSource.value?.capabilities.citation_expansion));
 
 watch(() => form.source, (value, previous) => {

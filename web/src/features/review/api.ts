@@ -11,7 +11,6 @@ export type Body = Schema["SectionBody"];
 export type Citation = Schema["ReviewCitation"];
 export type CitationStyle = NonNullable<Schema["RenderedReview"]["citation_style"]>;
 export type JobRequest = Schema["ReviewJobRequest"];
-export type Paper = Schema["ReviewPaper"];
 export type Revision = Schema["ReviewRevision"];
 export type ReviewPage = Schema["ReviewPage"];
 const root = "/api/v1/reviews";

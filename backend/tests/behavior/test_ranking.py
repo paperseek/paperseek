@@ -416,6 +416,20 @@ class M2RankingPipelineContractTest(unittest.TestCase):
         self.assertEqual(failed[0].payload["concurrency"], 8)
         self.assertEqual(len(observer.checkpoints), 3)
 
+    def test_failure_without_a_rate_limit_is_retried_once_at_the_same_concurrency(self) -> None:
+        class BrokenLLM:
+            async def chat_json(self, messages, *, temperature=0.0, max_tokens=4096) -> str:
+                raise RuntimeError("LLM API error (500): unavailable")
+
+        records = [PaperRecord(uid=f"W{index}", title=f"Batch Paper {index}", provider="fixture") for index in range(1, 5)]
+        observer = RecordingObserver()
+        asyncio.run(RankingPipeline(BrokenLLM(), observer).run(
+            RankingRequest(question="batch ranking", documents=records, batch_size=2, concurrency=8)))
+
+        failed = [event.payload for event in observer.events if event.event_type == "ranking.batch_failed"]
+        # Two batches, each tried once and retried once; lower concurrency is kept for rate limits.
+        self.assertEqual([item["concurrency"] for item in failed], [8, 8, 8, 8])
+
     def test_completed_batch_resumes_without_rescoring_and_checkpoints_only_new_work(self) -> None:
         records = [
             PaperRecord(uid=f"W{index}", title=f"Batch Paper {index}", provider="fixture")

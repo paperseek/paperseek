@@ -95,7 +95,7 @@ jobs:
           uv run --locked --project ../backend python ../backend/scripts/generate_openapi_types.py --check
           npm run typecheck
           npm run build
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium || npx playwright install chromium
           npm run test:browser
 
       - name: Build Linux AMD64 images

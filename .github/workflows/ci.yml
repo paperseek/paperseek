@@ -127,7 +127,7 @@ jobs:
         run: npm run typecheck
 
       - name: Install browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium || npx playwright install chromium
 
       - name: Run browser journeys
         run: npm run test:browser

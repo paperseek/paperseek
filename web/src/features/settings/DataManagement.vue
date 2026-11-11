@@ -5,7 +5,7 @@ import { json } from "../../api/client";
 import type { components } from "../../api/generated";
 import { toast } from "../../components/toast";
 import { useUi } from "../../locales/ui";
-import { invalidateHistory, resetWorkspace } from "../workspace/state";
+import { resetWorkspace } from "../workspace/state";
 import { loadSettings, workspaceSettings } from "./store";
 import TypedConfirmDialog from "./TypedConfirmDialog.vue";
 
@@ -73,7 +73,6 @@ async function clearHistory() {
       const result = await json<ClearResult>("/api/v1/data/history/clear", { method: "POST" });
       if (result.status === "cleared") {
         resetWorkspace();
-        for (const module of ["search", "bibliometrics", "reviews"] as const) invalidateHistory(module);
         busy.value = false;
         close();
         toast(u("historyCleared"), { tone: "ok" });

@@ -57,6 +57,8 @@ def record_from_json(item: dict[str, Any]) -> PaperRecord:
             publish_month=_first_text(source.get("publishMonth") or source.get("publish_month")),
             volume=_first_text(source.get("volume")),
             issue=_first_text(source.get("issue")),
+            # {"range": "61-102", "begin": "61", "end": "102", "count": 42}; the final result formats it.
+            pages=source.get("pages") or None,
         ),
         names=PaperNames(authors=authors),
         links=PaperLinks(
@@ -116,7 +118,7 @@ class WosSource:
         if not query:
             raise SourceError(self.name, "WoS search query is empty.")
         if not self.api_key:
-            raise SourceError(self.name, "WoS API key is required.", query=query)
+            raise SourceError(self.name, "WoS API key is required.", status=401, query=query)
         limit = max(1, min(int(request.limit or 10), 50))
         response, self.last_response_info = await self.transport.request(
             self.name,

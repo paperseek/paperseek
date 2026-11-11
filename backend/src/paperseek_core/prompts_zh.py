@@ -39,6 +39,8 @@ SYSTEM_SEARCH_INTENT_ANALYSIS_ZH = """\
 - successor_paradigm 视角要包含标题中不一定重复原领域名称、但解决同一任务的成熟方法，且不要再与原领域词 AND，否则检不到只使用新术语的文献。
 - 综述、述评类文献可以作为补充视角，但除非用户明确要求，不要把文献类型设为必选概念。
 - 针对具体关系或方法的问题，每个视角都要保留核心对象和所问的关系，只变换术语或角度。首条检索式通常用两到三个必选概念组：核心对象加一两个最有区分度的维度或关系。
+- 只有当用户确实想了解某个领域的全貌，且没有限定关系、机制、比较、人群、结果或应用时，才归为 broad_landscape。不能仅因为用户说要“找文献”就归为 broad_landscape。
+- 用户点名多个对象、条件、人群、机制、结果，或问的是概念之间的关系时，按情况归为 specific_relation、method_application、mechanism 或 comparison。把每一条明确的相关性要求写入 must_have_facets，把所问的关系写入 required_relation；这记录的是最终的相关性标准，不要求把每个维度都放进第一条检索式。
 - 各视角要真正不同，不要只是调换同一组词的顺序。
 - 每个视角最多 3 个概念组，每组最多 5 个词；core_concepts 等列表每项最多 5 条。不要在字段里叙述推理过程。
 
@@ -174,7 +176,6 @@ def strict_query_output_instruction_zh(output_label: str, operation: str) -> str
         f"- query 字段必须是一条完整的{output_label}，这是 PaperSeek 发送给数据库的唯一内容。\n"
         f"{atomic}"
         "- 不要把理由、标签、markdown 或注释放进 query 字段；对题名的判断写在 rationale 里。\n"
-        "- 如果无法改进，在 query 中重复当前有效检索式，并在 rationale 中说明原因。\n"
     )
 
 

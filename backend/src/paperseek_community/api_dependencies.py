@@ -27,6 +27,12 @@ TERMINAL_STATUSES = {
 }
 
 
+def worker_stopped(app: FastAPI) -> bool:
+    """The embedded worker this process relies on has exited; queued work would never start."""
+    task = app.state.worker_task
+    return bool(app.state.worker_required and task is not None and task.done())
+
+
 class ApiError(Exception):
     def __init__(
         self,

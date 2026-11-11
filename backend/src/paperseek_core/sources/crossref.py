@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from html import unescape
 from typing import Any
 
 from paperseek_core.models import (
@@ -85,14 +86,18 @@ class CrossrefSource:
         return str(value or "")
 
     @staticmethod
-    def _clean_abstract(value: Any) -> str:
-        abstract = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", str(value or ""))).strip()
-        return abstract.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+    def _text(value: Any) -> str:
+        # Crossref deposits are often escaped twice ("&amp;amp;").
+        return unescape(unescape(str(value or "")))
+
+    @classmethod
+    def _clean_abstract(cls, value: Any) -> str:
+        return re.sub(r"\s+", " ", cls._text(re.sub(r"<[^>]+>", "", str(value or "")))).strip()
 
     @classmethod
     def _to_record(cls, item: dict[str, Any]) -> PaperRecord:
         doi = normalize_doi(item.get("DOI") or "")
-        title = cls._first(item.get("title")) or doi
+        title = cls._text(cls._first(item.get("title"))) or doi
         authors = []
         for author in item.get("author") or []:
             name = " ".join(part for part in (author.get("given") or "", author.get("family") or "") if part).strip() or author.get("name") or ""
@@ -116,7 +121,7 @@ class CrossrefSource:
             title=title,
             types=[work_type] if work_type else [],
             source_types=[work_type] if work_type else [],
-            source=PaperSource(source_title=cls._first(item.get("container-title")), publish_year=year,
+            source=PaperSource(source_title=cls._text(cls._first(item.get("container-title"))), publish_year=year,
                                volume=str(item.get("volume") or ""), issue=str(item.get("issue") or ""), pages=item.get("page") or None),
             names=PaperNames(authors=authors),
             links=PaperLinks(record=url, landing_page=url),

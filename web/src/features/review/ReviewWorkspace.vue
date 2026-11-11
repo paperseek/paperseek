@@ -110,14 +110,6 @@ async function write() {
   await submit("write");
   if (!error.value) tab.value = "document";
 }
-async function confirmOutline(save?: () => Promise<unknown>) {
-  if (disabled.value) return;
-  if (save) {
-    await action(save);
-    if (error.value) return;
-  }
-  await write();
-}
 async function rewrite() {
   const section = review.value?.content.sections?.find((s) => s.section_id === rewriteId.value);
   if (!section) return;
@@ -205,7 +197,7 @@ function tabLabel(step: Tab) {
         </div>
       </div>
 
-      <QueueStatusCard v-if="active?.status === 'queued'" :run="active" :busy="busy" @cancel="cancel" @update="(value) => { if (value.status !== 'queued') void refresh(); }" />
+      <QueueStatusCard v-if="active?.status === 'queued'" :run="active" :busy="busy" :poll="false" @cancel="cancel" />
       <section v-else-if="active || tab === 'papers' || tab === 'outline'" class="card c" :aria-label="u('progress')">
         <div class="card-content row" style="gap: 16px; justify-content: space-between">
           <div class="stack" style="gap: 12px">
@@ -265,7 +257,7 @@ function tabLabel(step: Tab) {
       </section>
 
       <section v-show="tab === 'outline'" id="review-panel-outline" role="tabpanel" aria-labelledby="review-tab-outline">
-        <ReviewOutlineEditor v-if="review.content.outline" :key="review.id" :review="review" :disabled="disabled" @dirty="outlineDirty = $event" @confirm="confirmOutline" @save="action" />
+        <ReviewOutlineEditor v-if="review.content.outline" :key="review.id" :review="review" :disabled="disabled" @dirty="outlineDirty = $event" @save="action" />
         <div v-else class="empty">
           <span class="empty-media"><Icon :name="active ? 'loader' : 'file-text'" size="lg" /></span>
           <p class="empty-title">{{ active ? u("outlineLoading") : t("reviewOutline") }}</p>

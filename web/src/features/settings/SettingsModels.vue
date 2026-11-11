@@ -69,7 +69,7 @@ function apiLabel(item: Connection) {
   if (item.kind !== "llm") return item.kind === "decision" ? "SystemOne" : item.kind === "embedding" ? "Embeddings" : "Rerank";
   return { openai_chat: "OpenAI Chat Completions", openai_responses: "OpenAI Responses", anthropic_messages: "Anthropic Messages" }[item.api_type] || item.api_type;
 }
-async function test(item: Connection) {
+async function test(item: Connection, reload = true) {
   testing.add(item.id);
   try {
     await settingsApi.test(item.id);
@@ -77,11 +77,13 @@ async function test(item: Connection) {
     /* The row shows the recorded failure after reload. */
   } finally {
     testing.delete(item.id);
-    await loadSettings(true);
+    if (reload) await loadSettings(true);
   }
 }
 async function testAll() {
-  await Promise.all(rows.value.map((item) => test(item)));
+  // One reload after every test has recorded its result, so no row shows an earlier snapshot.
+  await Promise.all(rows.value.map((item) => test(item, false)));
+  await loadSettings(true);
 }
 async function setDefault(item: Connection, role: "search_llm" | "review_llm" | ConnectionKind) {
   await saveDefault({ [role === "llm" ? "search_llm" : role]: item.id });

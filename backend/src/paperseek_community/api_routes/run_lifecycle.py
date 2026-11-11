@@ -24,6 +24,7 @@ from paperseek_community.api_dependencies import (
     ApiError,
     open_query_service,
     open_submission_service,
+    worker_stopped,
 )
 from paperseek_community.credentials import (
     CredentialPersistenceError,
@@ -55,6 +56,8 @@ def register_run_submission_and_status_routes(
             raise ApiError(422, "unsupported_service_mode", "Hosted service modes are not available in Community.")
         if execution_resolver is None and not accept_submissions_without_worker:
             raise ApiError(503, "executor_unavailable", "The embedded executor is not configured.")
+        if worker_stopped(app):
+            raise ApiError(503, "executor_unavailable", "The worker is unavailable.")
         try:
             submission = workspace.apply_to_submission(submission)
         except SettingsError as exc:

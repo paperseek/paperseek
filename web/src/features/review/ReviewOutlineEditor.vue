@@ -10,7 +10,7 @@ import { useUi } from "../../locales/ui";
 import { reviewApi, type Outline, type Review } from "./api";
 
 const props = defineProps<{ review: Review; disabled: boolean }>();
-const emit = defineEmits<{ confirm: [save?: () => Promise<unknown>]; save: [operation: () => Promise<unknown>]; dirty: [value: boolean] }>();
+const emit = defineEmits<{ save: [operation: () => Promise<unknown>]; dirty: [value: boolean] }>();
 const u = useUi();
 const draft = ref<Outline>({ sections: [] });
 const original = ref("");

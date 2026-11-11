@@ -55,6 +55,37 @@ class WorkerConcurrencyContract(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(task, 1)
         return started, sorted(finished)
 
+    async def test_a_failing_claim_or_task_does_not_stop_the_loop(self):
+        leases = ["broken", "fine"]
+        claims = 0
+        finished = []
+        executor = RunExecutor.__new__(RunExecutor)
+
+        async def claim():
+            nonlocal claims
+            claims += 1
+            if claims == 1:
+                raise RuntimeError("database is locked")
+            return leases.pop(0) if leases else None
+
+        async def execute(lease):
+            if lease == "broken":
+                raise RuntimeError("unexpected")
+            return SimpleNamespace(id=lease)
+
+        async def on_finished(detail):
+            finished.append(detail.id)
+
+        executor.claim, executor.execute = claim, execute
+        stop = asyncio.Event()
+        with self.assertLogs("paperseek_app.worker", level="ERROR"):
+            task = asyncio.create_task(executor.serve(poll_seconds=0.01, stop=stop, on_finished=on_finished))
+            while not finished:
+                await asyncio.sleep(0.01)
+            stop.set()
+            await asyncio.wait_for(task, 1)
+        self.assertEqual(finished, ["fine"])
+
     async def test_limit_caps_tasks_running_at_once(self):
         started, finished = await self.serve(2)
         self.assertEqual(started, 2)
@@ -142,7 +173,7 @@ class WorkerHealthContract(unittest.IsolatedAsyncioTestCase):
             app = create_app(Path(temp) / "paperseek.db", execution_resolver=lambda *_: None)
             original_close = SQLiteRunUnitOfWork.close
             with (
-                patch.object(RunExecutor, "claim", AsyncMock(side_effect=RuntimeError("worker fault"))),
+                patch.object(RunExecutor, "serve", AsyncMock(side_effect=RuntimeError("worker fault"))),
                 patch.object(SQLiteRunUnitOfWork, "close", autospec=True, side_effect=original_close) as close,
             ):
                 lifespan = app.router.lifespan_context(app)

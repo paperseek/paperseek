@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
             :aria-expanded="popover?.key === `${section.id}-${index}-${part}`"
             @click="openCitation($event, span.citation, `${section.id}-${index}-${part}`, section.id)"
           >{{ review.document?.citation_style === "harvard" ? span.citation.label : span.citation.number }}</button><template v-else>{{ span.text }}</template></template></p>
-          <p v-if="paragraph.unplaced?.length" class="xs muted">{{ u("alsoCited") }}<template v-for="(citation, part) in paragraph.unplaced" :key="part"><template v-if="part">、</template><button
+          <p v-if="paragraph.unplaced?.length" class="xs muted">{{ u("alsoCited") }}<template v-for="(citation, part) in paragraph.unplaced" :key="part"><template v-if="part">{{ u("listSep") }}</template><button
             class="cite"
             :class="{ on: popover?.key === `${section.id}-${index}-u${part}` }"
             type="button"

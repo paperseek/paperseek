@@ -295,3 +295,18 @@ test("a failed writing task offers a retry that resubmits the same action", asyn
   await alert.getByRole("button", { name: "重试" }).click();
   await expect.poll(() => requestsTo(state, "POST", `/reviews/${ids.review}/jobs`).at(-1)?.body).toMatchObject({ action: "write", connection_id: ids.llm });
 });
+
+test("a queued review task waits in the queue card without asking the search-run endpoint", async ({ page }) => {
+  const state = createState();
+  await open(page, `/reviews/new?source=${ids.done}&paper=uid-1&paper=uid-2`, state);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByRole("button", { name: "生成大纲" }).click();
+  await expect(page).toHaveURL(/tab=outline/);
+  const review = state.reviews[0];
+  review.active_job = { ...review.latest_job, status: "queued" };
+  review.latest_job = review.active_job;
+  await page.reload();
+  await expect(page.getByTestId("queue-status")).toBeVisible();
+  await expect(page.getByTestId("queue-status")).not.toContainText("重新连接");
+  expect(requestsTo(state, "GET", `/runs/${review.active_job.id}`)).toHaveLength(0);
+});

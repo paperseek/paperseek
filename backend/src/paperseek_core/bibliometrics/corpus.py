@@ -62,6 +62,16 @@ def citation_count(record: PaperRecord) -> int | None:
         return None
 
 
+# Where each source lists a paper's references. PubMed summaries carry a "references" list too,
+# but it holds errata and comments, not the works the paper cites.
+_REFERENCE_FIELDS = {
+    "openalex": ("referenced_works",),
+    "crossref": ("reference",),
+    "semanticscholar": ("references",),
+    "pubmed": (),
+}
+
+
 def compact_paper(record: PaperRecord) -> MetricPaper:
     raw = record.raw
     institutions, countries = [], []
@@ -122,8 +132,8 @@ def compact_paper(record: PaperRecord) -> MetricPaper:
         keyword_source=keyword_source,
         references=unique(references),
         references_available=any(
-            key in raw and isinstance(raw[key], list)
-            for key in ("referenced_works", "reference", "references")
+            isinstance(raw.get(key), list)
+            for key in _REFERENCE_FIELDS.get(record.provider, ("referenced_works", "reference", "references"))
         ),
         citations=max(0, int(citation_value)) if citation_value is not None else None,
         citation_source=record.provider if citation_value is not None else "",

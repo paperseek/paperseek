@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from uuid import uuid4
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.engine import Connection
 
 from paperseek_app.review.models import (
@@ -94,16 +94,29 @@ class SQLiteReviewRepository(ReviewEdits, SQLiteRepositoryBase):
                 raise ReviewError("review_not_found", status=404)
 
     def list_reviews(self, offset: int, limit: int, query: str = "") -> ReviewPage:
-        where = "deleted_at IS NULL AND instr(paperseek_casefold(display_title || ' ' || json_extract(document_json, '$.topic')), :query) > 0"
         params = {"query": query.strip().casefold(), "offset": offset, "limit": limit}
+        where = "deleted_at IS NULL"
+        if params["query"]:
+            where += " AND instr(paperseek_casefold(display_title || ' ' || json_extract(document_json, '$.topic')), :query) > 0"
         with self.engine.connect() as connection:
             connection.exec_driver_sql("BEGIN")
             total = connection.execute(text(f"SELECT count(*) FROM reviews WHERE {where}"), params).scalar_one()
-            rows = connection.execute(text(f"""SELECT id FROM reviews WHERE {where}
+            rows = connection.execute(text(f"""SELECT id,display_title,document_json,updated_at FROM reviews WHERE {where}
                 ORDER BY updated_at DESC,id DESC LIMIT :limit OFFSET :offset"""),
-                params).scalars().all()
-            reviews = [self._review(connection, row) for row in rows]
-        return ReviewPage(items=[self.summary(review) for review in reviews], total_count=total,
+                params).mappings().all()
+            # One query for the page's latest tasks; a row needs only that task's status.
+            latest = dict(connection.execute(text("""SELECT review_id,status FROM (
+                SELECT j.review_id AS review_id, r.status AS status, row_number() OVER (
+                    PARTITION BY j.review_id ORDER BY r.created_at DESC,r.id DESC) AS position
+                FROM review_jobs j JOIN runs r ON r.id=j.run_id
+                WHERE r.deleted_at IS NULL AND j.review_id IN :ids) WHERE position=1""").bindparams(
+                    bindparam("ids", expanding=True)), {"ids": [row["id"] for row in rows]}).all()) if rows else {}
+        items = [self.summarize(
+            ReviewContent.model_validate_json(row["document_json"]), review_id=row["id"],
+            display_title=row["display_title"], updated_at=row["updated_at"],
+            latest_status=latest.get(row["id"], ""),
+            active=row["id"] in latest and latest[row["id"]] not in TERMINAL_STATUSES) for row in rows]
+        return ReviewPage(items=items, total_count=total,
                           next_offset=offset + limit if offset + limit < total else None)
 
     def _reserve_edit(self, connection: Connection, review_id: str, expected_version: int) -> ReviewDetail:

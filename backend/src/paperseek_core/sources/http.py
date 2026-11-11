@@ -15,11 +15,6 @@ from paperseek_core.sources.contracts import SourceError, SourceFailureKind
 from paperseek_core.sources.rate_limit import rate_limit_backoff, source_rate_limit
 
 
-def split_api_keys(value: str) -> tuple[str, ...]:
-    normalized = str(value or "").replace("\r", "\n").replace(",", "\n").replace(";", "\n")
-    return tuple(dict.fromkeys(part.strip() for part in normalized.split("\n") if part.strip()))
-
-
 def _redacted_url(url: str) -> str:
     parts = urlsplit(str(url))
     sensitive = {"api_key", "apikey", "key", "token", "x-api-key"}

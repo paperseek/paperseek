@@ -142,7 +142,7 @@ class QueryPlanner:
         raw = await self.llm.chat_json(messages, temperature=0.0, max_tokens=4096)
         first = parse_search_plan(raw, question)
         gaps = (
-            first.coverage_gaps()
+            first.coverage_gaps(zh=zh)
             if first is not None and portfolio_required
             else ([] if first is not None else ["a valid SearchPlan JSON object"])
         )
@@ -170,7 +170,7 @@ class QueryPlanner:
                 {"role": "assistant", "content": raw},
                 {
                     "role": "user",
-                    "content": prompts_zh.TEXT_ZH["plan_retry_gap"].format(gaps="; ".join(gaps)) if zh else (
+                    "content": prompts_zh.TEXT_ZH["plan_retry_gap"].format(gaps="；".join(gaps)) if zh else (
                         "The plan is structurally valid but has this coverage gap: "
                         f"{'; '.join(gaps)}. Return a complete replacement SearchPlan JSON object. Preserve useful existing views, "
                         "add the missing distinct views, and output only JSON. Every query view must contain valid concept_groups."

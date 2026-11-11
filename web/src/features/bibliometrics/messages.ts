@@ -3,7 +3,6 @@ import { useLocale } from "../../locales";
 const messages = {
   zh: {
     parameters: "网络参数", minimum: "最少",
-    sourceSelected: "已选择来源检索",
     findNode: "查找节点",
     group: "连通分量",
     keywordOccurrences: "出现文献数",
@@ -21,10 +20,7 @@ const messages = {
     create: "开始分析",
     creating: "正在分析…",
     source: "选择检索记录",
-    sourceHint:
-      "分析已获取的完整候选集；AI 评分仍限于原有子集。不会额外检索或调用模型。",
     empty: "先完成一次文献检索",
-    emptyHint: "保存的检索完成后，可以在这里建立独立的计量分析。",
     search: "前往文献检索",
     overview: "概览",
     keywords: "关键词主题",
@@ -48,8 +44,6 @@ const messages = {
       "该检索恢复自旧版中间数据，部分未保留候选的元数据可能缺失。",
     bounded_retrieval:
       "文献集受本次检索预算约束；来源报告总量不等于已获取数量。",
-    citationHint:
-      "使用各数据源返回时的原生被引次数。不同来源口径可能不同；未知值不按零计算。",
     nameHint:
       "作者与机构按返回的名称统计，尚未做同名消歧；每篇文献对每个名称计数一次。",
     topicHint:
@@ -58,8 +52,6 @@ const messages = {
       "两篇文献引用同一参考文献时产生关联；边权为共享参考文献数，相似度为余弦归一化。只使用已返回的参考文献标识。",
     generate: "生成网络",
     generating: "正在计算…",
-    minOccurrences: "最低出现次数 / 参考文献数",
-    minWeight: "最低边权",
     maxNodes: "最多显示节点",
     maxReference: "参考文献最多被几篇引用",
     noFilter: "不限制",
@@ -119,7 +111,6 @@ const messages = {
   },
   en: {
     parameters: "Network parameters", minimum: "Minimum ",
-    sourceSelected: "Source search selected",
     findNode: "Find a node",
     group: "Connected component",
     keywordOccurrences: "Papers containing keyword",
@@ -138,10 +129,7 @@ const messages = {
     create: "Analyze literature",
     creating: "Analyzing…",
     source: "Select a search",
-    sourceHint:
-      "Analyze the full retrieved candidate set. AI scoring remains a subset. No additional searches or model calls.",
     empty: "Complete a literature search first",
-    emptyHint: "Create an independent analysis from a completed search.",
     search: "Go to literature search",
     overview: "Overview",
     keywords: "Keyword themes",
@@ -165,8 +153,6 @@ const messages = {
       "This search resumed from older data. Metadata for some discarded candidates may be unavailable.",
     bounded_retrieval:
       "The search budget limits this corpus. The source's reported total is not the number retrieved.",
-    citationHint:
-      "Citation counts are native source values at retrieval time. Source definitions may differ; missing counts are not zero.",
     nameHint:
       "Authors and institutions are counted by returned names without disambiguation. Each paper counts once per name.",
     topicHint:
@@ -175,8 +161,6 @@ const messages = {
       "Papers are linked by shared references. Weight is the shared count; similarity is cosine-normalized. Only returned reference identifiers are used.",
     generate: "Generate network",
     generating: "Computing…",
-    minOccurrences: "Minimum occurrences / references",
-    minWeight: "Minimum edge weight",
     maxNodes: "Maximum visible nodes",
     maxReference: "Maximum papers citing a reference",
     noFilter: "No filter",

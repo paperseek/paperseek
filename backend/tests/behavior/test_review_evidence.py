@@ -309,6 +309,9 @@ class ReviewEvidenceTest(unittest.TestCase):
                          "How to cite scientific datasets is the subject of this study.")
         self.assertEqual(normalize_abstract("短摘要。"), "短摘要。")
         self.assertEqual(normalize_abstract("<p>A &amp; B</p><p>方法😀</p>"), "A & B 方法😀")
+        # Escaped line breaks become spaces; LaTeX commands that begin the same way are kept.
+        self.assertEqual(normalize_abstract(r"Noise \nu and $\rho \neq 0$.\nresults follow."),
+                         r"Noise \nu and $\rho \neq 0$. results follow.")
 
     def test_quotes_are_verified_and_offsets_computed_from_native_abstract(self):
         paper = snapshot(FinalPaperResult(rank=1, uid="one", title="Paper", abstract="原文😀。This is evidence.",

@@ -35,6 +35,12 @@ class PaperHubSource:
     _title_index: dict[str, dict[str, Any]] | None = None
     # OpenReview rows per query, so later pages of one search see the same union.
     _openreview_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+    # Search text of every snapshot paper, lowercased once per snapshot instead of once per query:
+    # (snapshot, {id(paper): (all text, weighted fields, title key)}).
+    _search_index: tuple[list[dict[str, Any]], dict[int, tuple[str, tuple[str, ...], str]]] | None = None
+    # Matches per query, so the lanes and pages of one search score the snapshot once:
+    # query -> (snapshot, OpenReview rows, [(score, paper)]).
+    _match_cache: dict[str, tuple[list[dict[str, Any]], list[dict[str, Any]], list[tuple[int, dict[str, Any]]]]] = {}
 
     def __init__(self, *, transport: AsyncHttpTransport, openreview: OpenReviewClient | None = None) -> None:
         self.transport = transport
@@ -57,6 +63,8 @@ class PaperHubSource:
         cls._paper_cache_manifest_version = ""
         cls._title_index = None
         cls._openreview_cache = {}
+        cls._search_index = None
+        cls._match_cache = {}
 
     @classmethod
     def cached_acceptance(cls, title: str) -> dict[str, Any]:
@@ -73,15 +81,14 @@ class PaperHubSource:
         if not query:
             raise SourceError(self.name, "Paper Hub search query is empty.")
         papers = await self._load_papers(query)
-        papers = self._union(papers, await self._openreview_rows(query))
-        parsed = self._parse_query(query)
-        scored = [(score, paper) for paper in papers if (score := self._match_score(paper, parsed)) is not None]
+        matches = self._matches(query, papers, await self._openreview_rows(query))
+        # Sorted copies: the cached matches keep the snapshot order every lane's ties fall back to.
         if request.lane == "recent":
-            scored.sort(key=lambda item: (int(item[1].get("year") or 0), item[0], item[1].get("conference") or ""), reverse=True)
+            scored = sorted(matches, key=lambda item: (int(item[1].get("year") or 0), item[0], item[1].get("conference") or ""), reverse=True)
         elif request.lane == "local_quality":
-            scored.sort(key=lambda item: (item[0], self._conference_weight(item[1]), int(item[1].get("year") or 0)), reverse=True)
+            scored = sorted(matches, key=lambda item: (item[0], self._conference_weight(item[1]), int(item[1].get("year") or 0)), reverse=True)
         else:
-            scored.sort(key=lambda item: (item[0], int(item[1].get("year") or 0), item[1].get("conference") or ""), reverse=True)
+            scored = sorted(matches, key=lambda item: (item[0], int(item[1].get("year") or 0), item[1].get("conference") or ""), reverse=True)
         page_size = max(1, min(int(request.limit or 10), 100))
         offset = max(0, (int(request.page or 1) - 1) * page_size)
         return SourceSearchResult(
@@ -107,15 +114,57 @@ class PaperHubSource:
         cls._openreview_cache[query] = (time.monotonic(), rows)
         return rows
 
+    @classmethod
+    def _matches(cls, query: str, papers: list[dict[str, Any]],
+                 extra: list[dict[str, Any]]) -> list[tuple[int, dict[str, Any]]]:
+        cached = cls._match_cache.get(query)
+        if cached and cached[0] is papers and (cached[1] is extra or not (cached[1] or extra)):
+            return cached[2]
+        index = cls._indexed(papers)
+        parsed = cls._parse_query(query)
+        matches = [(score, paper) for paper in cls._union(papers, extra, index)
+                   if (score := cls._match_score(paper, parsed, index.get(id(paper)))) is not None]
+        if len(cls._match_cache) >= 32:
+            cls._match_cache.pop(next(iter(cls._match_cache)))
+        cls._match_cache[query] = (papers, extra, matches)
+        return matches
+
+    @classmethod
+    def _indexed(cls, papers: list[dict[str, Any]]) -> dict[int, tuple[str, tuple[str, ...], str]]:
+        index = cls._search_index
+        if index is None or index[0] is not papers:
+            # Keyed by identity: the snapshot keeps every paper alive for as long as the index is used.
+            index = (papers, {id(paper): cls._search_fields(paper) for paper in papers})
+            cls._search_index = index
+        return index[1]
+
     @staticmethod
-    def _union(papers: list[dict[str, Any]], extra: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _search_fields(paper: dict[str, Any]) -> tuple[str, tuple[str, ...], str]:
+        conference = str(paper.get("conference") or "").upper()
+        try:
+            year = int(paper.get("year") or 0)
+        except (TypeError, ValueError):
+            year = 0
+        title, abstract = str(paper.get("title") or ""), str(paper.get("abstract") or "")
+        keywords, authors = " ".join(map(str, paper.get("keywords") or [])), " ".join(map(str, paper.get("authors") or []))
+        presentation = str(paper.get("presentation") or "")
+        text = " ".join((title, abstract, keywords, authors, conference, str(year), presentation)).lower()
+        fields = (title.lower(), keywords.lower(), abstract.lower(), authors.lower(),
+                  f"{paper.get('conference') or ''} {paper.get('year') or ''} {presentation}".lower())
+        return text, fields, title_key(paper.get("title"))
+
+    @staticmethod
+    def _union(papers: list[dict[str, Any]], extra: list[dict[str, Any]],
+               index: dict[int, tuple[str, tuple[str, ...], str]] | None = None) -> list[dict[str, Any]]:
         """Paper Hub plus OpenReview papers it lacks; a shared paper keeps Paper Hub's row and both sources."""
         if not extra:
             return papers
+        index = index or {}
         by_title = {title_key(row["title"]): row for row in extra}
         merged = []
         for paper in papers:
-            row = by_title.pop(title_key(paper.get("title")), None)
+            known = index.get(id(paper))
+            row = by_title.pop(known[2] if known else title_key(paper.get("title")), None)
             merged.append({**paper, "acceptance": merge(from_paperhub(paper), row["acceptance"])} if row else paper)
         return merged + list(by_title.values())
 
@@ -263,7 +312,9 @@ class PaperHubSource:
     def _normalize_token(value: str) -> str:
         return re.sub(r"^[()]+|[()]+$", "", str(value or "").strip()).strip()
 
-    def _match_score(self, paper: dict[str, Any], query: PaperHubQuery) -> int | None:
+    @classmethod
+    def _match_score(cls, paper: dict[str, Any], query: PaperHubQuery,
+                     indexed: tuple[str, tuple[str, ...], str] | None = None) -> int | None:
         conference = str(paper.get("conference") or "").upper()
         try:
             year = int(paper.get("year") or 0)
@@ -271,20 +322,21 @@ class PaperHubSource:
             year = 0
         if query.conference and conference != query.conference or query.year and year != query.year or query.after and year <= query.after or query.before and year >= query.before:
             return None
-        text = " ".join((str(paper.get("title") or ""), str(paper.get("abstract") or ""), " ".join(map(str, paper.get("keywords") or [])), " ".join(map(str, paper.get("authors") or [])), conference, str(year), str(paper.get("presentation") or ""))).lower()
+        # Rows outside the snapshot index (OpenReview additions and merged copies) are prepared here.
+        text, fields, _ = indexed or cls._search_fields(paper)
         if any(term and term in text for term in query.excludes):
             return None
         score = 0
         for group in query.groups:
-            best = max((self._score_term(paper, term) for term in group if term and term in text), default=0)
+            best = max((cls._score_term(fields, term) for term in group if term and term in text), default=0)
             if best <= 0:
                 return None
             score += best
         return max(score, 1)
 
     @staticmethod
-    def _score_term(paper: dict[str, Any], term: str) -> int:
-        fields = (str(paper.get("title") or "").lower(), " ".join(map(str, paper.get("keywords") or [])).lower(), str(paper.get("abstract") or "").lower(), " ".join(map(str, paper.get("authors") or [])).lower(), f"{paper.get('conference') or ''} {paper.get('year') or ''} {paper.get('presentation') or ''}".lower())
+    def _score_term(fields: tuple[str, ...], term: str) -> int:
+        """Title, keywords, abstract, authors and venue line, weighted in that order."""
         return sum(weight for value, weight in zip(fields, (8, 5, 3, 2, 4), strict=True) if term in value)
 
     @staticmethod

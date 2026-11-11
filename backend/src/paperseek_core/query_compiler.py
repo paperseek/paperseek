@@ -87,7 +87,8 @@ def _top_level_boolean_matches(query: str) -> list[tuple[int, int, str]]:
             end = index + 1
             while end < len(query) and query[end].isalpha():
                 end += 1
-            word = query[index:end].upper()
+            # Operators are uppercase; "research and development" is three plain words.
+            word = query[index:end]
             if word in {"AND", "OR", "NOT"}:
                 matches.append((index, end, word))
             index = end
@@ -145,7 +146,7 @@ def validate_source_query(source: str, query: str) -> QueryValidation:
         flags=re.IGNORECASE,
     )
     if source_id in PLAIN_TEXT_QUERY_SOURCES:
-        if re.search(r"\s+(?:AND|OR|NOT|ANDNOT)\s+", value, flags=re.IGNORECASE):
+        if re.search(r"\s+(?:AND|OR|NOT|ANDNOT)\s+", value):
             return QueryValidation(
                 source=source_id,
                 query=value,
@@ -160,7 +161,7 @@ def validate_source_query(source: str, query: str) -> QueryValidation:
                 issue=f"{source_id} relevance search does not accept database field syntax",
             )
     if source_id in MINIMAL_BOOLEAN_QUERY_SOURCES:
-        if re.search(r"\s+(?:AND|NOT|ANDNOT)\s+", value, flags=re.IGNORECASE):
+        if re.search(r"\s+(?:AND|NOT|ANDNOT)\s+", value):
             return QueryValidation(
                 source=source_id,
                 query=value,
@@ -310,7 +311,6 @@ def strict_query_output_instruction(output_label: str) -> str:
         "- The rationale field may briefly explain the adjustment, direction, or title-intent diagnostic for audit.\n"
         "- Do not put the rationale, labels, markdown, bullets, or comments inside the query field.\n"
         "- If you compare returned titles with the intent, put the on-intent/off-intent conclusion in rationale and keep query clean.\n"
-        "- If you cannot improve the query, repeat the current valid query in query and explain why in rationale.\n"
     )
 
 

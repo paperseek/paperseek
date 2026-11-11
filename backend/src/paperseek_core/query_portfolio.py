@@ -118,6 +118,9 @@ class QueryPortfolioExecutor:
                 )
             elif "exact_primary_duplicate" in selection.reason_codes:
                 execution = self._execution(selection, status="skipped_duplicate")
+            elif {"exact_selected_view_duplicate", "near_selected_view_duplicate"} & set(selection.reason_codes):
+                # The selector already found a chosen view that covers this one.
+                execution = self._execution(selection, status="skipped_duplicate")
             elif requests_started >= budget.query_portfolio_max:
                 execution = self._execution(
                     selection,

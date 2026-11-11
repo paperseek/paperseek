@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import httpx
 
+from paperseek_core.final_result import FinalResultAssembler
 from paperseek_core.models import PaperRecord
 from paperseek_core.sources import SourceError, SourceSearchRequest, rate_limit
 from paperseek_core.sources.arxiv import ArxivSource
@@ -183,6 +184,7 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record.source.source_title, "Journal of AI Governance")
         self.assertEqual(record.source.publish_year, 2023)
         self.assertEqual(record.abstract, "Crossref abstract.")
+        self.assertEqual(CrossrefSource._to_record({"title": ["Science &amp;amp; Society"]}).title, "Science & Society")
         self.assertEqual(record.identifiers.issn, "1234-5678")
         self.assertEqual(record.citations[0].count, 9)
 
@@ -329,6 +331,8 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([author.display_name for author in implausible_year.names.authors], ["JMR Oualy"])
         self.assertEqual(implausible_year.source.source_title, "SSRN")
         self.assertEqual(implausible_year.source.publish_year, 2019)
+        russian = "Учебник: удобно и подробно"
+        self.assertEqual(GoogleScholarSource._to_record({"id": "gs-ru", "title": russian}).title, russian)
 
     async def test_paperhub_exact_request_sequence_sort_paging_and_mapping(self) -> None:
         shard_url = f"{PaperHubSource.RAW_BASE_URL}/shards/iclr.fixture.json"
@@ -440,6 +444,7 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record.identifiers.doi, "10.1234/wos.fixture")
         self.assertEqual(record.names.authors[0].wos_standard, "Lovelace, Ada")
         self.assertEqual(record.citations[0].count, 8)
+        self.assertEqual(FinalResultAssembler._pages(record.source.pages), "61-102")
 
     async def test_wos_uid_detail_request_and_optional_omission(self) -> None:
         document_url = f"{WosSource.BASE_URL}/WOS:FIXTURE"
@@ -602,10 +607,13 @@ class M2ProviderHttpContractTest(unittest.IsolatedAsyncioTestCase):
         }
         for name, route in simple_cases.items():
             with self.subTest(source=name):
-                source, _ = self.source_case(name, route)
+                source, client = self.source_case(name, route)
                 result = await source.search(self.request_for(name))
                 self.assertEqual(result.metadata.total, 0)
                 self.assertEqual(result.hits, [])
+                if name == "googlescholar":
+                    # Every page is billed: an empty first page ends the search.
+                    self.assertEqual(len(client.calls), 1)
 
         manifest = load_json("paperhub_manifest.json")
         manifest["shards"][0]["count"] = 0

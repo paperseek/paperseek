@@ -60,9 +60,9 @@ function optionsText(item: SourceDescriptor) {
   const options = sourceSetting(item.id)?.options || {};
   const entries = Object.entries(options);
   if (!entries.length) return "—";
-  return entries.map(([key, value]) => `${optionLabels[key]?.() || key} · ${value || u("notFilled")}`).join("；");
+  return entries.map(([key, value]) => `${optionLabels[key]?.() || key} · ${value || u("notFilled")}`).join(u("listSep"));
 }
-async function test(id: string) {
+async function test(id: string, reload = true) {
   testing.add(id);
   try {
     await settingsApi.testSource(id);
@@ -70,11 +70,13 @@ async function test(id: string) {
     /* Recorded result is shown after reload. */
   } finally {
     testing.delete(id);
-    await loadSettings(true);
+    if (reload) await loadSettings(true);
   }
 }
 async function testAll() {
-  await Promise.all(descriptors.value.filter((item) => sourceSetting(item.id)?.usable).map((item) => test(item.id)));
+  // One reload after every test has recorded its result, so no row shows an earlier snapshot.
+  await Promise.all(descriptors.value.filter((item) => sourceSetting(item.id)?.usable).map((item) => test(item.id, false)));
+  await loadSettings(true);
 }
 function configure(item: SourceDescriptor) {
   editing.value = item;
