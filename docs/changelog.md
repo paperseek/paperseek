@@ -4,7 +4,51 @@ outline: 2
 
 # Changelog
 
-Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta5.
+Features, improvements, and upgrade notes, from the first demo to PaperSeek 1.0.0-beta6.
+
+## 1.0.0-beta6 {#v1-0-0-beta6}
+
+Searches no longer wait for one another, a local Ollama model can write reviews without a key, and a round of fixes covers data sources, queries, the worker, and the MCP server. It upgrades earlier 1.0 betas in place.
+
+### Searches and reviews
+
+- Start a new search while another is queued or running. All searches and reviews share the limit set by `PAPERSEEK_MAX_CONCURRENT_RUNS`.
+- A local Ollama model writes reviews with no API key.
+- The worker keeps running after a task fails or the database is briefly unavailable.
+- A search cancelled just as it finishes ends as cancelled instead of staying in a cancelling state.
+- Keys entered for a single search are deleted as soon as it ends.
+
+### Data sources
+
+- PubMed's recent-papers path sorts by publication date; it no longer raises a warning on every search.
+- Crossref records keep volume, issue, and pages, and titles with doubly escaped characters such as `&amp;amp;` are decoded.
+- Web of Science records keep their page range. Testing the source in settings no longer reports HTTP 400 for a valid key.
+- A missing Web of Science or Google Scholar key is reported as a key problem.
+- Source keys set in the environment are used as the defaults in settings.
+- Importing a Chinese core journal workbook reads its first sheet, wherever that sheet was created.
+
+### Queries
+
+- Only uppercase `AND`, `OR`, and `NOT` are Boolean operators, so a query containing a lowercase "and" is accepted.
+- A search skips query variants that are nearly identical to one it has already run.
+
+### Reviews
+
+- Evidence checking matches quotes that contain LaTeX commands, and locates quotes faster in long papers.
+- The review list loads faster with many reviews.
+
+### MCP
+
+- The MCP server uses the saved network proxy and the configured concurrency, the same as the command line and the web interface.
+- The error for a missing setup names an existing `doctor` option, and access tokens with non-ASCII characters are compared correctly.
+
+### Interface
+
+- Fixed repeated queue polling, error codes shown in place of messages, and an outline that kept an old version number after it was regenerated.
+
+### Upgrade notes
+
+- From an earlier 1.0 beta, install 1.0.0b6 with pip or set `PAPERSEEK_VERSION=1.0.0-beta6` for Docker. The database updates itself on the first start; back it up first, and do not open it with an older version afterwards. See [upgrading from an earlier 1.0 beta](self-hosting/upgrade.md#from-an-earlier-1-0-beta).
 
 ## 1.0.0-beta5 {#v1-0-0-beta5}
 

@@ -11,7 +11,7 @@ from paperseek_core.models import (
     PaperSource,
 )
 
-__version__ = "1.0.0b5"
+__version__ = "1.0.0b6"
 
 __all__ = [
     "PaperAuthor",
