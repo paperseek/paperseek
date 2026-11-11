@@ -405,6 +405,9 @@ class QueryView(CoreModel):
         return self
 
 
+_LANDSCAPE_VIEW_TYPES = frozenset({"direct_terminology", "successor_paradigm", "mechanism_method", "application_benchmark"})
+
+
 class SearchPlan(CoreModel):
     intent: str = Field(min_length=1)
     question_type: QuestionType = "specific_relation"
@@ -493,17 +496,23 @@ class SearchPlan(CoreModel):
             )
         return "\n".join(parts)
 
-    def coverage_gaps(self) -> list[str]:
+    def coverage_gaps(self, *, zh: bool = False) -> list[str]:
         gaps = []
         if len(self.query_views) < 3:
             gaps.append(
+                "至少三个有效且互补的检索视角；当前计划只会退回到单条检索式" if zh else
                 "at least three valid complementary query views; the current plan would silently fall back to a single-query search"
             )
-        if self.question_type == "broad_landscape" and "successor_paradigm" not in {
-            view.view_type for view in self.query_views
-        }:
+        # The planning prompt asks for three of the four landscape view types; a successor view alone also suffices.
+        view_types = {view.view_type for view in self.query_views}
+        if (self.question_type == "broad_landscape" and "successor_paradigm" not in view_types
+                and len(view_types & _LANDSCAPE_VIEW_TYPES) < 3):
             gaps.append(
-                "a successor_paradigm query view covering established newer terminology or methods that solve the task without repeating the exact field name"
+                "宽泛综述类问题需要覆盖 direct_terminology、successor_paradigm、mechanism_method、application_benchmark 中的三类视角，"
+                "或至少包含一个 successor_paradigm 视角（标题中不一定重复原领域名称、但解决同一任务的成熟新术语或方法）" if zh else
+                "query views of three of the types direct_terminology, successor_paradigm, mechanism_method and "
+                "application_benchmark, or at least a successor_paradigm query view covering established newer terminology "
+                "or methods that solve the task without repeating the exact field name"
             )
         return gaps
 

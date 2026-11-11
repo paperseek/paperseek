@@ -220,7 +220,6 @@ class RankingPipeline:
             same_tier_retry_used = False
             while True:
                 failed: list[tuple[int, list[PaperRecord]]] = []
-                empty_failures = 0
                 rate_limited = False
                 worklist = list(remaining)
                 for start in range(0, len(worklist), workers):
@@ -253,7 +252,6 @@ class RankingPipeline:
                         if isinstance(outcome, Exception):
                             target = exhausted if failure_details(outcome).get("attempts") else failed
                             target.append((index, batch))
-                            empty_failures += isinstance(outcome, EmptyRankingBatchError)
                             rate_limited = rate_limited or self._is_rate_limit_error(outcome)
                             self._event(
                                 "ranking.batch_failed",
@@ -285,16 +283,15 @@ class RankingPipeline:
                     if rate_limited and lower_tier_available:
                         failed.extend(worklist[start + len(chunk):])
                         break
-                if (
-                    failed
-                    and empty_failures == len(failed)
-                    and not rate_limited
-                    and not same_tier_retry_used
-                ):
+                if failed and not rate_limited and not same_tier_retry_used:
                     same_tier_retry_used = True
                     remaining = failed
                     continue
                 remaining = failed
+                break
+            # Lower concurrency only helps against a rate limit. Any other failure had its
+            # one retry at this level and is reported instead of being replayed at every level.
+            if not rate_limited:
                 break
 
         warnings = []

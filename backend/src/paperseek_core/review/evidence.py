@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections import Counter
 from difflib import SequenceMatcher, get_close_matches
+from functools import lru_cache
 from html import unescape
 from html.parser import HTMLParser
 import json
@@ -49,10 +51,21 @@ class _AbstractText(HTMLParser):
             self.parts.append(" ")
 
 
+# Abstracts arrive with line breaks escaped as the two characters \n or \r. The same two characters
+# also start LaTeX commands (\rho, \nabla, \neq), which must survive.
+_LATEX_COMMAND = (
+    r"(?:nabla|neq|neg|ne(?!\.)|ni(?!\.)|notin|not|nu|nless|ngtr|nleq|ngeq|nmid|nparallel|nsim|ncong"
+    r"|nsubseteq|nsupseteq|nexists|natural|nearrow|nwarrow|nolimits|nonumber|rho|rightarrow|rightleftharpoons"
+    r"|rightharpoonup|rightharpoondown|rangle|rceil|rfloor|rbrace|rbrack|rvert|rVert|rtimes|right|rm|ref)(?![A-Za-z])"
+)
+_ESCAPED_BREAK = r"\\r\\n|\\(?!" + _LATEX_COMMAND + r")[rn]"
+_BREAK_OR_SPACE = r"(?:\s|" + _ESCAPED_BREAK + r")+"
+
+
 def normalize_abstract(value: str) -> str:
     parser = _AbstractText()
     parser.feed(value)
-    text = " ".join(re.sub(r"\\r\\n|\\[rn]", " ", unescape("".join(parser.parts))).split())
+    text = " ".join(re.sub(_ESCAPED_BREAK, " ", unescape("".join(parser.parts))).split())
     if re.fullmatch(r"This thesis was submitted for the award of [^.?!]+ and was awarded by [^.?!]+\.?", text, re.I):
         return ""
     return "" if text.casefold().strip(" .。:：") in _MISSING else text
@@ -92,28 +105,49 @@ def locate_quote(quote: str, abstract: str) -> tuple[int, int] | None:
     anchor = SequenceMatcher(None, words, wanted, autojunk=False).find_longest_match(0, len(words), 0, len(wanted))
     if anchor.size == 0:
         return None
-    slack, best = max(2, len(wanted) // 4), (0.0, 0, 0)
+    slack = max(2, len(wanted) // 4)
     first = anchor.a - anchor.b
-    for start in range(max(0, first - slack), min(len(words) - 1, first + slack) + 1):
-        for length in range(max(1, len(wanted) - slack), len(wanted) + slack + 1):
-            if start + length > len(words):
-                break
-            ratio = SequenceMatcher(None, words[start:start + length], wanted, autojunk=False).ratio()
-            if ratio > best[0]:
+    threshold = 1.0 if len(wanted) < _SHORT_QUOTE else _FUZZY_MATCH
+    shortest, longest = max(1, len(wanted) - slack), len(wanted) + slack
+    counts = Counter(wanted)
+    matcher = SequenceMatcher(None, autojunk=False)
+    matcher.set_seq2(wanted)
+    # The highest ratio wins and ties go to the earliest, shortest window. Windows near the anchor
+    # are compared first, and a window is only compared when the words it shares with the quote
+    # (an upper bound on its ratio) could still beat the best one: a long quote would otherwise
+    # cost thousands of full comparisons.
+    best: tuple[float, int, int] | None = None
+    for start in sorted(range(max(0, first - slack), min(len(words) - 1, first + slack) + 1),
+                        key=lambda value: abs(value - first)):
+        available, shared, bounds = dict(counts), 0, []
+        for length in range(1, min(longest, len(words) - start) + 1):
+            word = words[start + length - 1]
+            if available.get(word, 0) > 0:
+                available[word] -= 1
+                shared += 1
+            if length >= shortest:
+                bounds.append((2.0 * shared / (length + len(wanted)), length))
+        for bound, length in sorted(bounds, key=lambda item: abs(item[1] - len(wanted))):
+            if bound < (threshold if best is None else max(threshold, best[0])):
+                continue
+            matcher.set_seq1(words[start:start + length])
+            ratio = matcher.ratio()
+            if ratio >= threshold and (best is None or (-ratio, start, length) < (-best[0], best[1], best[2])):
                 best = (ratio, start, length)
-    ratio, start, length = best
-    if ratio < (1.0 if len(wanted) < _SHORT_QUOTE else _FUZZY_MATCH):
+    if best is None:
         return None
+    _, start, length = best
     return source[start][1], source[start + length - 1][2]
 
 
 _ELLIPSIS = re.compile(r"\s*(?:\.{3,}|…|\[\.\.\.\])\s*")
 
 
+@lru_cache(maxsize=2048)  # The model reply is validated once as it arrives and once when it is stored.
 def _locate(quote: str, source: str, abstract: str) -> tuple[int, int] | None:
     # Match formatting whitespace in old snapshots too, retaining original offsets and text.
-    words = re.split(r"(?:\s|\\r\\n|\\[rn])+", quote.strip().translate(_QUOTE_TYPOGRAPHY))
-    match = re.search(r"(?:\s|\\r\\n|\\[rn])+".join(re.escape(word) for word in words), source)
+    words = re.split(_BREAK_OR_SPACE, quote.strip().translate(_QUOTE_TYPOGRAPHY))
+    match = re.search(_BREAK_OR_SPACE.join(re.escape(word) for word in words), source)
     return (match.start(), match.end()) if match else locate_quote(quote, abstract)
 
 

@@ -354,33 +354,6 @@ ARXIV_CATEGORIES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-SEMANTIC_SCHOLAR_FIELDS: tuple[str, ...] = (
-    "Computer Science",
-    "Medicine",
-    "Chemistry",
-    "Biology",
-    "Materials Science",
-    "Physics",
-    "Geology",
-    "Psychology",
-    "Art",
-    "History",
-    "Geography",
-    "Sociology",
-    "Business",
-    "Political Science",
-    "Economics",
-    "Philosophy",
-    "Mathematics",
-    "Engineering",
-    "Environmental Science",
-    "Agricultural and Food Sciences",
-    "Education",
-    "Law",
-    "Linguistics",
-)
-
-
 def _alias_key(value: object) -> str:
     text = str(value or "").strip().lower()
     text = re.sub(r"^https?://openalex\.org/fields/", "", text)
@@ -522,40 +495,11 @@ def discipline_labels(values: object) -> tuple[str, ...]:
     return tuple(field.label for field in get_discipline_fields(values))
 
 
-def discipline_summary(values: object) -> str:
-    return ", ".join(discipline_labels(values))
-
-
-def openalex_field_ids(values: object) -> tuple[str, ...]:
-    return normalize_discipline_ids(values)
-
-
 def openalex_field_filter(values: object) -> str:
-    ids = openalex_field_ids(values)
+    ids = normalize_discipline_ids(values)
     if not ids:
         return ""
     return "primary_topic.field.id:" + "|".join(ids)
-
-
-def wos_categories(values: object) -> tuple[str, ...]:
-    return normalize_wos_categories(values)
-
-
-def wos_category_clause(values: object, max_categories: int = 24) -> str:
-    categories = wos_categories(values)[:max(1, int(max_categories or 24))]
-    if not categories:
-        return ""
-    return "WC=(" + " OR ".join(categories) + ")"
-
-
-def strip_wos_category_filter(query: str) -> str:
-    query = (query or "").strip()
-    if not query:
-        return ""
-    query = re.sub(r"\s+(AND|OR)\s+WC\s*=\s*\([^)]*\)", "", query, flags=re.IGNORECASE)
-    query = re.sub(r"WC\s*=\s*\([^)]*\)\s+(AND|OR)\s+", "", query, flags=re.IGNORECASE)
-    query = re.sub(r"^WC\s*=\s*\([^)]*\)$", "", query, flags=re.IGNORECASE).strip()
-    return re.sub(r"\s+", " ", query).strip()
 
 
 def _outer_parentheses_wrap(query: str) -> bool:
@@ -582,11 +526,6 @@ def _query_with_outer_group_for_filter(query: str) -> str:
     if re.search(r"\bOR\b", query, flags=re.IGNORECASE):
         return f"({query})"
     return query
-
-
-def apply_wos_discipline_filter(query: str, values: object) -> str:
-    del values
-    return strip_wos_category_filter(query)
 
 
 def arxiv_category_clause(values: object) -> str:
@@ -645,19 +584,4 @@ def discipline_prompt_context(values: object, source: str, text_hint: str = "") 
             f"\nResearch field/context hint: {hint}.\n"
             "This source has no reliable native discipline filter in PaperSeek, so use this hint only to choose better search terms."
         )
-    return ""
-
-
-def discipline_source_note(values: object, source: str) -> str:
-    source = (source or "").strip().lower()
-    native_values = normalize_source_filter_values(source, values)
-    if not native_values:
-        return ""
-    if source == "openalex":
-        labels = ", ".join(discipline_labels(native_values))
-        return f"discipline={labels}; filter={openalex_field_filter(native_values)}"
-    if source == "wos":
-        return f"category_context={', '.join(native_values)}; WC unsupported by WoS Starter API"
-    if source == "arxiv":
-        return f"category={', '.join(native_values)}; {arxiv_category_clause(native_values)}"
     return ""
