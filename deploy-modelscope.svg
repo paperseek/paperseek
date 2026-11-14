@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="185" height="32" viewBox="0 0 185 32" role="img" aria-label="Deploy to ModelScope">
+  <title>Deploy to ModelScope</title>
+  <rect x="0.5" y="0.5" width="184" height="31" rx="5.5" fill="#fff" stroke="#d8d8d8"/>
+  <g transform="translate(10 8) scale(0.6667)" fill="#624AFF" fill-rule="evenodd">
+    <path d="M2.667 5.3H8v2.667H5.333v2.666H2.667V8.467H.5v2.166h2.167V13.3H0V7.967h2.667V5.3zM2.667 13.3h2.666v2.667H8v2.666H2.667V13.3zM8 10.633h2.667V13.3H8v-2.667zM13.333 13.3v2.667h-2.666V13.3h2.666zM13.333 13.3v-2.667H16V13.3h-2.667z"/>
+    <path d="M21.333 13.3v-2.667h-2.666V7.967H16V5.3h5.333v2.667H24V13.3h-2.667zm0-2.667H23.5V8.467h-2.167v2.166z" clip-rule="evenodd"/>
+    <path d="M21.333 13.3v5.333H16v-2.666h2.667V13.3h2.666z"/>
+  </g>
+  <text x="34" y="20.5" fill="#000" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600">Deploy to ModelScope</text>
+</svg>
