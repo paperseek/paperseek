@@ -96,6 +96,7 @@ class FinalResultAssembler:
         doi = document.identifiers.doi if document.identifiers else ""
         url = links.get("record") or links.get("landing_page") or document.uid
         provenance = item.provenance
+        open_access = dict(annotations.get("open_access") or {})
         return FinalPaperResult(
             rank=rank,
             source=venue,
@@ -107,7 +108,7 @@ class FinalResultAssembler:
             publication_type=publication_type,
             doi=doi,
             url=url,
-            pdf_url=links.get("pdf") or "",
+            pdf_url=links.get("pdf") or open_access.get("pdf_url") or "",
             abstract=document.abstract,
             keywords="; ".join(keywords),
             citation_count=citation_count,
@@ -135,6 +136,7 @@ class FinalResultAssembler:
             arxiv_id=identifiers.arxiv if identifiers else "",
             journal_metrics=dict(annotations.get("journal_metrics") or {}),
             acceptance=dict(annotations.get("acceptance") or {}),
+            open_access=open_access,
         )
 
     @staticmethod

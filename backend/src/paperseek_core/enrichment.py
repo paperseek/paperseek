@@ -1,4 +1,4 @@
-"""Labels for final results: journal partitions, open impact figures and conference acceptance."""
+"""Labels for final results: journal partitions, open impact figures, conference acceptance and open-access copies."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from paperseek_core.sources.contracts import SourceError
 from paperseek_core.sources.http import AsyncHttpTransport
 from paperseek_core.sources.openreview import OpenReviewClient
 from paperseek_core.sources.paperhub import PaperHubSource
+from paperseek_core.sources.unpaywall import UnpaywallClient
 
 # Venues worth an OpenReview title lookup: preprints and machine-learning conferences.
 _REVIEWED_VENUES = re.compile(
@@ -66,12 +67,19 @@ class ResultEnricher:
         openreview: OpenReviewClient | None = None,
         # OpenReview is paced at one request a second, so this bounds the added time per search.
         openreview_lookups: int = 15,
+        unpaywall: UnpaywallClient | None = None,
+        # One request per DOI; papers past this many keep the links their source gave.
+        unpaywall_lookups: int = 200,
+        unpaywall_seconds: float = 30,
         concurrency: int = 3,
     ) -> None:
         self.journals = journals
         self.openalex = openalex
         self.openreview = openreview
         self.openreview_lookups = openreview_lookups
+        self.unpaywall = unpaywall
+        self.unpaywall_lookups = unpaywall_lookups
+        self.unpaywall_seconds = unpaywall_seconds
         self.concurrency = concurrency
 
     async def annotate(self, documents: list[PaperRecord]) -> dict[str, dict[str, Any]]:
@@ -79,17 +87,16 @@ class ResultEnricher:
         acceptance = {document.uid: self._known_acceptance(document) for document in documents}
         journal = {document.uid: self._journal(document, table, acceptance[document.uid]) for document in documents}
         await self._open_impact(documents, journal)
-        await self._openreview(documents, journal, acceptance)
+        open_access: dict[str, dict[str, Any]] = {}
+        await asyncio.gather(self._openreview(documents, journal, acceptance), self._open_access(documents, open_access))
         for document in documents:
             # A conference found on OpenReview gets its CCF class from the venue it was accepted at.
             if table and "ccf" not in journal[document.uid] and (venue := acceptance[document.uid].get("venue")):
                 if ccf := table.ccf("", [venue]):
                     journal[document.uid] = {"journal": venue, "matched_by": "title", **journal[document.uid], "ccf": dict(ccf)}
-        return {
-            uid: {key: value for key, value in (("journal_metrics", journal[uid]), ("acceptance", acceptance[uid])) if value}
-            for uid in journal
-            if journal[uid] or acceptance[uid]
-        }
+        labels = {uid: {"journal_metrics": journal[uid], "acceptance": acceptance[uid],
+                        "open_access": open_access.get(uid)} for uid in journal}
+        return {uid: found for uid, values in labels.items() if (found := {key: value for key, value in values.items() if value})}
 
     @staticmethod
     def _issns(document: PaperRecord) -> list[str]:
@@ -147,6 +154,33 @@ class ResultEnricher:
                     acceptance[document.uid] = merge(acceptance[document.uid], found)
 
         await asyncio.gather(*(lookup(document) for document in candidates))
+
+    async def _open_access(self, documents: list[PaperRecord], found: dict[str, dict[str, Any]]) -> None:
+        """Unpaywall copies for papers with a DOI whose source gave no PDF link."""
+        if self.unpaywall is None:
+            return
+        candidates = [document for document in documents
+                      if document.identifiers and document.identifiers.doi and not (document.links and document.links.pdf)]
+        semaphore = asyncio.Semaphore(5)
+        blocked = asyncio.Event()
+
+        async def lookup(document: PaperRecord) -> None:
+            async with semaphore:
+                if blocked.is_set():
+                    return
+                try:
+                    copy = await self.unpaywall.find(document.identifiers.doi)
+                except Exception:
+                    blocked.set()  # A refused email or an outage answers every DOI the same way.
+                    return
+                if copy:
+                    found[document.uid] = copy
+
+        try:
+            async with asyncio.timeout(self.unpaywall_seconds):
+                await asyncio.gather(*(lookup(document) for document in candidates[:self.unpaywall_lookups]))
+        except TimeoutError:
+            pass  # Copies found so far are kept.
 
     @staticmethod
     def _worth_lookup(document: PaperRecord, journal: dict[str, dict[str, Any]],

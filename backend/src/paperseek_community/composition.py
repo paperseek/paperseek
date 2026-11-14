@@ -40,6 +40,7 @@ from paperseek_core.sources.paperhub import PaperHubSource
 from paperseek_community.journal_tables import JournalTableStore
 from paperseek_core.sources.pubmed import PubMedSource
 from paperseek_core.sources.semantic_scholar import SemanticScholarSource
+from paperseek_core.sources.unpaywall import UnpaywallClient
 from paperseek_core.sources.proxy import ProxyPolicy
 from paperseek_core.sources.wanfang import WanfangSource
 from paperseek_core.sources.wos import WosSource
@@ -58,12 +59,14 @@ class CommunityExecutionResolver:
         *,
         proxy: Callable[[], ProxyPolicy] | None = None,
         journal_tables: JournalTableStore | None = None,
+        unpaywall_email: Callable[[], str] | None = None,
     ) -> None:
         self.settings = settings
         self.credentials = credentials
         self.journal_tables = journal_tables
         # Read for each run, so a proxy saved in Settings applies without a restart.
         self.proxy = proxy or (lambda: settings.proxy)
+        self.unpaywall_email = unpaywall_email or (lambda: settings.unpaywall_email)
 
     def __call__(self, run: RunDetail, cancellation: CancellationToken) -> WorkflowExecution:
         deadline_at = time.monotonic() + max(0, (run.deadline_at - datetime.now(timezone.utc)).total_seconds())
@@ -138,6 +141,7 @@ class CommunityExecutionResolver:
             )
 
         tables = self.journal_tables
+        unpaywall_email = self.unpaywall_email()
         enrichment = ResultEnricher(
             journals=(lambda: tables.ensure(client)) if tables else None,
             openalex=OpenAlexVenueMetrics(
@@ -146,6 +150,7 @@ class CommunityExecutionResolver:
                 api_key=self.settings.openalex_api_key,
             ),
             openreview=OpenReviewClient(transport=transport),
+            unpaywall=UnpaywallClient(transport=transport, email=unpaywall_email) if unpaywall_email else None,
         )
         return WorkflowExecution(
             decision=decision,

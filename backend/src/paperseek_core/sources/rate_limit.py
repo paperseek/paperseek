@@ -31,7 +31,7 @@ class _Window:
 _lock = threading.Lock()
 _windows: dict[tuple[str, str, bytes], _Window] = {}
 PACED_SOURCES = frozenset({'arxiv', 'pubmed', 'semanticscholar', 'openalex', 'crossref', 'wos', 'googlescholar', 'paperhub',
-                           'wanfang', 'nssd', 'yiigle', 'openreview', 'showjcr'})
+                           'wanfang', 'nssd', 'yiigle', 'openreview', 'showjcr', 'unpaywall'})
 # arXiv also requires a single connection; another request waits for the current one in short steps.
 _BUSY_POLL = 0.05
 

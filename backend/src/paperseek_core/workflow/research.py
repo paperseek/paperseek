@@ -239,6 +239,7 @@ class ResearchWorkflow:
         self._event("enrichment.completed", {
             "journal_matches": sum(1 for value in annotations.values() if value.get("journal_metrics")),
             "acceptance_matches": sum(1 for value in annotations.values() if value.get("acceptance")),
+            "open_access_matches": sum(1 for value in annotations.values() if value.get("open_access")),
         })
         return annotations
 

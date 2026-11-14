@@ -23,6 +23,12 @@ Cards can carry two kinds of venue labels. Open **Details** for the full entry.
 
 Labels are added when a search finishes. The ShowJCR tables download from GitHub on the first search and stay on this computer; **Settings → Data sources → Journal rankings** shows their editions and **Update all** fetches them again; the PKU Core and CSSCI list downloads with them. The network proxy applies to these downloads. Where GitHub is unreachable, download the same file from ShowJCR (`FQBJCR2025-UTF8.csv`, `JCR2025-UTF8.csv`, `CCF2026-UTF8.csv`) and use **Import local file**. The PKU Core and CSSCI list imports from `.xlsx` or CSV with the columns 刊名, 收录 and 曾用名. Run a search again to label it with a new edition.
 
+## Open-access links
+
+A card shows **PDF** when its source gave a PDF link. With a contact email saved under **Settings → Data sources → Open-access links**, each search also asks [Unpaywall](https://unpaywall.org) by DOI for a legal open copy of papers that have a DOI and no PDF link. A direct PDF becomes the card's **PDF** link; a copy that only has a web page shows as **Open access**. Details say whether it is the published version, an accepted manuscript or a submitted version, where it is hosted, and its license.
+
+PaperSeek records the link and does not download the paper. Unpaywall needs no account, only the email, and leaving it empty turns the lookup off. Papers without a DOI, which includes most records from the Chinese databases, are not looked up.
+
 ## Filter, sort, and select
 
 Result controls search the returned set, apply available filters, and change the order. They do not issue a fresh external search.

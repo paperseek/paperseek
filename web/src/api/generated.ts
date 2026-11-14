@@ -133,6 +133,7 @@ export interface components {
         "review_llm"?: string | null;
         "search_llm"?: string | null;
         "source"?: string | null;
+        "unpaywall_email"?: string | null;
       };
     "DefaultsOutput": {
         "decision" : string;
@@ -142,6 +143,7 @@ export interface components {
         "review_llm" : string;
         "search_llm" : string;
         "source" : string;
+        "unpaywall_email"?: string | null;
       };
     "DeletionReceipt": {
         "deleted_at" : string;
@@ -457,6 +459,9 @@ export interface components {
         "keywords"?: string;
         "keywords_text"?: string;
         "links"?: {
+        [key: string]: unknown;
+      };
+        "open_access"?: {
         [key: string]: unknown;
       };
         "pages"?: string;

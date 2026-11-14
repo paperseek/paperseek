@@ -24,6 +24,8 @@ class CommunityDeploymentSettings(BaseModel):
     google_scholar_api_key: str = Field(repr=False)
     wanfang_api_key: str = Field(default="", repr=False)
     contact_email: str
+    # Sent to Unpaywall to look up open-access copies; Settings can override it.
+    unpaywall_email: str = ""
     wos_db: str = "WOS"
     proxy: ProxyPolicy = Field(default_factory=ProxyPolicy, repr=False, exclude=True)
     # Searches and reviews that run at the same time; 0 removes the limit.
@@ -57,6 +59,7 @@ class CommunityDeploymentSettings(BaseModel):
             google_scholar_api_key=os.environ.get("PAPERSEEK_GOOGLE_SCHOLAR_API_KEY", "").strip(),
             wanfang_api_key=os.environ.get("PAPERSEEK_WANFANG_API_KEY", "").strip(),
             contact_email=os.environ.get("PAPERSEEK_CONTACT_EMAIL", "").strip(),
+            unpaywall_email=os.environ.get("PAPERSEEK_UNPAYWALL_EMAIL", "").strip(),
             wos_db=normalize_wos_db(os.environ.get("PAPERSEEK_WOS_DB")),
             max_concurrent_runs=os.environ.get("PAPERSEEK_MAX_CONCURRENT_RUNS", "").strip() or 4,
             proxy=ProxyPolicy(parse_proxy_urls(os.environ.get("PAPERSEEK_PROXY_URLS")),

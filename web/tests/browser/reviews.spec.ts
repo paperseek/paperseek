@@ -160,6 +160,8 @@ test("manual selection accepts 256 papers including later ranks and stops at the
   await open(page, `/reviews/new?source=${ids.done}`, state);
   await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "加载更多" }).click();
+  // The last row is rank 257 only once the second page has arrived.
+  await expect(page.locator(".paper-pick")).toHaveCount(257);
   await page.locator(".paper-pick").last().locator("label.cb").click();
   await page.getByRole("button", { name: "选择全部有摘要的" }).click();
   await expect(page.getByText("已选 256 / 256 篇")).toBeVisible();

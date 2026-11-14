@@ -174,7 +174,8 @@ def main(
     workspace = WorkspaceSettingsStore(database, credentials)
     resolver = execution_resolver or CommunityExecutionResolver(
         settings, credentials, proxy=lambda: workspace.proxy_policy(settings),
-        journal_tables=JournalTableStore(database.parent))
+        journal_tables=JournalTableStore(database.parent),
+        unpaywall_email=lambda: workspace.unpaywall_email(settings))
     if args.command == "serve":
         import uvicorn
 

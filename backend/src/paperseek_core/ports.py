@@ -76,7 +76,7 @@ class DecisionPort(Protocol):
 
 @runtime_checkable
 class EnrichmentPort(Protocol):
-    """Adds journal partitions and conference acceptance to final results; never fails a run."""
+    """Adds journal partitions, conference acceptance and open-access copies to final results; never fails a run."""
 
     async def annotate(self, documents: list[PaperRecord]) -> dict[str, dict[str, Any]]: ...
 

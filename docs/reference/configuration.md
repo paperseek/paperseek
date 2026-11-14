@@ -21,6 +21,7 @@ The repository's [.env.example](https://github.com/paperseek/paperseek/blob/main
 | `PAPERSEEK_GOOGLE_SCHOLAR_API_KEY` | Serper key or key pool |
 | `PAPERSEEK_WANFANG_API_KEY` | Wanfang Data AppKey |
 | `PAPERSEEK_CONTACT_EMAIL` | Contact email used by source clients that support it |
+| `PAPERSEEK_UNPAYWALL_EMAIL` | Email sent to Unpaywall to look up open-access links; an address saved in Settings replaces it, and without either the lookup is off |
 | `PAPERSEEK_PROXY_URLS` | HTTP(S) proxy pool, one URL per line or comma-separated; replaces the proxy saved in Settings |
 | `PAPERSEEK_PROXY_SCOPE` | What goes through the pool: `models`, `ip_limited_sources`, `other_sources`; defaults to all three |
 | `PAPERSEEK_MAX_CONCURRENT_RUNS` | Searches and reviews that run at the same time; defaults to `4`, `0` removes the limit |

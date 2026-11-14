@@ -61,6 +61,8 @@ class DefaultsInput(BaseModel):
     reranker: str | None = Field(default=None, max_length=64)
     decision: str | None = Field(default=None, max_length=64)
     source: str | None = Field(default=None, max_length=64)
+    # Contact address sent to Unpaywall with each open-access lookup; empty turns the lookup off.
+    unpaywall_email: str | None = Field(default=None, max_length=320, pattern=r"^$|^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class SourceSettingsInput(BaseModel):
@@ -125,6 +127,8 @@ class DefaultsOutput(BaseModel):
     reranker: str
     decision: str
     source: str
+    # None where the deployment sets the address itself and offers no setting.
+    unpaywall_email: str | None = None
 
 
 class ProxySettingsOutput(BaseModel):
