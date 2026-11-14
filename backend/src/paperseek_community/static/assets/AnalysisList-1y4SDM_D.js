@@ -1,1 +1,0 @@
-import{Y as e,ft as t,nt as n}from"./state-PngT32Bq.js";import{t as r}from"./SavedRecordList-BUS0sxCr.js";var i=n({__name:`AnalysisList`,setup(n){return(n,i)=>(t(),e(r,{module:`bibliometrics`}))}});export{i as default};
