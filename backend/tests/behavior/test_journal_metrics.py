@@ -14,7 +14,11 @@ import httpx
 from paperseek_community.journal_tables import JournalTableError, JournalTableStore
 from paperseek_core.enrichment import ResultEnricher
 from paperseek_core.journal_metrics import CN_CORE_URL, matches_filter, showjcr_url
-from paperseek_core.models import PaperIdentifiers, PaperRecord, PaperSource
+from paperseek_core.final_result import FinalResultAssembler
+from paperseek_core.models import PaperIdentifiers, PaperLinks, PaperRecord, PaperSource, RankedPaper
+from paperseek_core.sources.http import AsyncHttpTransport
+from paperseek_core.sources.rate_limit import reset_source_rate_limits
+from paperseek_core.sources.unpaywall import UnpaywallClient
 
 CAS = ("Journal,年份,ISSN/EISSN,Review,OA Journal Index（OAJ）,大类,大类分区,Top\n"
        "IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,2025,0162-8828/1939-3539,否,否,计算机科学,1 [10/758],是\n"
@@ -104,6 +108,44 @@ class JournalMetricsContractTest(unittest.TestCase):
         self.assertEqual([name for name in ("pku", "cssci", "cssci_e") if matches_filter(labels["arab"]["journal_metrics"], name)],
                          ["cssci_e"])
         self.assertTrue(labels["renamed"]["journal_metrics"]["cn_core"]["pku"])
+
+
+class OpenAccessLinks(unittest.TestCase):
+    def test_unpaywall_fills_the_pdf_link_only_where_the_source_gave_none(self):
+        asked = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            asked.append((request.url.path, request.url.params["email"]))
+            if request.url.path.endswith("10.1/closed"):
+                return httpx.Response(200, json={"is_oa": False, "best_oa_location": None})
+            if request.url.path.endswith("10.1/unknown"):
+                return httpx.Response(404, json={"error": True})
+            return httpx.Response(200, json={
+                "is_oa": True, "oa_status": "green",
+                "best_oa_location": {"url": "https://publisher.example/a", "url_for_landing_page": "https://publisher.example/a",
+                                     "url_for_pdf": None, "host_type": "publisher", "version": "publishedVersion"},
+                "oa_locations": [{"url_for_pdf": "https://repo.example/a.pdf", "url_for_landing_page": "https://repo.example/a",
+                                  "host_type": "repository", "version": "acceptedVersion", "license": "cc-by"}]})
+
+        def paper(uid: str, doi: str = "", pdf: str = "") -> PaperRecord:
+            return PaperRecord(uid=uid, title=uid, identifiers=PaperIdentifiers(doi=doi), links=PaperLinks(pdf=pdf))
+
+        async def run() -> dict:
+            reset_source_rate_limits()
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                unpaywall = UnpaywallClient(transport=AsyncHttpTransport(client=client), email="reader@example.org")
+                return await ResultEnricher(unpaywall=unpaywall).annotate([
+                    paper("open", "https://doi.org/10.1/Open"), paper("closed", "10.1/closed"), paper("unknown", "10.1/unknown"),
+                    paper("has-pdf", "10.1/has-pdf", "https://source.example/has.pdf"), paper("no-doi")])
+
+        labels = asyncio.run(run())
+        self.assertEqual(sorted(asked), [("/v2/10.1/Open", "reader@example.org"), ("/v2/10.1/closed", "reader@example.org"),
+                                         ("/v2/10.1/unknown", "reader@example.org")])
+        self.assertEqual(labels, {"open": {"open_access": {
+            "status": "green", "pdf_url": "https://repo.example/a.pdf", "url": "https://repo.example/a",
+            "version": "acceptedVersion", "license": "cc-by", "host_type": "repository"}}})
+        ranked = RankedPaper(document=paper("open", "10.1/Open"))
+        self.assertEqual(FinalResultAssembler._paper(1, ranked, labels["open"]).pdf_url, "https://repo.example/a.pdf")
 
 
 if __name__ == "__main__":

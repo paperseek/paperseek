@@ -44,6 +44,15 @@ export interface JournalPartitions {
   };
   openalex?: { two_year_mean_citedness?: number | null; h_index?: number | null; i10_index?: number | null };
 }
+/** A legal open copy found through Unpaywall. */
+export interface OpenAccess {
+  status?: string;
+  pdf_url?: string;
+  url?: string;
+  version?: string;
+  license?: string;
+  host_type?: string;
+}
 export interface Acceptance {
   venue?: string;
   year?: number | null;

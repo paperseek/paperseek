@@ -4,6 +4,7 @@ import { ApiError } from "../../api/client";
 import type { SourceDescriptor } from "../../api/types";
 import Icon from "../../components/Icon.vue";
 import JournalTables from "./JournalTables.vue";
+import OpenAccessLinks from "./OpenAccessLinks.vue";
 import UiSelect from "../../components/UiSelect.vue";
 import UiSheet from "../../components/UiSheet.vue";
 import { toast } from "../../components/toast";
@@ -158,6 +159,7 @@ async function testSheet() {
   <p class="xs muted row" style="gap: 6px"><Icon name="lock" size="xs" />{{ u("sourcesFoot") }}</p>
 
   <JournalTables />
+  <OpenAccessLinks />
 
   <UiSheet v-if="editing" :title="u('configureSource', { name: sourceName(editing.id, editing.label) })" :description="u('configureSourceDesc')" :busy="busy" @close="editing = null">
     <form id="source-form" class="stack" style="gap: 16px" autocomplete="off" @submit.prevent="saveSource()">

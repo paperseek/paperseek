@@ -746,6 +746,8 @@ class FinalPaperResult(CoreModel):
     journal_metrics: dict[str, Any] = Field(default_factory=dict)
     # Conference acceptance (venue, year, Oral/Spotlight/Poster); see paperseek_core.acceptance.
     acceptance: dict[str, Any] = Field(default_factory=dict)
+    # A legal open copy (status, pdf_url, url, version, license, host_type); see paperseek_core.sources.unpaywall.
+    open_access: dict[str, Any] = Field(default_factory=dict)
 
 
 class ResearchAssemblyRequest(CoreModel):
@@ -765,7 +767,7 @@ class ResearchAssemblyRequest(CoreModel):
     search_state: dict[str, Any] = Field(default_factory=dict)
     items: list[RankedPaper] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    # Per document uid: {"journal_metrics": {...}, "acceptance": {...}} from the enrichment step.
+    # Per document uid: {"journal_metrics": {...}, "acceptance": {...}, "open_access": {...}} from the enrichment step.
     annotations_by_uid: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 

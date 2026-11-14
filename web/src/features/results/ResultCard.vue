@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { Acceptance, JournalPartitions, PaperResult } from "../../api/types";
+import type { Acceptance, JournalPartitions, OpenAccess, PaperResult } from "../../api/types";
 import AppDialog from "../../components/AppDialog.vue";
 import Icon from "../../components/Icon.vue";
 import UiMenu from "../../components/UiMenu.vue";
@@ -42,6 +42,18 @@ const partitionRows = computed(() => {
   ].filter(Boolean);
 });
 const openImpact = computed(() => journal.value.openalex);
+const openAccess = computed(() => (props.paper.open_access || {}) as OpenAccess);
+// Which copy it is: an accepted manuscript differs from the published page layout.
+const openAccessText = computed(() => {
+  const { version, license, host_type: host } = openAccess.value;
+  const versions = { publishedVersion: "oaVersionPublished", acceptedVersion: "oaVersionAccepted", submittedVersion: "oaVersionSubmitted" } as const;
+  const hosts = { publisher: "oaHostPublisher", repository: "oaHostRepository" } as const;
+  return [
+    version && version in versions ? u(versions[version as keyof typeof versions]) : "",
+    host && host in hosts ? u(hosts[host as keyof typeof hosts]) : "",
+    license ? license.toUpperCase() : "",
+  ].filter(Boolean).join(" · ");
+});
 </script>
 
 <template>
@@ -66,6 +78,7 @@ const openImpact = computed(() => journal.value.openalex);
         <span class="badge" :class="scoreClass" data-testid="result-score">{{ score === null ? u("unscored") : `${score}/10` }}</span>
         <a v-if="paper.doi" class="badge badge-outline" :href="`https://doi.org/${paper.doi}`" target="_blank" rel="noopener">DOI</a>
         <a v-if="paper.pdf_url" class="badge badge-secondary" :href="paper.pdf_url" target="_blank" rel="noopener"><Icon name="download" />PDF</a>
+        <a v-else-if="openAccess.url" class="badge badge-secondary" data-testid="result-open-access" :href="openAccess.url" target="_blank" rel="noopener">{{ u("openAccessBadge") }}</a>
         <a v-if="acceptance.label && acceptance.url" class="badge badge-outline" data-testid="result-acceptance" :href="acceptance.url" target="_blank" rel="noopener">{{ acceptance.label }}</a>
         <span v-else-if="acceptance.label" class="badge badge-outline" data-testid="result-acceptance">{{ acceptance.label }}</span>
         <span v-for="badge in badges" :key="badge" class="badge badge-outline" data-testid="result-journal-rank">{{ badge }}</span>
@@ -81,6 +94,7 @@ const openImpact = computed(() => journal.value.openalex);
         <template v-if="acceptance.label"><dt>{{ u("acceptanceLabel") }}</dt><dd style="text-align: left">{{ acceptance.label }}<template v-if="acceptance.sources?.length"> · <span class="muted">{{ acceptance.sources.map((name) => name === "paperhub" ? "Paper Hub" : "OpenReview").join(" + ") }}</span></template></dd></template>
         <template v-if="partitionRows.length"><dt>{{ u("journalPartitions") }}</dt><dd style="text-align: left"><span v-for="row in partitionRows" :key="row" style="display: block">{{ row }}</span><span class="xs muted" style="display: block">{{ u("partitionNote") }}<template v-if="journal.matched_by === 'title'"> · {{ u("matchedByTitle") }}</template></span></dd></template>
         <template v-if="openImpact"><dt>{{ u("openImpactLabel") }}</dt><dd style="text-align: left">{{ u("openImpactValue", { citedness: number(openImpact.two_year_mean_citedness, 2) || "—", h: openImpact.h_index ?? "—" }) }}</dd></template>
+        <template v-if="openAccess.pdf_url || openAccess.url"><dt>{{ u("openAccessLabel") }}</dt><dd style="text-align: left"><a class="link" :href="openAccess.pdf_url || openAccess.url" target="_blank" rel="noopener">{{ openAccessText || u("openAccessBadge") }}</a> · <span class="muted">Unpaywall</span></dd></template>
         <template v-if="paper.doi"><dt>DOI</dt><dd style="text-align: left"><a class="link" :href="`https://doi.org/${paper.doi}`" target="_blank" rel="noopener">{{ paper.doi }}</a></dd></template>
         <template v-if="keywords"><dt>{{ u("keywords") }}</dt><dd style="text-align: left">{{ keywords }}</dd></template>
         <template v-if="paper.provider"><dt>{{ u("provider") }}</dt><dd style="text-align: left">{{ sourceName(paper.provider, paper.provider) }}</dd></template>

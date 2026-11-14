@@ -246,7 +246,11 @@ class WorkspaceSettingsStore:
             "reranker": pick("reranker", "reranker"),
             "decision": pick("decision", "decision"),
             "source": source,
+            "unpaywall_email": stored.get("unpaywall_email") or (deployment.unpaywall_email if deployment else ""),
         }
+
+    def unpaywall_email(self, deployment: CommunityDeploymentSettings | None = None) -> str:
+        return self._stored_defaults().get("unpaywall_email") or (deployment.unpaywall_email if deployment else "")
 
     def save_defaults(self, request: DefaultsInput,
                       deployment: CommunityDeploymentSettings | None = None) -> dict[str, str]:

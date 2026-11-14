@@ -21,6 +21,7 @@
 | `PAPERSEEK_GOOGLE_SCHOLAR_API_KEY` | Serper Key 或 Key 池 |
 | `PAPERSEEK_WANFANG_API_KEY` | 万方数据 AppKey |
 | `PAPERSEEK_CONTACT_EMAIL` | 支持联系邮箱的数据源客户端使用的邮箱 |
+| `PAPERSEEK_UNPAYWALL_EMAIL` | 向 Unpaywall 查询开放获取链接时附带的邮箱；设置中保存的邮箱优先，两者都没有则不查询 |
 | `PAPERSEEK_PROXY_URLS` | HTTP(S) 代理池，每行一个或用逗号分隔；设置后取代设置页中保存的代理 |
 | `PAPERSEEK_PROXY_SCOPE` | 哪些请求走代理：`models`、`ip_limited_sources`、`other_sources`，默认三项都走 |
 | `PAPERSEEK_MAX_CONCURRENT_RUNS` | 同时运行的检索和综述任务数，默认 `4`，`0` 表示不限制 |
