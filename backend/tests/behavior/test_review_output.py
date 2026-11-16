@@ -112,6 +112,25 @@ class ReviewOutputTests(ReviewCase):
         self.assertEqual(len(calls), 2)
         self.assertTrue(calls[1].startswith("You are a strict JSON formatter"))
 
+    async def test_a_syntax_error_mid_reply_is_shown_in_context_to_the_formatter_and_the_retry(self):
+        # Seen in production with Intern-S2: "paragraphs" left open before "omitted". A column number
+        # alone let the formatter copy the reply unchanged and the retry repeat it.
+        broken = ('{"paragraphs":[{"text":"First","evidence_ids":["e_1"]},'
+                  '"omitted":[{"paper_id":"p_2","reason":"Duplicate"}]}')
+        prompts = []
+
+        class Model:
+            async def chat_json(self, messages, **_):
+                prompts.append(messages[0]["content"] + messages[-1]["content"])
+                return broken
+
+        with self.assertRaises(ReviewOutputError) as caught:
+            await structured_call(Model(), CancellationScope(), "section", "", {}, SectionBody)
+        marked = '["e_1"]},"omitted"<<<ERROR HERE>>>:[{"paper_id"'
+        self.assertIn(marked, prompts[1])  # first formatter pass
+        self.assertIn(marked, prompts[2])  # retry request
+        self.assertIn(marked, caught.exception.reason)
+
 
 class ReviewCitationsTest(unittest.TestCase):
     def setUp(self):
