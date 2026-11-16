@@ -77,11 +77,27 @@ def _syntax_only(exc: ValidationError) -> bool:
     return all(error["type"] == "json_invalid" for error in exc.errors())
 
 
+def _near_error(text: str) -> str:
+    """The text around the first JSON syntax error, marked, or "" when the text parses.
+
+    A column number alone does not let a model find the mistake in a long reply.
+    """
+    try:
+        json.loads(text)
+    except json.JSONDecodeError as exc:
+        start, end = max(exc.pos - 160, 0), exc.pos + 80
+        return ("JSON syntax error near: " + ("…" if start else "") + text[start:exc.pos] + "<<<ERROR HERE>>>"
+                + text[exc.pos:end] + ("…" if end < len(text) else ""))
+    return ""
+
+
 async def _reformat(llm: LLMPort, cancellation: CancellationToken, contract: str, output: str, max_tokens: int) -> str:
     """A separate formatting pass: long prose often breaks JSON escaping while its content is fine."""
+    near = _near_error(_clean_json(output))
     try:
         formatted = await llm.chat_json(
-            [{"role": "system", "content": FORMATTER + "\nSCHEMA:\n" + contract}, {"role": "user", "content": output}],
+            [{"role": "system", "content": FORMATTER + (f"\n{near}" if near else "") + "\nSCHEMA:\n" + contract},
+             {"role": "user", "content": output}],
             temperature=0, max_tokens=max_tokens,
         )
     except LLMRequestError:
@@ -129,6 +145,8 @@ async def structured_call(
                 f"{'.'.join(str(part) for part in error['loc']) or '$'}: {error['msg']}"
                 for error in exc.errors(include_input=False, include_context=False, include_url=False)[:8]
             ) if isinstance(exc, ValidationError) else str(exc)
+            if isinstance(exc, ValidationError) and _syntax_only(exc) and (near := _near_error(cleaned)):
+                reason += "\n" + near
             reason = reason[:2000]
             if attempt == attempts - 1:
                 raise ReviewOutputError(f"Invalid {task} output.", result, task=task, reason=reason, output=cleaned) from exc
